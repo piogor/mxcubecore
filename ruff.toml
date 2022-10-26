@@ -570,6 +570,34 @@ convention = "google"
     "S110",
     "S602",
 ]
+"mxcubecore/HardwareObjects/MAXIV/BioMAX/BIOMAXAperture.py" = [
+    "COM812",
+    "ERA001",
+    "N999",
+    "PLE1206",
+]
+"mxcubecore/HardwareObjects/MAXIV/BioMAX/BIOMAXBeamInfo.py" = [
+    "ARG002",
+    "BLE001",
+    "COM812",
+    "E501",
+    "EM101",
+    "ERA001",
+    "F401",
+    "FIX002",
+    "G002",
+    "N814",
+    "N999",
+    "RET503",
+    "RET504",
+    "SLF001",
+    "TD002",
+    "TD003",
+    "TD004",
+    "TRY002",
+    "TRY003",
+    "TRY400",
+]
 "mxcubecore/HardwareObjects/MAXIV/BioMAX/BIOMAXResolution.py" = [
     "ARG002",
     "BLE001",
