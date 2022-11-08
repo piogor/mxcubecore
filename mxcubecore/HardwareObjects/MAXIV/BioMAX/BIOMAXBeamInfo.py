@@ -82,8 +82,9 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
             dict: copy of beam_info_dict
         """
         self.evaluate_beam_info()
-        self._beam_info_dict["size_x"] = self.beam_size_hor.get_value() / 1000
-        self._beam_info_dict["size_y"] = self.beam_size_ver.get_value() / 1000
+        if self.beam_size_hor and self.beam_size_ver:
+            self._beam_info_dict["size_x"] = self.beam_size_hor.get_value() / 1000
+            self._beam_info_dict["size_y"] = self.beam_size_ver.get_value() / 1000
         self._beam_info_dict["label"] = self.aperture_hwobj.get_diameter_size()
         self.get_beam_shape()
         return self._beam_info_dict.copy()
@@ -122,8 +123,6 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
 
     def beam_size_state_changed(self, value):
         """called if aperture, slits or focusing has been changed"""
-        self._beam_info_dict['state_x'] = self.beam_size_hor.get_state()
-        self._beam_info_dict['state_y'] = self.beam_size_ver.get_state()
         self.re_emit_values()
         self.get_beam_info_dict()
 
