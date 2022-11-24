@@ -738,6 +738,12 @@ convention = "google"
     "TRY002",
     "TRY003",
 ]
+"mxcubecore/HardwareObjects/MAXIV/BioMAX/BIOMAXZoom.py" = [
+    "ARG002",
+    "COM812",
+    "E711",
+    "N999",
+]
 "mxcubecore/HardwareObjects/MAXIV/Energy.py" = [
     "ARG002",
     "B904",
