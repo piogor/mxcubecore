@@ -800,6 +800,12 @@ convention = "google"
     "S607",
     "TRY300",
 ]
+"mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXAperture.py" = [
+    "COM812",
+    "ERA001",
+    "N999",
+    "PLE1206",
+]
 "mxcubecore/HardwareObjects/MD2Motor.py" = [
     "B028",
     "B904",
