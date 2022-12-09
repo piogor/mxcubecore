@@ -809,6 +809,17 @@ convention = "google"
     "N999",
     "PLE1206",
 ]
+"mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXBeamInfo.py" = [
+    "ARG002",
+    "COM812",
+    "FIX002",
+    "G003",
+    "N814",
+    "N999",
+    "TD002",
+    "TD003",
+    "TD004",
+]
 "mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXCollect.py" = [
     "ARG002",
     "B007",
