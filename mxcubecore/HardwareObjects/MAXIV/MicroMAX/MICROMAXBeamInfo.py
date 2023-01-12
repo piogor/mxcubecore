@@ -7,6 +7,7 @@ from enum import (
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects import BeamInfo
 from mxcubecore.HardwareObjects.abstract import AbstractBeam
+from mxcubecore.utils.units import um_to_mm
 
 """
 XML example file
@@ -61,7 +62,6 @@ class MICROMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         self.chan_beam_size_microns = None
         self.chan_beam_shape_ellipse = None
         BeamInfo.BeamInfo.init(self)
-        self._beam_position_on_screen = (500, 500)
         beam_size_slits = self.get_property("beam_size_slits")
         if beam_size_slits:
             self.beam_size_slits = tuple(map(float, beam_size_slits.split()))
@@ -74,7 +74,7 @@ class MICROMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
 
         beam_position = self.get_property("beam_position")
         if beam_position:
-            self.beam_position = tuple(map(float, beam_position.split()))
+            self._beam_position_on_screen = tuple(map(float, beam_position.split()))
         else:
             logging.getLogger("HWR").warning(
                 "MICROMAXBeamInfo: " + "beam position not configured"
@@ -98,11 +98,22 @@ class MICROMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
     def evaluate_beam_info(self, *args):
         BeamInfo.BeamInfo.evaluate_beam_info(self, *args)
         self.beam_info_dict["shape"] = "ellipse"
+        current_aperture = float(self._aperture.get_diameter_size())
+        self._beam_width = current_aperture / 1000
+        self.beam_info_dict["size_x"] = self._beam_width
+        self._beam_height = current_aperture / 1000
+        self.beam_info_dict["size_y"] = self._beam_height
+
         return self.beam_info_dict
 
     def get_value(self):
-        pos = self.get_beam_position()
-        return pos[0], pos[1], BeamShape.ELIPTICAL, ""  # last str is a label
+        current_aperture_um = self._aperture.get_diameter_size()
+        beam_size_mm = um_to_mm(current_aperture_um)
+
+        return beam_size_mm, beam_size_mm, BeamShape.ELIPTICAL, current_aperture_um
+
+    def set_value(self, value):
+        self._aperture.set_diameter_size(value)
 
     def get_available_size(self):
         """Get the available predefined beam definers configuration.
