@@ -581,6 +581,55 @@ convention = "google"
     "E501",
     "F841",
     "S605",
+    "SIM102",
+    "T201",
+    "TRY400",
+]
+"mxcubecore/HardwareObjects/MAXIV/MachInfo.py" = [
+    "EXE002",
+    "RET504",
+]
+"mxcubecore/HardwareObjects/MAXIV/MD3UpCamera.py" = [
+    "ARG002",
+    "COM812",
+    "E501",
+    "FBT002",
+    "G004",
+    "N999",
+    "RUF005",
+    "S101",
+    "S603",
+    "S607",
+    "TRY300",
+]
+"mxcubecore/HardwareObjects/MD2Motor.py" = [
+    "B028",
+    "B904",
+    "BLE001",
+    "E501",
+    "ERA001",
+    "G001",
+    "N802",
+    "TRY300",
+    "TRY301",
+]
+"mxcubecore/HardwareObjects/MD3UP.py" = [
+    "ARG002",
+    "ERA001",
+    "FBT002",
+    "FBT003",
+    "N802",
+    "N806",
+    "PLR0913",
+    "RET506",
+    "T201",
+]
+"mxcubecore/HardwareObjects/MachCurrent.py" = [
+    "E501",
+    "TRY401",
+]
+"mxcubecore/HardwareObjects/Mar225.py" = [
+    "ARG002",
 ]
 "mxcubecore/HardwareObjects/Marvin.py" = [
     "B007",
