@@ -1,0 +1,44 @@
+---
+
+include:
+  - project: 'kits-maxiv/cfg-maxiv-gitlabci'
+    file: PreCommit.gitlab-ci.yml
+
+workflow:
+  auto_cancel:
+    on_job_failure: all
+
+stages:
+  - check
+
+run-test:
+  stage: check
+  image: docker.io/mambaorg/micromamba:latest
+  tags:
+    - kubernetes
+  parallel:
+    matrix:
+      - PYTHON_VER: ["3.11"]
+  coverage: '/^TOTAL.+?(\d+\%)$/'
+  before_script:
+    # There is no wheel for python-ldap which depends on openldap
+    # We install it with conda
+    - eval "$(/bin/micromamba shell hook -s bash)"
+    - >
+      micromamba create
+      --yes
+      --name mxcubecore
+      --file conda-environment-dev.yml
+      python=$PYTHON_VER
+      python-ldap=3.4.3
+    - micromamba activate mxcubecore
+    - pip install --editable '.[maxiv]' pytest pytest-cov pytest-mock
+  script:
+    - pytest -v --cov-report term-missing --cov-report html --junitxml=report.xml
+  artifacts:
+    when: always
+    paths:
+      - htmlcov/
+      - report.xml
+    reports:
+      junit: report.xml
