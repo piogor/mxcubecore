@@ -911,12 +911,10 @@ class AbstractCollect(HardwareObject, object):
         mesh_range_param: tuple,
     ) -> None:
         """Set the mesh scan parameters."""
-        return
-
-        # self.mesh_num_lines = num_lines
-        # self.mesh_total_nb_frames = total_nb_frames
-        # self.mesh_range = mesh_range_param
-        # self.mesh_center = mesh_center_param
+        self.mesh_num_lines = num_lines
+        self.mesh_total_nb_frames = total_nb_frames
+        self.mesh_range = mesh_range_param
+        self.mesh_center = mesh_center_param
 
     def adxv_notify(self, image_filename: str, image_num: int = 1):
         """
