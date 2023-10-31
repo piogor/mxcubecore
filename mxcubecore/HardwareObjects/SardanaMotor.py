@@ -1,4 +1,5 @@
 import enum
+import math
 import time
 
 from gevent import Timeout
@@ -204,12 +205,17 @@ class SardanaMotor(AbstractMotor):
                     static_limits is returned
         """
         try:
-            self._nominal_limits = (
-                self.position_channel.info.minval,
-                self.position_channel.info.maxval,
-            )
+            _min = self.position_channel.info.minval
+            if math.isinf(self.position_channel.info.minval):
+                _min = -10000
+
+            _max = self.position_channel.info.maxval
+            if math.isinf(self.position_channel.info.maxval):
+                _max = 10000
+            self._nominal_limits = (_min, _max)
             return self._nominal_limits
-        except Exception:
+        except Exception as ex:
+            print(ex)
             return (None, None)
 
     def get_value(self):
