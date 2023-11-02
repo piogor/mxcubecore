@@ -584,6 +584,12 @@ class AbstractCollect(HardwareObject, object):
     def store_data_collection_in_lims(self):
         """Store current data collection information in LIMS database."""
         lims = HWR.beamline.lims
+
+        logging.getLogger("HWR").debug("Storing data collection in LIMS")
+        logging.getLogger("HWR").debug(
+            "Data collection parameters: %s" % str(self.current_dc_parameters)
+        )
+
         if (
             lims
             and lims.is_connected()
@@ -595,6 +601,8 @@ class AbstractCollect(HardwareObject, object):
                 if group_id is None:
                     lims.store_data_collection_group(self.current_dc_parameters)
 
+                logging.getLogger("HWR").debug("group_id: %s" % group_id)
+
                 self.current_dc_parameters["synchrotronMode"] = (
                     self.get_machine_fill_mode()
                 )
@@ -604,6 +612,9 @@ class AbstractCollect(HardwareObject, object):
                 ) = HWR.beamline.lims.store_data_collection(
                     self.current_dc_parameters, self.bl_config
                 )
+
+                logging.getLogger("HWR").debug("collection_id: %s" % collection_id)
+
                 self.current_dc_parameters["collection_id"] = collection_id
                 self.collection_id = collection_id
                 if detector_id:
