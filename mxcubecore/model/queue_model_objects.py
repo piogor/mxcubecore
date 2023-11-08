@@ -2701,6 +2701,11 @@ def to_collect_dict(data_collection, sample, centred_pos=None):
     acq_params = acquisition.acquisition_parameters
     proc_params = data_collection.processing_parameters
 
+    try:
+        shape_id = data_collection.shape
+    except AttributeError():
+        shape_id = ""
+
     result = [
         {
             "comments": acq_params.comments,
@@ -2770,6 +2775,7 @@ def to_collect_dict(data_collection, sample, centred_pos=None):
             "motors": centred_pos.as_dict() if centred_pos is not None else {},
             "ispyb_group_data_collections": data_collection.ispyb_group_data_collections,
             "workflow_parameters": data_collection.workflow_parameters,
+            "shape": shape_id,
         }
     ]
 
