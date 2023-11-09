@@ -68,12 +68,12 @@ class MAXIVAutoProcessing(HardwareObject):
 
         cmd = "cd %s\n" % xds_dir
         if self.generate_xds_inp_user_path is None:
-            logging.getLogger("HWR").warning("[AutoProcessing] the script generate_xds_inp for user is missing!!")
+            self.log.warning("[AutoProcessing] the script generate_xds_inp for user is missing!!")
         else:
             cmd += "%s %s\n" % (self.generate_xds_inp_user_path, data_path)
             cmd += "chmod 660 XDS.INP\n"
         if self.generate_xds_inp_proc_path is None:
-            logging.getLogger("HWR").error("[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!")
+            self.log.error("[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!")
             raise Exception("[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!")
         cmd += "cd %s\n" % auto_dir
         cmd += "%s %s\n" % (self.generate_xds_inp_proc_path, data_path)
@@ -232,18 +232,14 @@ class MAXIVAutoProcessing(HardwareObject):
             xds_input_file_dirname)
 
         self.log.info("[COLLECT] Processing input file directories: XDS: %s, AUTO: %s" % (xds_directory, auto_directory))
-        try:
-            for directory in [xds_directory, auto_directory]:
-                try:
-                    os.makedirs(directory)
-                except os.error as e:
-                    if e.errno != errno.EEXIST:
-                        raise
-            # temporary, to improve
-            os.system("chmod -R 770 %s %s" % (os.path.dirname(xds_directory), auto_directory))
-        except Exception:
-            logging.exception("Could not create processing file directory")
-            return
+
+        for directory in [xds_directory, auto_directory]:
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except OSError as e:
+                msg = "[COLLECT] Could not create input file directory {}. Error was {}".format(directory, e)
+                self.log.error(msg)
+                return
 
         return xds_directory, auto_directory
 
@@ -423,5 +419,3 @@ class MAXIVAutoProcessing(HardwareObject):
                 self.log.warning("Could not change permissions on ispyb storage, error was {}".format(ex))
 
             return image_id
-
-
