@@ -7,6 +7,7 @@ import gevent
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractDetector import AbstractDetector
+from mxcubecore.model.queue_model_objects import PathTemplate
 from mxcubecore.TaskUtils import task
 
 
@@ -747,3 +748,20 @@ class BIOMAXEiger(AbstractDetector):
         )
 
         return radius
+
+    def get_image_file_name(self, path_template, suffix=None):
+        # ref-Tau-natA1_1_master.h5
+        file_name = f"{path_template.get_prefix()}_{path_template.run_number}_master.h5"
+        return file_name
+
+    def get_first_and_last_file(self, pt: PathTemplate) -> tuple[str, str]:
+        """
+        Get complete path to first and last image
+
+        Args:
+          pt (PathTempalte): Path template parameter
+
+        Returns:
+        (Tuple): Tuple containing first and last image path (first, last)
+        """
+        return (pt.get_image_path(), pt.get_image_path())
