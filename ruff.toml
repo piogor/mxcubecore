@@ -852,6 +852,10 @@ convention = "google"
     "E711",
     "N999",
 ]
+"mxcubecore/HardwareObjects/MAXIV/DataCollect.py" = [
+    "TRY003",
+    "EM101",
+]
 "mxcubecore/HardwareObjects/MAXIV/Energy.py" = [
     "ARG002",
     "B904",
