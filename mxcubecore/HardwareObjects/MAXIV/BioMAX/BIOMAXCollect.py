@@ -11,9 +11,10 @@ import PyTango
 
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
+from mxcubecore.HardwareObjects.MAXIV.DataCollect import DataCollect
 from mxcubecore.TaskUtils import task
 
-class BIOMAXCollect(AbstractCollect, HardwareObject):
+class BIOMAXCollect(DataCollect):
     """BioMAX specific data collection hardware object."""
 
     # min images to trigger auto processing
@@ -958,35 +959,6 @@ class BIOMAXCollect(AbstractCollect, HardwareObject):
         except:
             logging.getLogger("HWR").exception("Could not close the detector cover")
 
-    def open_safety_shutter(self):
-        # todo add time out? if over certain time, then stop acquisiion and
-        # popup an error message
-        if self.safety_shutter_hwobj.getShutterState() == "opened":
-            return
-        timeout = 5
-        count_time = 0
-        logging.getLogger("HWR").info("Opening the safety shutter.")
-        self.safety_shutter_hwobj.openShutter()
-        while (
-            self.safety_shutter_hwobj.getShutterState() == "closed"
-            and count_time < timeout
-        ):
-            time.sleep(0.1)
-            count_time += 0.1
-        if self.safety_shutter_hwobj.getShutterState() == "closed":
-            logging.getLogger("HWR").exception("Could not open the safety shutter")
-            raise Exception("Could not open the safety shutter")
-
-    def close_safety_shutter(self):
-        """
-        Descript. :
-        """
-        # todo, add timeout, same as open
-        logging.getLogger("HWR").info("Closing the safety shutter.")
-        self.safety_shutter_hwobj.closeShutter()
-        while self.safety_shutter_hwobj.getShutterState() == "opened":
-            time.sleep(0.1)
-
     def open_fast_shutter(self):
         """
         Descript. : important to make sure it"s passed, as we
@@ -1392,11 +1364,8 @@ class BIOMAXCollect(AbstractCollect, HardwareObject):
             if self.detector_cover_hwobj is not None:
                 self.close_detector_cover()
             self.diffractometer_hwobj.set_phase("Transfer", wait=False)
-            if (
-                self.safety_shutter_hwobj is not None
-                and self.safety_shutter_hwobj.getShutterState() == "opened"
-            ):
-                self.close_safety_shutter()
+            self.close_safety_shutter()
+
         self.move_detector(800)
 
     def prepare_set_energy(self):
