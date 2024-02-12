@@ -1044,6 +1044,10 @@ convention = "google"
     "TRY003",
     "TRY400",
 ]
+"mxcubecore/HardwareObjects/MAXIV/SciCatPlugin.py" = [
+    "PERF203",
+    "N803",
+]
 "mxcubecore/HardwareObjects/MD2Motor.py" = [
     "B028",
     "B904",
