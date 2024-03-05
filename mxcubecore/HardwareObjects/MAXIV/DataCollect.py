@@ -16,6 +16,7 @@ import gevent
 
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
+import socket
 
 # max time we wait for safety shutter to open, in seconds
 SAFETY_SHUTTER_TIMEOUT = 5.0
@@ -57,3 +58,10 @@ class DataCollect(AbstractCollect, HardwareObject):
         self.log.info("Closing the safety shutter.")
         self.safety_shutter_hwobj.close()
         wait_until_closed()
+
+    def get_mxcube_server_ip(self):
+        """
+        get the ip address of the mxcube server
+        """
+        hostname = socket.gethostname()
+        return socket.gethostbyname(hostname)
