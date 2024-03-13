@@ -13,18 +13,25 @@ import sys
 import time
 
 import gevent
-import PyTango
 from abstract.AbstractCollect import AbstractCollect
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
+from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
+    DataCollect,
+    close_tango_shutter,
+    open_tango_shutter,
+)
+from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 
 DET_SAFE_POSITION = 500
+# max time we wait for detector cover to open or close, in seconds
+DETECTOR_COVER_TIMEOUT = 10.0
 
 
-class MICROMAXCollect(AbstractCollect, HardwareObject):
+class MICROMAXCollect(DataCollect):
     """MicroMAX specific data collection hardware object."""
 
     # min images to trigger auto processing
@@ -55,7 +62,7 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
         self.stop_display = False
         self.interleaved_energies = []
         self.collection_dictionaries = []
-        self.datacatalog_enabled = True
+        self.scicat_enabled = False
         self.collection_uuid = ""
 
         self.flux_before_collect = None
@@ -83,16 +90,16 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
         # self.sample_changer_hwobj = self.getObjectByRole("sample_changer")
         # self.sample_changer_maint_hwobj = self.getObjectByRole("sample_changer_maintenance")
         self.dtox_hwobj = self.detector_hwobj.get_object_by_role("detector_distance")
-        # self.detector_cover_hwobj = self.getObjectByRole("detector_cover")
+        self.detector_cover_hwobj = self.detector_hwobj.get_object_by_role("cover")
         self.session_hwobj = self.get_object_by_role("session")
         self.shape_history_hwobj = HWR.beamline.sample_view
-        self.datacatalog_enabled = (
-            False  # self.getProperty("datacatalog_enabled", False)
-        )
-        if self.datacatalog_enabled:
-            self.datacatalog_hwobj = self.get_object_by_role("datacatalog")
+        self.scicat_enabled = self.get_property("scicat_enabled", False)
+        if self.scicat_enabled:
+            self.scicat_hwobj = SciCatPlugin()
+            self.log.info("[COLLECT] SciCat Datacatalog enabled")
         else:
-            self.datacatalog_hwobj = None
+            self.scicat_hwobj = None
+            self.log.warning("[COLLECT] SciCat Datacatalog not enabled")
         self.polarisation = float(self.get_property("polarisation", 0.99))
         self.gen_thumbnail_script = self.get_property(
             "gen_thumbnail_script",
@@ -101,11 +108,6 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
 
         self.log = logging.getLogger("HWR")
         self.user_log = logging.getLogger("user_level_log")
-
-        if self.datacatalog_enabled:
-            self.log.info("[COLLECT] Datacatalog enabled")
-        else:
-            self.log.warning("[COLLECT] Datacatalog not enabled")
 
         self.safety_shutter_hwobj = self.get_object_by_role("safety_shutter")
         # todo
@@ -358,13 +360,12 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
                 self.current_dc_parameters
             )
 
-        if self.datacatalog_enabled:
+        if self.scicat_enabled:
             try:
-                self.datacatalog_hwobj.store_uuid(
-                    self.current_dc_parameters, self.session_hwobj.proposal_number
-                )
+                proposalId = self.session_hwobj.proposal_number
+                self.scicat_hwobj.start_scan(proposalId, self.current_dc_parameters)
             except Exception as ex:
-                self.log.warning(
+                self.log.exception(
                     "[COLLECT] Error sending uuid to data catalog: %s" % ex
                 )
 
@@ -721,8 +722,8 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
             % self.current_dc_parameters
         )
 
-        if self.datacatalog_enabled:
-            self.datacatalog_hwobj.store_datacollection(self.current_dc_parameters)
+        if self.scicat_enabled:
+            self.scicat_hwobj.end_scan(self.current_dc_parameters)
 
     def post_collection_store_image(self, collection=None):
         """
@@ -913,59 +914,29 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
             return self.beam_info_hwobj.get_beam_shape()
 
     def open_detector_cover(self):
+        """
+        send 'open' request to the detector cover and wait until it's open
+        """
         try:
-            self.log.info("Openning the detector cover.")
-            plc = PyTango.DeviceProxy("b312a/vac/plc-01")
-            plc.B312A_E06_DIA_DETC01_ENAC = 1
-            plc.B312A_E06_DIA_DETC01_OPC = 1
-            time.sleep(1)  # make sure the cover is up before the data collection stars
+            self.log.info("Opening the detector cover.")
+            open_tango_shutter(
+                self.detector_cover_hwobj, DETECTOR_COVER_TIMEOUT, "detector cover"
+            )
         except Exception:
             self.log.exception("Could not open the detector cover")
             raise RuntimeError("[COLLECT] Could not open the detector cover.")
 
     def close_detector_cover(self):
         """
-        Descript. :
+        send 'close' request to the detector cover and wait until it's closed
         """
         try:
             self.log.info("Closing the detector cover")
-            plc = PyTango.DeviceProxy("b312a/vac/plc-01")
-            plc.B312A_E06_DIA_DETC01_ENAC = 1
-            plc.B312A_E06_DIA_DETC01_CLC = 1
+            close_tango_shutter(
+                self.detector_cover_hwobj, DETECTOR_COVER_TIMEOUT, "detector cover"
+            )
         except Exception:
             self.log.exception("Could not close the detector cover")
-
-    def open_safety_shutter(self):
-        """
-        Descript. :
-        """
-        # todo add time out? if over certain time, then stop acquisiion and
-        # popup an error message
-        if self.safety_shutter_hwobj.getShutterState() == "opened":
-            return
-        timeout = 5
-        count_time = 0
-        self.log.info("Opening the safety shutter.")
-        self.safety_shutter_hwobj.openShutter()
-        while (
-            self.safety_shutter_hwobj.getShutterState() == "closed"
-            and count_time < timeout
-        ):
-            time.sleep(0.1)
-            count_time += 0.1
-        if self.safety_shutter_hwobj.getShutterState() == "closed":
-            self.log.exception("Could not open the safety shutter")
-            raise Exception("Could not open the safety shutter")
-
-    def close_safety_shutter(self):
-        """
-        Descript. :
-        """
-        # todo, add timeout, same as open
-        self.log.info("Closing the safety shutter.")
-        self.safety_shutter_hwobj.closeShutter()
-        while self.safety_shutter_hwobj.getShutterState() == "opened":
-            time.sleep(0.1)
 
     def open_fast_shutter(self):
         """
@@ -993,9 +964,6 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
         self.detector_hwobj.set_roi_mode(value)
 
     def set_helical(self, helical_on):
-        """
-        Descript. :
-        """
         self.helical = helical_on
 
     def set_helical_pos(self, helical_oscil_pos):
@@ -1333,11 +1301,8 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
         if manual_mode:
             self.close_detector_cover()
             self.diffractometer_hwobj.set_phase("Transfer")
-            if (
-                self.safety_shutter_hwobj is not None
-                and self.safety_shutter_hwobj.getShutterState() == "opened"
-            ):
-                self.close_safety_shutter()
+            self.close_safety_shutter()
+
         self.move_detector(DET_SAFE_POSITION)
 
     def _update_image_to_display(self):
@@ -1356,8 +1321,14 @@ class MICROMAXCollect(AbstractCollect, HardwareObject):
                 break
             time.sleep(frequency)
 
-    def enable_datacatalog(self, enable):
-        self.datacatalog_enabled = enable
+    def enable_scicat(self, enable):
+        self.scicat_enabled = enable
+        if self.scicat_enabled:
+            self.scicat_hwobj = SciCatPlugin()
+            self.log.info("[COLLECT] SciCat Datacatalog enabled")
+        else:
+            self.scicat_hwobj = None
+            self.log.warning("[COLLECT] SciCat Datacatalog not enabled")
 
     def get_resolution_at_corner(self):
         return self.resolution_hwobj.get_value_at_corner()
