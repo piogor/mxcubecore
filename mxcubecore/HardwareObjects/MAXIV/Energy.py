@@ -151,7 +151,8 @@ class Energy(AbstractEnergy):
                 "Energy: moving energy to %g", energy
             )
             # self.energy_motor.move(energy * 1000)
-            self.energy_motor.sync_move(energy * 1000, timeout=800)
+            self.energy_motor.set_value(energy * 1000)
+            self.energy_motor.wait_end_of_move(800)
             if check_beam_end:
                 try:
                     self.check_beam()
