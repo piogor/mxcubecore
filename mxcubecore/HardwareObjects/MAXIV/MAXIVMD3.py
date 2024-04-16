@@ -3,6 +3,8 @@ import time
 
 import gevent
 
+log = logging.getLogger("HWR")
+
 from gevent import monkey
 
 from mxcubecore import HardwareRepository as HWR
@@ -828,9 +830,9 @@ class MAXIVMD3(GenericDiffractometer):
         """
         Stops all the pending tasks, stops all the motors and closes all theirs control loop.
         """
-        logging.getLogger("HWR").exception("MiniDiff: going to abort")
+        log.warning("[MAXIVMD3]: aborting tasks")
         self.command_dict["abort"]()
-        logging.getLogger("HWR").exception("MiniDiff: all movements aborted")
+        log.warning("[MAXIVMD3]: all tasks aborted")
 
     def move_omega_relative(self, relative_angle):
         self.phi_motor_hwobj.set_value_relative(relative_angle, 10)
