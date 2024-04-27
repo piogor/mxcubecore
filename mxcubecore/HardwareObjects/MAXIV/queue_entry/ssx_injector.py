@@ -1,0 +1,110 @@
+#
+# Disable 'ambiguous unicode character' check.
+# We want to use greek letters for unit cell parameters.
+#
+# ruff: noqa: RUF001
+#
+
+import json
+import logging
+from typing import ClassVar
+
+from pydantic.v1 import (
+    BaseModel,
+    Field,
+)
+
+from mxcubecore import HardwareRepository as HWR
+from mxcubecore.model.common import (
+    CommonCollectionParamters,
+    LegacyParameters,
+    PathParameters,
+    StandardCollectionParameters,
+)
+from mxcubecore.model.queue_model_objects import DataCollection
+from mxcubecore.queue_entry.base_queue_entry import QueueExecutionException
+
+from .base import (
+    AbstractSsxQueueEntry,
+    restore_beamline,
+)
+
+log = logging.getLogger("queue_exec")
+
+
+class InjectorUserCollectionParameters(BaseModel):
+    exp_time: float = Field(100e-4, gt=0, lt=1, title="Exposure time (s)")
+    num_images: int = Field(1000, gt=0, lt=10000000, title="Number of images")
+    energy: float = Field()
+    resolution: float = Field()
+    cellA: float = Field(0, title="Cell A")  # noqa: N815
+    cellB: float = Field(0, title="Cell B")  # noqa: N815
+    cellC: float = Field(0, title="Cell C")  # noqa: N815
+    cellAlpha: float = Field(0, title="Cell α")  # noqa: N815
+    cellBeta: float = Field(0, title="Cell β")  # noqa: N815
+    cellGamma: float = Field(0, title="Cell γ")  # noqa: N815
+
+
+class SsxInjectorQueueModel(DataCollection):
+    pass
+
+
+class InjectorTaskParameters(BaseModel):
+    path_parameters: PathParameters
+    common_parameters: CommonCollectionParamters
+    collection_parameters: StandardCollectionParameters
+    user_collection_parameters: InjectorUserCollectionParameters
+    legacy_parameters: LegacyParameters
+
+    @staticmethod
+    def update_dependent_fields(field_data):
+        return field_data
+
+    @staticmethod
+    def ui_schema():
+        return json.dumps(
+            {
+                "ui:order": [
+                    "num_images",
+                    "exp_time",
+                    "resolution",
+                    "energy",
+                    "cellA",
+                    "cellAlpha",
+                    "cellB",
+                    "cellBeta",
+                    "cellC",
+                    "cellGamma",
+                    "*",
+                ],
+                "ui:submitButtonOptions": {
+                    "norender": "true",
+                },
+            },
+        )
+
+
+class SsxInjectorQueueEntry(AbstractSsxQueueEntry):
+    QMO = SsxInjectorQueueModel
+    DATA_MODEL = InjectorTaskParameters
+    NAME = "SSX Injector Collection"
+    REQUIRES: ClassVar = ["point", "line", "no_shape", "chip", "mesh"]
+
+    def _do_data_collection(self):
+        self.prepare_data_collection()
+
+        detector = HWR.beamline.detector
+        log.info("Sending software trigger to detector.")
+        detector.send_software_trigger()
+        log.info("Waiting for acquisition to finish.")
+        detector.wait_ready()
+        log.info("Acquisition is finished.")
+
+    def execute(self):
+        try:
+            super().execute()
+            self._do_data_collection()
+        except Exception as ex:
+            raise QueueExecutionException(str(ex), self) from ex
+        finally:
+            restore_beamline()
