@@ -370,12 +370,15 @@ class MICROMAXCollect(DataCollect):
                 )
 
         try:
-            self.prepare_detector()
+            det_config = self.prepare_detector()
         except Exception as ex:
             self.user_log.exception("Collection: cannot set prepare detector.")
             msg = "[COLLECT] Error preparing detector: %s" % ex
             self.log.error(msg)
             raise Exception(msg)
+
+        if self.ssx_mode:
+            self.generate_crystfel_input_files(det_config)
 
         # move MD3 to DataCollection phase if it's not
         if self.diffractometer_hwobj.get_current_phase() != "DataCollection":
@@ -903,6 +906,19 @@ class MICROMAXCollect(DataCollect):
             except Exception:
                 self.log.exception("[COLLECT] Error launching MAXIV autoprocessing")
 
+    def generate_crystfel_input_files(self, det_config):
+        self.log.info("[COLLECT] Generating input files for launching crystfel")
+        if self.autoprocessing_hwobj is not None:
+            try:
+                self.autoprocessing_hwobj.generate_crystfel_input_files(
+                    det_config,
+                    self.current_dc_parameters["sample_reference"],
+                    self.current_dc_parameters["xds_dir"],
+                    self.current_dc_parameters["auto_dir"],
+                )
+            except Exception:
+                self.log.exception("[COLLECT] Cannot generate crystfel input files")
+
     def get_beam_centre(self):
         if self.detector_hwobj is not None:
             return self.detector_hwobj.get_beam_position()
@@ -1199,6 +1215,7 @@ class MICROMAXCollect(DataCollect):
             "collect_dict": collect_dict,
         }
         self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
+        return config
 
     def stop_collect(self):
         """
