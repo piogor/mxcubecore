@@ -10,14 +10,17 @@ a data collection hardware object.
 # ruff: noqa: N999
 #
 
-from typing import Callable
+import socket
+from typing import (
+    Callable,
+    Optional,
+)
 
 import gevent
 
 from mxcubecore.BaseHardwareObjects import HardwareObject
-from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
 from mxcubecore.HardwareObjects import TangoShutter
-import socket
+from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
 
 # max time we wait for safety shutter to open, in seconds
 SAFETY_SHUTTER_TIMEOUT = 5.0
@@ -54,6 +57,25 @@ def close_tango_shutter(shutter: TangoShutter, timeout: float, name: str):
 
     shutter.close()
     wait_until_closed()
+
+
+def parse_unit_cell_params(params: str) -> list[Optional[float]]:
+    """
+    Parse the comma separated unit cell parameters string of following format:
+
+        '<cell_a>,<cell_b>,<cell_c>,<cell_alpha>,<cell_beta>,<cell_gamma>'
+
+    Returns cell parameters as a list of floats. Any omitted parameter is set to None.
+    """
+
+    def parse():
+        for param in params.split(","):
+            if param == "":
+                yield None
+            else:
+                yield float(param)
+
+    return list(parse())
 
 
 class DataCollect(AbstractCollect, HardwareObject):
