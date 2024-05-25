@@ -1025,6 +1025,13 @@ convention = "google"
     "TRY400",
     "TRY401",
 ]
+"mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXFlux.py" = [
+    "COM812",
+    "N814",
+    "N999",
+    "RET504",
+    "T201",
+]
 "mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXLight.py" = [
     "N999",
 ]
