@@ -18,13 +18,13 @@ from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
-from mxcubecore.HardwareObjects.MAXIV import pandabox
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
     DataCollect,
     close_tango_shutter,
     open_tango_shutter,
     parse_unit_cell_params,
 )
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX import pandabox
 from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 
