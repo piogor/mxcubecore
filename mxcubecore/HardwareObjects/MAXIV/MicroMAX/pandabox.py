@@ -1,7 +1,7 @@
 import logging
-from tango import DeviceProxy
 from dataclasses import dataclass
 
+from tango import DeviceProxy
 
 TANGO_DEVICE = "B312A-A101232-CAB01/CTL/PANDA-01"
 
