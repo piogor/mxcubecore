@@ -16,7 +16,7 @@ from pydantic.v1 import (
 )
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.HardwareObjects.MAXIV import pandabox
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX import pandabox
 from mxcubecore.model.common import (
     CommonCollectionParamters,
     LegacyParameters,
