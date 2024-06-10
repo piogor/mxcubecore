@@ -1332,7 +1332,7 @@ class BIOMAXCollect(DataCollect):
             flux = -1
         return flux
 
-    def get_instant_flux(self, keep_position=False):
+    def get_instant_flux(self, keep_position=True):
         """Get the instant flux value, w/o checking beams stability.
 
         This method assumes that the MD3 is already in data collection phase.
