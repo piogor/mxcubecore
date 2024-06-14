@@ -1063,6 +1063,10 @@ convention = "google"
     "PERF203",
     "N803",
 ]
+"mxcubecore/HardwareObjects/MAXIV/queue_entry/biomax_xray_centering.py" = [
+    "ERA001",
+    "FBT002",
+]
 "mxcubecore/HardwareObjects/MD2Motor.py" = [
     "B028",
     "B904",
