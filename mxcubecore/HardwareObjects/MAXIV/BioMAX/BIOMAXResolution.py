@@ -1,6 +1,8 @@
 import logging
 import math
+import time
 
+from gevent import Timeout
 from scipy.constants import (
     angstrom,
     c,
@@ -113,7 +115,21 @@ class BIOMAXResolution(AbstractResolution):
         distance = self.res2dist(value)
         msg = "Move resolution to {} ({} mm)".format(value, distance)
         logging.getLogger().info(msg)
+        logging.getLogger().info(self.dtox.get_value())
+        self.wait_ready(60)
         self.dtox.set_value(float(distance))
+
+    def is_ready(self) -> bool:
+        """
+        Returns:
+            True if the motor is ready
+        """
+        return self.dtox.is_ready()
+
+    def wait_ready(self, timeout=None):
+        with Timeout(timeout, RuntimeError("Timeout waiting for status ready")):
+            while not self.is_ready():
+                time.sleep(0.1)
 
     def _calc_res(self, radius, dist):
         current_wavelength = self.get_wavelength()
