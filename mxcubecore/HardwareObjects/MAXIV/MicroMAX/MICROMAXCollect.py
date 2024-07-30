@@ -464,7 +464,7 @@ class MICROMAXCollect(DataCollect):
                 # when we get here. Jungfrau goes into 'BUSY' state when armed, so
                 # the wait_ready() will block forever.
                 #
-                if not self._is_jungfrau():
+                if not self.is_jungfrau():
                     self.detector_hwobj.wait_ready()
 
             except Exception as ex:
@@ -1085,7 +1085,7 @@ class MICROMAXCollect(DataCollect):
         )
         return proc_directory, auto_directory
 
-    def _is_jungfrau(self) -> bool:
+    def is_jungfrau(self) -> bool:
         """
         return true if we are using Jungfrau detector
         """
@@ -1093,7 +1093,7 @@ class MICROMAXCollect(DataCollect):
         return detector_model == "JUNGFRAU"
 
     def _configure_pandabox(self):
-        jungfrau_used = self._is_jungfrau()
+        jungfrau_used = self.is_jungfrau()
         cfg = pandabox.OSCConfig(
             enable_jungfrau=jungfrau_used, enable_eiger=not jungfrau_used
         )
@@ -1199,7 +1199,7 @@ class MICROMAXCollect(DataCollect):
         self.display["file_name1"] = file_parameters["filename"]
         config["FilenamePattern"] = name_pattern
 
-        if self._is_jungfrau():
+        if self.is_jungfrau():
             # when Jungfrau detector is used, include user specified unit cell
             # parameters in the acquisition config sent to the detector
             sample_info = self.current_dc_parameters["sample_reference"]
