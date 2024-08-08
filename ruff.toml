@@ -961,6 +961,9 @@ convention = "google"
     "S607",
     "TRY300",
 ]
+"mxcubecore/HardwareObjects/MAXIV/MD3Zoom.py" = [
+    "N999",
+]
 "mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXAperture.py" = [
     "COM812",
     "ERA001",
