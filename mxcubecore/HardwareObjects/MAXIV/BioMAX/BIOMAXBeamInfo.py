@@ -22,6 +22,18 @@ class BeamShape(Enum):
     ELIPTICAL = "ellipse"
 
 
+@unique
+class HardwareObjectState(Enum):
+    """Enumeration of common states, shared between all HardwareObjects"""
+
+    UNKNOWN = 0
+    WARNING = 1
+    BUSY = 2
+    READY = 3
+    FAULT = 4
+    OFF = 5
+
+
 class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
     """Beam information"""
 
@@ -52,8 +64,8 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         if self.aperture_hwobj is not None:
             self.connect(
                 self.aperture_hwobj,
-                "diameterIndexChanged",
-                self.aperture_diameter_changed,
+                "value_changed",
+                self.aperture_pos_changed,
             )
             ad = self.aperture_hwobj.get_diameter_size() / 1000.0
             self._beam_size_dict["aperture"] = [ad, ad]
@@ -75,6 +87,15 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         self.re_emit_values()
         self.emit("beamPosChanged", (self._beam_position_on_screen,))
 
+    def evaluate_beam_info(self, *args):
+        self.beam_info_dict["shape"] = "ellipse"
+        current_aperture = float(self.aperture_hwobj.get_value())
+        self._beam_width = current_aperture / 1000
+        self.beam_info_dict["size_x"] = self._beam_width
+        self._beam_height = current_aperture / 1000
+        self.beam_info_dict["size_y"] = self._beam_height
+        return self.beam_info_dict
+
     def get_beam_info_dict(self):
         """getting beam information
 
@@ -88,18 +109,6 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         self._beam_info_dict["label"] = self.aperture_hwobj.get_diameter_size()
         self.get_beam_shape()
         return self._beam_info_dict.copy()
-
-    def aperture_diameter_changed(self, name, size):
-        """Method called when the aperture diameter changes
-
-        Args:
-            name (str): diameter name - not used.
-            size (float): diameter size in microns
-        """
-        self._beam_size_dict["aperture"] = [size, size]
-        self._beam_info_dict["label"] = int(size * 1000)
-        self.evaluate_beam_info()
-        self.re_emit_values()
 
     def beam_size_hor_changed(self, value):
         """Method called when the beam size changes
@@ -146,7 +155,7 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
             list out of {size_x:0.1, size_y:0.1, shape:"rectangular"}
         """
         # return list(self.get_beam_info_dict().values())
-        current_aperture = float(self.aperture_hwobj.get_diameter_size()) / 1000
+        current_aperture = float(self.aperture_hwobj.get_diameter_size())
 
         return current_aperture, current_aperture, BeamShape.ELIPTICAL, current_aperture
 
@@ -274,3 +283,6 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         """
         self._beam_position_on_screen = (beam_x, beam_y)
         self.emit("beamPosChanged", (self._beam_position_on_screen,))
+
+    def get_state(self) -> HardwareObjectState:
+        return HardwareObjectState.READY
