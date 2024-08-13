@@ -1303,7 +1303,9 @@ class BIOMAXCollect(DataCollect):
 
     def get_machine_current(self):
         try:
-            return self.machine_info_hwobj.get_current()
+            curr = self.machine_info_hwobj.get_current()
+            curr = curr.split(" ")[0]  # remove units
+            return curr
         except:
             return None
 
