@@ -45,7 +45,8 @@ def open_tango_shutter(shutter: TangoShutter, timeout: float, name: str):
             f"could not open the {name}",
         )
 
-    shutter.open()
+    # timeout as 0 to not wait
+    shutter.open(timeout=0)
     wait_until_open()
 
 
@@ -57,7 +58,7 @@ def close_tango_shutter(shutter: TangoShutter, timeout: float, name: str):
             f"could not close the {name}",
         )
 
-    shutter.close()
+    shutter.close(timeout=0)
     wait_until_closed()
 
 
