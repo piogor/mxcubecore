@@ -880,7 +880,6 @@ class BIOMAXCollect(DataCollect):
             # temp fix for ispyb permission issues
             try:
                 session_dir = os.path.join(archive_directory, "../../../")
-                os.system("chmod -R 777 %s" % (session_dir))
             except Exception:
                 self.log.exception("Could not build `session_dir`")
 
@@ -1021,18 +1020,6 @@ class BIOMAXCollect(DataCollect):
         xds_directory, auto_directory = self.prepare_input_files()
         try:
             self.create_directories(xds_directory, auto_directory)
-            # temporary, to improve
-            os.system(
-                "chmod -R 770 %s %s" % (os.path.dirname(xds_directory), auto_directory)
-            )
-            """todo, create link of imgs for auto_processing
-            try:
-                os.symlink(files_directory, os.path.join(process_directory, "img"))
-            except os.error, e:
-                if e.errno != errno.EEXIST:
-                    raise
-            """
-            # os.symlink(files_directory, os.path.join(process_directory, "img"))
         except os.error:
             logging.exception("Could not create processing file directory")
             return
