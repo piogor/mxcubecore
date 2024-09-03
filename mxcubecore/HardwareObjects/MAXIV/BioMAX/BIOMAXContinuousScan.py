@@ -232,9 +232,9 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
                 while self.xspress3.State().name == "RUNNING":
                     gevent.sleep(0.2)
 
-    def choose_attenuation(self, element, edge):
-        element = energy_scan_parameters["element"]
-        edge = energy_scan_parameters["edge"]
+    def choose_attenuation(self):
+        element = self.energy_scan_parameters["element"]
+        edge = self.energy_scan_parameters["edge"]
         edge_energy, emission = self.calculate_emission_and_edge_energy(element, edge)
         _energy = edge_energy + 30
 
@@ -402,7 +402,7 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         self.initial_energy_value = HWR.beamline.energy.get_current_energy()
 
         # ensure proper MD3 phase
-        if HWR.beamline.diffractometer.get_current_phase().value != "DataCollection":
+        if HWR.beamline.diffractometer.get_current_phase() != "DataCollection":
             HWR.beamline.diffractometer.set_phase("DataCollection", wait=True)
 
         # and move to the centred positions after phase change
@@ -418,6 +418,8 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
             logging.getLogger("HWR").error("Open safety shutter: error %s" % str(ex))
 
         HWR.beamline.diffractometer.move_fluo_in()
+        element = self.energy_scan_parameters["element"]
+        edge = self.energy_scan_parameters["edge"]
 
         edge_energy, emission = self.calculate_emission_and_edge_energy(element, edge)
         Es, Ef = self.energy_values(edge_energy)
@@ -432,7 +434,7 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         logging.getLogger("HWR").info("Openning MD3 fast shutter")
         HWR.beamline.diffractometer.open_fast_shutter()
 
-        if not self.choose_attenuation(element, edge):
+        if not self.choose_attenuation():
             return False
         self.energy_scan_parameters["transmissionFactor"] = (
             HWR.beamline.transmission.get_att_factor()
@@ -441,7 +443,7 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
             0.009  # defined in the sardana macro
         )
         directory = self.energy_scan_parameters["directory"]
-        prefix = self.adjust_run_number(directory, prefix)
+        prefix = self.adjust_run_number(directory, self.energy_scan_parameters["prefix"])
         file_name = prefix + ".h5"
         full_file_path = str(os.path.join(directory, file_name))
         self.energy_scan_parameters["filename"] = full_file_path  # dir + file name + h5
@@ -452,7 +454,7 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         )
         self.prepare_directory(directory)
 
-        self.prepare_panda(exptime)
+        self.prepare_panda(self.energy_scan_parameters["exposureTime"])
 
     def execute_energy_scan(self, energy_scan_parameters):
         """
@@ -463,9 +465,9 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         try:
             try:
                 logging.getLogger("HWR").info(
-                    "Setting start energy %s" % str(Es / 1000)
+                    "Setting start energy %s" % str(self.energy_scan_parameters["Es"] / 1000)
                 )
-                HWR.beamline.energy.start_move_energy(Es / 1000, check_beam=True)
+                HWR.beamline.energy.start_move_energy(self.energy_scan_parameters["Es"] / 1000, check_beam=True)
             except Exception as ex:
                 logging.getLogger("HWR").error(
                     "EnergyScan: cannot set scan Energy %s" % ex
@@ -478,7 +480,7 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
             self.run_sardana_macro(
                 energy_scan_parameters["Es"],
                 energy_scan_parameters["Ef"],
-                energy_scan_parameters["file_name"],
+                energy_scan_parameters["filename"],
                 energy_scan_parameters["directory"],
             )
         except Exception as ex:
@@ -495,9 +497,9 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         self.closure()
 
         logging.getLogger("HWR").info(
-            "Setting original energy %s" % str(initial_energy_value)
+            "Setting original energy %s" % str(self.initial_energy_value)
         )
-        HWR.beamline.energy.start_move_energy(initial_energy_value, check_beam=False)
+        HWR.beamline.energy.start_move_energy(self.initial_energy_value, check_beam=False)
         logging.getLogger("HWR").info(
             "Setting original transmission %s" % str(initial_transmission_value)
         )
