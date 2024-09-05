@@ -32,6 +32,8 @@ import numpy as np
 import tango
 from gevent import monkey
 
+from scipy.ndimage.filters import gaussian_filter1d
+
 try:
     from detecta import detect_peaks
 
@@ -461,9 +463,14 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
                 self.spectrum_data = spectrum_file["entry"]["instrument"]["xspress3"][
                     "data"
                 ][0, 0, :]
+                self.smooth_spec_data = gaussian_filter1d(self.spectrum_data, sigma=5)
+
             if peaks_available:
                 peaks = detect_peaks(
-                    self.spectrum_data[lowerlim:upperlim], mph=8, mpd=40, threshold=4
+                    self.smooth_spec_data[lowerlim:upperlim],
+                    mph=50,
+                    mpd=30,
+                    threshold=0,
                 )
                 logging.getLogger("HWR").info("Peaks: {}".format(peaks))
 
@@ -542,7 +549,7 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
             # TODO: find peaks
 
             x = np.arange(5, 20, 0.01)
-            plt.plot(x, self.spectrum_data[500:2000])
+            plt.plot(x, self.smooth_spec_data[500:2000])
             plt.xlabel("Energy (keV)")
             plt.ylabel("counts")
             plt.title = self.spectrum_info_dict["jpegScanFileFullPath"]
