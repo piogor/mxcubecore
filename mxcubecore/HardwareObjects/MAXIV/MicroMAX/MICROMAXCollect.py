@@ -80,25 +80,28 @@ class MICROMAXCollect(DataCollect):
 
     def init(self):
         self.ready_event = gevent.event.Event()
-        self.diffractometer_hwobj = self.get_object_by_role("diffractometer")
-        self.lims_client_hwobj = self.get_object_by_role("dbserver")
+        bl = HWR.beamline
+
+        self.diffractometer_hwobj = bl.diffractometer
+
+        self.lims_client_hwobj = bl.lims
         self.machine_info_hwobj = self.get_object_by_role("mach_info")
-        self.energy_hwobj = self.get_object_by_role("energy")
-        self.resolution_hwobj = self.get_object_by_role("resolution")
-        self.detector_hwobj = HWR.beamline.detector
-        self.flux_hwobj = self.get_object_by_role("flux")
-        self.autoprocessing_hwobj = self.get_object_by_role("auto_processing")
+        self.energy_hwobj = bl.energy
+        self.resolution_hwobj = bl.resolution
+        self.detector_hwobj = bl.detector
+        self.flux_hwobj = bl.flux
+        self.autoprocessing_hwobj = bl.offline_processing
         # self.autoprocessing_hwobj.lims_client_hwobj = self.lims_client_hwobj
         self.autoprocessing_hwobj.NIMAGES_TRIGGER_AUTO_PROC = (
             self.NIMAGES_TRIGGER_AUTO_PROC
         )
-        self.beam_info_hwobj = self.get_object_by_role("beam_info")
-        self.transmission_hwobj = self.get_object_by_role("transmission")
+        self.beam_info_hwobj = bl.beam
+        self.transmission_hwobj = bl.transmission
         # self.sample_changer_hwobj = self.getObjectByRole("sample_changer")
         # self.sample_changer_maint_hwobj = self.getObjectByRole("sample_changer_maintenance")
-        self.dtox_hwobj = self.detector_hwobj.get_object_by_role("detector_distance")
+        self.dtox_hwobj = bl.detector.detector_distance
         self.detector_cover_hwobj = self.detector_hwobj.get_object_by_role("cover")
-        self.session_hwobj = self.get_object_by_role("session")
+        self.session_hwobj = bl.session
         self.shape_history_hwobj = HWR.beamline.sample_view
         self.scicat_enabled = self.get_property("scicat_enabled", False)
         if self.scicat_enabled:
@@ -116,7 +119,7 @@ class MICROMAXCollect(DataCollect):
         self.log = logging.getLogger("HWR")
         self.user_log = logging.getLogger("user_level_log")
 
-        self.safety_shutter_hwobj = self.get_object_by_role("safety_shutter")
+        self.safety_shutter_hwobj = HWR.beamline.safety_shutter
         # todo
         # self.fast_shutter_hwobj = self.getObjectByRole("fast_shutter")
         # self.cryo_stream_hwobj = self.getObjectByRole("cryo_stream")
