@@ -25,6 +25,7 @@ from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX import pandabox
 from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
+from mxcubecore.utils.units import um_to_mm
 
 DET_SAFE_POSITION = 500
 
@@ -520,6 +521,35 @@ class MICROMAXCollect(DataCollect):
             shape = None
         return shape
 
+    def _get_mesh_scan_range(self, cell_center: bool = True) -> tuple[float, float]:
+        """Get mesh scan range for current mesh.
+
+        Calculate the scan width and height, in millimeters, for currently selected
+        mesh grid.
+
+        Args:
+            cell_center (bool):
+              if true, the range is between cell centers of the most outer cells
+              if false, the range is between the cell edges of the most outer cells
+        """
+        shape = self.get_current_shape()
+
+        num_cols = shape.get("num_cols")
+        num_rows = shape.get("num_rows")
+        if cell_center:
+            num_cols -= 1
+            num_rows -= 1
+
+        range_x = um_to_mm(
+            num_cols * (shape.get("cell_width") + shape.get("cell_h_space"))
+        )
+
+        range_y = um_to_mm(
+            num_rows * (shape.get("cell_height") + shape.get("cell_v_space"))
+        )
+
+        return range_x, range_y
+
     def oscil(self, start, end, exptime, npass, wait=True):
         time.sleep(1)
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
@@ -543,17 +573,11 @@ class MICROMAXCollect(DataCollect):
                 % self.get_mesh_total_nb_frames()
             )
 
-            shape = self.get_current_shape()
-            if shape is None:
-                raise RuntimeError("Mesh oscillation failed, no shape defined")
-
-            range_x = (shape.get("num_cols") - 1) * shape.get("cell_width") / 1000.0
-            range_y = (shape.get("num_rows") - 1) * shape.get("cell_height") / 1000.0
-
             # the MD3 raster scan command is relative to the currently saved centered position,
             # calculate and save this mesh's center position
-            self.move_to_mesh_center(shape)
+            self.move_to_mesh_center()
 
+            range_x, range_y = self._get_mesh_scan_range()
             self.diffractometer_hwobj.raster_scan(
                 start,
                 end,
@@ -568,12 +592,12 @@ class MICROMAXCollect(DataCollect):
         else:
             self.diffractometer_hwobj.do_oscillation_scan(start, end, exptime, wait)
 
-    def move_to_mesh_center(self, shape):
+    def move_to_mesh_center(self) -> None:
         """
         move to the mesh center and invoke 'save centered position' command
         """
-        range_x = shape.get("num_cols") * shape.get("cell_width") / 1000.0
-        range_y = shape.get("num_rows") * shape.get("cell_height") / 1000.0
+
+        range_x, range_y = self._get_mesh_scan_range(cell_center=False)
 
         self.diffractometer_hwobj.phiy_motor_hwobj.set_value_relative(range_y / 2.0)
         self.diffractometer_hwobj.move_cent_vertical_relative(-range_x / 2.0)
