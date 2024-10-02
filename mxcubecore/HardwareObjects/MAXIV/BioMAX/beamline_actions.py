@@ -88,9 +88,7 @@ class PrepareOpenHutch:
             if HWR.beamline.detector is not None:
                 logging.getLogger("HWR").info("Moving detector to safe area...")
                 try:
-                    HWR.beamline.detector.distance_motor_hwobj.set_value(
-                        DET_SAFE_POSITION
-                    )
+                    HWR.beamline.detector.distance.set_value(DET_SAFE_POSITION)
                 except Exception:
                     logging.getLogger("HWR").warning(
                         "Could not move detector to safe position"
@@ -155,9 +153,9 @@ class PrepareForNewSample:
             while HWR.beamline.safety_shutter.getShutterState() == "opened":
                 gevent.sleep(0.1)
 
-        if HWR.beamline.detector.distance_motor_hwobj is not None:
+        if HWR.beamline.detector.distance is not None:
             logging.getLogger("HWR").info("Moving detector to safe area...")
-            HWR.beamline.detector.distance_motor_hwobj.set_value(DET_SAFE_POSITION)
+            HWR.beamline.detector.distance.set_value(DET_SAFE_POSITION)
 
 
 class CalculateFlux:
@@ -276,7 +274,7 @@ class AlignAperture:
 
 class EmptyMount:
     def __call__(self, *args, **kw):
-        if HWR.beamline.diffractometer_hwobj.sample_is_loaded:
+        if HWR.beamline.diffractometer.sample_is_loaded:
             logging.getLogger("HWR").error(
                 "Cannot clear sample, there is a sample detected on the goniometer!"
             )
@@ -330,12 +328,12 @@ class PrepareRemoveLongPin:
                 gevent.sleep(0.1)
 
         logging.getLogger("HWR").info("Prepare MD3 for removing sample...")
-        HWR.beamline.diffractometer_hwobj.set_unmount_sample_phase(wait=False)
+        HWR.beamline.diffractometer.set_unmount_sample_phase(wait=False)
 
         if HWR.beamline.detector is not None:
             logging.getLogger("HWR").info("Closing detector cover...")
             HWR.beamline.detector.close_cover()
 
-        if HWR.beamline.detector.distance_motor_hwobj is not None:
+        if HWR.beamline.detector.distance is not None:
             logging.getLogger("HWR").info("Moving detector to safe area...")
-            HWR.beamline.detector.distance_motor_hwobj.set_value(DET_SAFE_POSITION)
+            HWR.beamline.detector.distance.set_value(DET_SAFE_POSITION)
