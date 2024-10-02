@@ -624,10 +624,6 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
             self.store_energy_scan()
         except Exception as ex:
             logging.getLogger("HWR").error(ex)
-        self.emit("energyScanFinished", (self.energy_scan_parameters,))
-        logging.getLogger("HWR").debug(
-            "energyScanFinished signal emitted %r", self.energy_scan_parameters
-        )
 
     # Mad energies commands
     def getDefaultMadEnergies(self):
