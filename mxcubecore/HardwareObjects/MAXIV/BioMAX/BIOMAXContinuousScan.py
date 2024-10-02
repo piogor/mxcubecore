@@ -42,7 +42,6 @@ from matplotlib.figure import Figure
 from numpy import arange
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractEnergyScan import AbstractEnergyScan
 from mxcubecore.TaskUtils import cleanup
 
@@ -128,6 +127,30 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
             emission,
         )
         return (edge_energy, emission)
+
+    def energy_scan_hook(self, energy_scan_parameters):
+        self.initial_transmission_value = HWR.beamline.transmission.get_att_factor()
+        self.initial_energy_value = HWR.beamline.energy.get_current_energy()
+
+        # ensure proper MD3 phase
+        if HWR.beamline.diffractometer.get_current_phase() != "DataCollection":
+            HWR.beamline.diffractometer.set_phase("DataCollection", wait=True)
+
+        # and move to the centred positions after phase change
+        if self.cpos:
+            logging.getLogger("HWR").info("Moving to centring position")
+            try:
+                HWR.beamline.diffractometer.move_to_motors_positions(
+                    self.cpos.as_dict(), wait=True
+                )
+            except ValueError as ex:
+                logging.getLogger("HWR").warning(
+                    "Could not move to centring position, {}".format(ex)
+                )
+        else:
+            logging.getLogger("HWR").warning("Valid centring position not found")
+
+        HWR.beamline.diffractometer.move_fluo_in()
 
     def prepare_detector(self, emission):
         """Prepare Xspress3mini detector."""
@@ -401,35 +424,6 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         """
         Set the nesessary equipment in position for the scan. No need to know the escan paramets.
         """
-
-        self.initial_transmission_value = HWR.beamline.transmission.get_att_factor()
-        self.initial_energy_value = HWR.beamline.energy.get_current_energy()
-
-        # ensure proper MD3 phase
-        if HWR.beamline.diffractometer.get_current_phase() != "DataCollection":
-            HWR.beamline.diffractometer.set_phase("DataCollection", wait=True)
-
-        # and move to the centred positions after phase change
-        if self.cpos:
-            logging.getLogger("HWR").info("Moving to centring position")
-            try:
-                HWR.beamline.diffractometer.move_to_motors_positions(
-                    self.cpos.as_dict(), wait=True
-                )
-            except ValueError as ex:
-                logging.getLogger("HWR").warning(
-                    "Could not move to centring position, {}".format(ex)
-                )
-
-        else:
-            logging.getLogger("HWR").warning("Valid centring position not found")
-
-        try:
-            HWR.beamline.collect.open_safety_shutter()
-        except Exception as ex:
-            logging.getLogger("HWR").error("Open safety shutter: error %s" % str(ex))
-
-        HWR.beamline.diffractometer.move_fluo_in()
         element = self.energy_scan_parameters["element"]
         edge = self.energy_scan_parameters["edge"]
 
@@ -657,7 +651,6 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         logging.getLogger("HWR").info(
             "Storing EnergyScan info in ISPYB %r", self.energy_scan_parameters
         )
-
 
         blsampleid = self.energy_scan_parameters.get("blSampleId", None)
         if blsampleid:
@@ -928,3 +921,12 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         except IndexError:
             pass
         return elements
+
+    def open_safety_shutter(self, timeout):
+        """
+        Open the safety shutter. Give a timeout [s] if needed.
+        """
+        try:
+            HWR.beamline.collect.open_safety_shutter()
+        except Exception as ex:
+            logging.getLogger("HWR").error("Open safety shutter: error {}".format(ex))
