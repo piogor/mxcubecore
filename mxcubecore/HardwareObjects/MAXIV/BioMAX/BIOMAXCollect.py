@@ -95,7 +95,6 @@ class BIOMAXCollect(DataCollect):
             self.log.warning("[COLLECT] SciCat Datacatalog not enabled")
 
         self.shape_history_hwobj = HWR.beamline.sample_view
-        self.dozor_hwobj = self.get_object_by_role("dozor")
         self.polarisation = float(self.get_property("polarisation", 0.99))
         self.safety_shutter_hwobj = HWR.beamline.safety_shutter
 
@@ -396,10 +395,6 @@ class BIOMAXCollect(DataCollect):
             )
             raise Exception("[COLLECT] Error preparing detector: %s" % ex)
 
-        # important this step is after detector configuration, which otherwise would give the wrong count_rate_cutoff
-        #if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
-        #    self.start_spot_finder_dozor()
-
         # move MD3 to DataCollection phase if it"s not
         if self.diffractometer_hwobj.get_current_phase() != "DataCollection":
             log.info("Moving Diffractometer to Data Collection")
@@ -539,7 +534,7 @@ class BIOMAXCollect(DataCollect):
                 shape = HWR.beamline.sample_view.get_shape(shape_id).as_dict()
                 num_cols = shape.get("num_cols")
                 num_rows = shape.get("num_rows")
-                #if num_cols * num_rows < 10000:
+                # if num_cols * num_rows < 10000:
                 #    self.user_log.info(
                 #        "Images are taken, waiting for Xray Centering Analysis to locate the crystal"
                 #    )
@@ -665,9 +660,7 @@ class BIOMAXCollect(DataCollect):
             self.char = False
         if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
             # disable stream interface
-            # stop spot finding
             self.detector_hwobj.disable_stream()
-            #self.stop_spot_finder_dozor()
 
         self.emit("collectEnded", self.owner, False, failed_msg)
         self.emit("collectReady", (True,))
@@ -696,9 +689,7 @@ class BIOMAXCollect(DataCollect):
 
         if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
             # disable stream interface
-            # stop spot finding
             self.detector_hwobj.disable_stream()
-            #self.stop_spot_finder_dozor()
         if self.char:
             # stop char converter
             self.char = False
@@ -1180,67 +1171,38 @@ class BIOMAXCollect(DataCollect):
             # enable stream interface
             # appendix with grid name, collection id
             self.detector_hwobj.enable_stream()
-            img_appendix = {
+
+            dozor_dict = self.detector_hwobj.prepare_acquisition(config)
+            mesh_params = HWR.beamline.get_default_acquisition_parameters(
+                "mesh"
+            ).as_dict()
+            collect_dict = {
                 "experiment_type": "mesh",
                 "col_id": self.current_dc_parameters["collection_id"],
                 "shape_id": self.get_current_shape_id(),
+                "row": ntrigger,
+                "col": nframes_per_trigger,
+                "process_dir": self.current_dc_parameters["auto_dir"],
+                "mxcube_server": self.get_mxcube_server_ip(),
+                "cell_counting": mesh_params.get("cell_counting", None),
+                "start_corner": mesh_params.get("mesh_center", None),
+                "mesh_range": mesh_params.get("mesh_range", None),
+                "scan_pattern": mesh_params.get("cell_counting", None),
+                "scan_orientation": "vertical",  # should not be here
             }
-            self.detector_hwobj.set_image_appendix(json.dumps(img_appendix))
+            header_appendix = {
+                "dozor_dict": dozor_dict,
+                "collect_dict": collect_dict,
+            }
+
+            sample_reference_dict = self.get_header_appendix_sample_reference_dict(
+                self.current_dc_parameters["sample_reference"]
+            )
+            if sample_reference_dict:
+                header_appendix["sample_reference"] = sample_reference_dict
+
+            self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
         self.detector_hwobj.prepare_acquisition(config)
-
-    def prepare_dozor_input(self, oscillation_parameters, path):
-        config = self.dozor_hwobj.config
-        try:
-            config["fraction_polarization"] = self.polarisation
-            config["detector_distance"] = self.get_detector_distance()
-            config["X-ray_wavelength"] = self.get_wavelength()
-            config["orgx"], config["orgy"] = self.get_beam_centre()
-            config["exposure"] = oscillation_parameters["exposure_time"]
-            config["oscillation_range"] = oscillation_parameters["range"]
-            config["ix_min"] = 2073
-            config["ix_max"] = 2165
-            config["iy_min"] = 2135
-            config["iy_max"] = 4371
-            config["pixel_min"] = 1
-            """
-            todo, we should use countrate_correction_count_cutoff from detector
-            but this attribute is missing in the eiger tango device.
-            """
-            config["pixel_max"] = 65534
-            config["spot_size"] = 3
-        except Exception as ex:
-            logging.getLogger("HWR").error(
-                "[COLLECT] Configuing Dozor input Error: %s" % ex
-            )
-            raise RuntimeError(
-                "[COLLECT] Error while trying to get parameters for Dozor."
-            )
-        self.dozor_hwobj.config = config
-        return self.dozor_hwobj.write_dozor_dat(path)
-
-    def start_spot_finder_dozor(self):
-        oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
-        dozor_path = os.path.join(self.current_dc_parameters["auto_dir"], "dozor")
-        self.create_directories(dozor_path)
-        dozor_dat_path = (
-            self.prepare_dozor_input(oscillation_parameters, dozor_path) or None
-        )
-        dozor_res_path = os.path.join(dozor_path, "dozor_res.txt")
-        if dozor_dat_path:
-            self.dozor_hwobj.execute_dozor(dozor_dat_path)
-        else:
-            raise RuntimeError("[COLLECT] Failed because dozor.dat is missing")
-        self.dozor_hwobj.execute_dozor_collector(dozor_res_path)
-        # launch stream reciever with dozor
-        # if needed, the colID and shapeID are self.current_dc_parameters["collection_id"] and self.get_current_shape_id()
-
-    def stop_spot_finder_dozor(self):
-        """
-        Stop dozor and collector
-        """
-        logging.getLogger("HWR").info("Will stop dozor on the HPC.")
-        self.dozor_hwobj.stop_dozor()
-        return
 
     def stop_collect(self, owner=None):
         """
