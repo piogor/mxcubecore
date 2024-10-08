@@ -23,8 +23,7 @@ class BIOMAXPatches(HardwareObject):
         if HWR.beamline.sample_changer.get_status() == "fault":
             raise RuntimeError("Cannot operate sample changer, state is in FAULT.")
 
-        HWR.beamline.sample_changer_maintenance.mount_timeout_fixed = False
-        logging.getLogger("HWR").info("Set sc mount timeout flag to False")
+        HWR.beamline.sample_changer.before_load_or_unload_sample()
 
         if HWR.beamline.diffractometer.get_transfer_mode() != "SAMPLE_CHANGER":
             raise Exception(
@@ -146,41 +145,8 @@ class BIOMAXPatches(HardwareObject):
         HWR.beamline.diffractometer.last_centered_position = None
 
     def sc_recovery_after_timeout(self):
-        """
-        reset the sample changer timeout flag and also make sure the gripper doesn't end in a strange position after drying
-        pop up msg to user interface
-        """
-        if HWR.beamline.sample_changer_maintenance.mount_timeout_fixed:
-            try:
-                # here we put try the waitReady twice as there could be a small windown between back and dry that the SC is ready
-                HWR.beamline.sample_changer._wait_device_ready(180)
-                time.sleep(1)
-                self.sample_changer._wait_device_ready(180)
-            except Exception as ex:
-                (
-                    state_dict,
-                    cmd_state,
-                    message,
-                ) = HWR.beamline.sample_changer_maintenance.get_global_state()
-                if (
-                    "WAIT for Dew_C condition / 31" in message
-                    or "Gripper drying in progress" in message
-                ):
-                    HWR.beamline.sample_changer_maintenance.send_command("abort")
-                    HWR.beamline.sample_changer_maintenance.send_command("reset")
-                    HWR.beamline.sample_changer_maintenance.send_command("safe")
-                    HWR.beamline.sample_changer._wait_device_ready(20)
-                else:
-                    raise Exception(
-                        "Cannot load/unload sample and get error %s while waiting for SC to put sample back, please contact support."
-                        % str(ex)
-                    )
-            finally:
-                HWR.beamline.sample_changer_maintenance.mount_timeout_fixed = False
-                logging.getLogger("HWR").info("Set sc mount timeout flag to False")
-            error_msg = "[SC] Timeout when waiting MD3 to move to transfer phase. Have put the sample back (if applies), please try to mount/unmount again when the Sample Changer is ready!"
-            logging.getLogger("HWR").error(error_msg)
-            raise Exception(error_msg)
+        """Recover in case "MD3 not safe" was detected on sample changer."""
+        HWR.beamline.sample_changer.after_load_or_unload_sample()
 
     def after_load_sample(self):
         """
