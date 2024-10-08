@@ -760,6 +760,10 @@ convention = "google"
     "TRY002",
     "TRY400",
 ]
+"mxcubecore/HardwareObjects/MAXIV/BioMAX/BiomaxIsara.py" = [
+    "TRY003",
+    "EM102",
+]
 "mxcubecore/HardwareObjects/MAXIV/BioMAX/BIOMAXMD3.py" = [
     "COM812",
     "E501",
