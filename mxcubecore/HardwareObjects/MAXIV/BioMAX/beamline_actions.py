@@ -274,38 +274,48 @@ class AlignAperture:
 
 class EmptyMount:
     def __call__(self, *args, **kw):
-        if HWR.beamline.diffractometer.sample_is_loaded:
-            logging.getLogger("HWR").error(
-                "Cannot clear sample, there is a sample detected on the goniometer!"
+        if HWR.beamline.diffractometer.get_channel_value("SampleIsLoaded"):
+            exception = Exception(
+                "[SC][Empty mount] Cannot clear sample,"
+                " there is a sample detected on the goniometer!"
             )
-            raise Exception("There is a sample detected on the goniometer!")
+            logging.getLogger("HWR").error(exception)
+            raise exception
         if HWR.beamline.sample_changer.is_powered():
-            if HWR.beamline.sample_changer._chnInSoak.get_value():
-                logging.getLogger("HWR").info("Abort Sample Changer")
-                HWR.beamline.sample_changer_maintenance.send_command("abort")
+            if HWR.beamline.sample_changer.get_channel_value("InSoak"):
+                logging.getLogger("HWR").debug(
+                    "[SC][Empty mount] Running command 'Abort'..."
+                )
+                HWR.beamline.sample_changer.execute_command("Abort")
                 gevent.sleep(2)
-                """
-                should not wait device ready here, as it will never be ready because there's
-                no sample on the diff
-                """
-                logging.getLogger("HWR").info("Sample Changer: Clear memory")
-                HWR.beamline.sample_changer_maintenance.send_command("clear_memory")
+                # We should not wait for the device to be ready here,
+                # as it will never be ready,
+                # because there is no sample on the diffractometer.
+                logging.getLogger("HWR").debug(
+                    "[SC][Empty mount] Running command 'ClearMemory'..."
+                )
+                HWR.beamline.sample_changer.execute_command("ClearMemory")
                 gevent.sleep(1)
+                logging.getLogger("HWR").debug(
+                    "[SC][Empty mount] Running command 'Reset'..."
+                )
+                HWR.beamline.sample_changer.execute_command("Reset")
                 HWR.beamline.sample_changer._wait_device_ready(10)
-                HWR.beamline.sample_changer_maintenance._updateGlobalState()
                 HWR.beamline.diffractometer.last_centered_position = None
             else:
                 if HWR.beamline.sample_changer._wait_device_ready(1):
                     logging.getLogger("HWR").error(
-                        "Doesn't look like an emptry mount, please contact support!"
+                        "[SC][Empty mount] Doesn't look like an empty mount,"
+                        " please contact support!"
                     )
                 else:
                     logging.getLogger("HWR").error(
-                        "Sample Changer is drying, please wait and try later"
+                        "[SC][Empty mount] Sample Changer is drying,"
+                        " please wait and try later."
                     )
         else:
             logging.getLogger("HWR").error(
-                "Sample Changer power is off, please switch it on"
+                "[SC][Empty mount] Sample Changer power is off, please switch it on."
             )
 
 
