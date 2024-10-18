@@ -179,12 +179,10 @@ class BIOMAXPatches(HardwareObject):
             logging.getLogger("user_level_log").info(
                 "Diffractometer already in Centring"
             )
-        sample_is_loaded = HWR.beamline.diffractometer.channel_dict[
-            "SampleIsLoaded"
-        ].get_value()
-        if not sample_is_loaded:
+
+        if not HWR.beamline.diffractometer.get_channel_value("SampleIsLoaded"):
             logging.getLogger("HWR").error(
-                "No sample detected on the goniometer, please check the camera!"
+                "[SC][Empty mount] No sample detected on the goniometer, please check the camera!"
             )
             raise Exception("No sample detected on the goniometer!")
 
