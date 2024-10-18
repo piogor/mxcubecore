@@ -46,6 +46,7 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
         self._is_handling_md3_not_safe = False
 
+        self._add_tango_channel("InSoak")
         self._add_tango_channel("PoseRx", "PoseRX")
         self._add_tango_channel("PoseRy", "PoseRY")
         self._add_tango_channel("PoseRz", "PoseRZ")
@@ -61,6 +62,7 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
         self._add_tango_command("Abort")
         self._add_tango_command("Back")
+        self._add_tango_command("ClearMemory")
         self._add_tango_command("Dry")
         # The actual Isara command name is `safe` on Isara1 and `recover` on Isara2.
         # This discrepancy is abstracted in the Tango device server.
@@ -126,8 +128,11 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
     def _message_changed(self, message) -> None:
         HWR_LOGGER.debug('[SC] Message changed: "%s"', message)
-        if message and message.startswith("WAIT for SafeMd condition / 9"):
-            self._handle_md3_not_safe()
+        if message:
+            if message.startswith("WAIT for SafeMd condition / 9"):
+                self._handle_md3_not_safe()
+            elif message.startswith("WAIT for SplOn condition / "):
+                self._handle_no_sample_mounted()
 
     def _is_in_mount_pose(self) -> bool:
         """Check if the sample changer robot arm is in the "mounting" pose."""
@@ -304,6 +309,15 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         """Operations to run before loading or unloading a sample."""
         # Reset the flag for "MD3 not safe"
         self._is_handling_md3_not_safe = False
+
+    def _handle_no_sample_mounted(self) -> None:
+        message = "[SC][Empty mount] No sample detected on MD3."
+        HWR_LOGGER.error(message)
+        USER_LOGGER.error(
+            "%s You might want to check visually."
+            " Maybe run the beamline action called 'Empty Mount'.",
+            message,
+        )
 
 
 # EOF
