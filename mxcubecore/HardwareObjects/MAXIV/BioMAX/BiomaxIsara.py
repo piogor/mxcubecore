@@ -28,6 +28,11 @@ USER_LOGGER = logging.getLogger("user_level_log")
 CHANNEL_POLLING_PERIOD = 1000
 """Default polling period for channels, in milliseconds."""
 
+PUCK_GRAB_MESSAGE = (
+    "Warning: the puck has been pulled out of its base."
+    " Please follow recovering instructions"
+)
+
 
 class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
     """Isara hardware objects with BioMAX specificities."""
@@ -133,6 +138,16 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                 self._handle_md3_not_safe()
             elif message.startswith("WAIT for SplOn condition / "):
                 self._handle_no_sample_mounted()
+            elif message == PUCK_GRAB_MESSAGE:
+                self._handle_puck_grab()
+
+    def _handle_puck_grab(self) -> None:
+        message = (
+            "[SC][Puck grab] Puck has been pulled out of its base."
+            " Follow the recovery procedure."
+        )
+        HWR_LOGGER.error(message)
+        USER_LOGGER.error(message)
 
     def _is_in_mount_pose(self) -> bool:
         """Check if the sample changer robot arm is in the "mounting" pose."""
