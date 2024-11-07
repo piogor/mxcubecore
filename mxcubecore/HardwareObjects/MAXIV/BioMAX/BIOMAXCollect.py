@@ -20,6 +20,7 @@ CORRECT_OMEGA_SCRIPT = (
 )
 GENERATE_THUMBNAIL_SCRIPT = "/mxn/groups/sw/mxsw/mxcube_scripts/generate_thumbnail"
 HPC_FE_HOST = "clu0-fe-0"
+DET_SAFE_POSITION = 800
 
 
 class BIOMAXCollect(DataCollect):
@@ -1299,14 +1300,19 @@ class BIOMAXCollect(DataCollect):
     def prepare_for_new_sample(self, manual_mode=True):
         """Prepare beamline for a new sample."""
 
+        if self.diffractometer_hwobj.in_plate_mode():
+            logging.getLogger("HWR").info(
+                "[HWR] Preparing beamline for a new sample ignored as we are in PLATE mode."
+            )
+            return
+
         logging.getLogger("HWR").info("[HWR] Preparing beamline for a new sample.")
         if manual_mode:
-            if self.detector_cover_hwobj is not None:
-                self.close_detector_cover()
+            self.close_detector_cover()
             self.diffractometer_hwobj.set_phase("Transfer", wait=False)
             self.close_safety_shutter()
 
-        self.move_detector(800)
+        self.move_detector(DET_SAFE_POSITION)
 
     def prepare_set_energy(self):
         """Figure out if we should check the beam after the energy changes."""
