@@ -22,6 +22,8 @@ class BIOMAXMD3(MAXIVMD3):
         super().init()
 
         self.zoom_centre = eval(self.get_property("zoom_centre"))
+        self.plate_row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        self.head_type = self.channel_dict["HeadType"].get_value()
 
     def get_camera_image(self):
         """Get the current image from the md3 camera as a numpy array"""

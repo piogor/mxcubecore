@@ -7,6 +7,9 @@ from mxcubecore.HardwareObjects.BeamlineActions import AnnotatedCommand
 
 DET_SAFE_POSITION = 900  # mm
 
+#### TODO
+# - If not in PLATE mode do not display plate related actions
+
 
 class TestMacro:
     def __call__(self, *args, **kw):
@@ -240,7 +243,7 @@ class Anneal(AnnotatedCommand):
             f"Annealing for {data.exp_time} seconds"
         )
         try:
-            HWR.beamline.diffractometer.wait_device_ready(10)
+            HWR.beamline.diffractometer.wait_ready(10)
             if data.exp_time < 1:
                 raise Exception("Time is too short for annealing, set 1s at least.")
             HWR.beamline.diffractometer.move_rex_out(wait=False)
@@ -319,31 +322,40 @@ class EmptyMount:
             )
 
 
-class PrepareRemoveLongPin:
-    """
-    Descript.: prepare beamline for openning the hutch door to remove long pin,
-    """
+class MovePlate(AnnotatedCommand):
+    def __init__(self, *args):
+        super().__init__(*args)
 
-    def __call__(self, *args, **kw):
-        logging.getLogger("HWR").info(
-            "Preparing experimental hutch for removing long pin."
-        )
-        if (
-            HWR.beamline.safety_shutter is not None
-            and HWR.beamline.safety_shutter.getShutterState() == "opened"
-        ):
-            logging.getLogger("HWR").info("Closing safety shutter...")
-            HWR.beamline.safety_shutter.closeShutter()
-            while HWR.beamline.safety_shutter.getShutterState() == "opened":
-                gevent.sleep(0.1)
-
-        logging.getLogger("HWR").info("Prepare MD3 for removing sample...")
-        HWR.beamline.diffractometer.set_unmount_sample_phase(wait=False)
-
-        if HWR.beamline.detector is not None:
-            logging.getLogger("HWR").info("Closing detector cover...")
-            HWR.beamline.detector.close_cover()
-
-        if HWR.beamline.detector.distance is not None:
-            logging.getLogger("HWR").info("Moving detector to safe area...")
-            HWR.beamline.detector.distance.set_value(DET_SAFE_POSITION)
+    def move_plate(self, row: str, col: int, drop: int) -> None:
+        logging.getLogger("user_level_log").info(f"Move Plate {row} {col} {drop}")
+        try:
+            logging.getLogger("HWR").info(
+                "Move Plate to position row: {}, col:{}, drop {}".format(row, col, drop)
+            )
+            row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
+            try:
+                row_index = HWR.beamline.diffractometer.plate_row_list.index(
+                    row.upper()
+                )
+            except Exception as ex:
+                logging.getLogger("HWR").error(
+                    "could find the row value {} in the row_list".format(row)
+                )
+                raise Exception("please make sure the Row value is within A-H")
+            params = "{}\t{}\t{}".format(row_index, int(col) - 1, int(drop) - 1)
+            HWR.beamline.diffractometer.command_dict["startMovePlateToShelf"](params)
+            HWR.beamline.diffractometer.wait_ready(30)
+            current_pos = HWR.beamline.diffractometer.channel_dict[
+                "PlateLocation"
+            ].get_value()
+            current_row = HWR.beamline.diffractometer.plate_row_list[
+                int(current_pos[0])
+            ]
+            current_col = int(current_pos[1]) + 1
+            logging.getLogger("HWR").info(
+                "Current plate position row: {}, col:{}".format(
+                    current_row, current_col
+                )
+            )
+        except Exception as ex:
+            logging.getLogger("HWR").error("Cannot move plate. Error was {}".format(ex))
