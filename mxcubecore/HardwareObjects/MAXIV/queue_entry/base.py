@@ -83,6 +83,7 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
                 dc_dict["path"],
                 td.path_parameters.prefix,
                 dc_dict["run_number"],
+                col_params.shape,
             )
 
         def get_hwobjs():
@@ -91,6 +92,7 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
                 beamline.detector,
                 beamline.collect,
                 beamline.diffractometer,
+                beamline.sample_view,
             )
 
         #
@@ -109,9 +111,18 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
             root_dir,
             path_prefix,
             run_number,
+            shape_id,
         ) = get_params()
 
-        detector, collect, diffractometer = get_hwobjs()
+        detector, collect, diffractometer, sample_view = get_hwobjs()
+
+        # If a point is selected, we want to move to it before performing collection.
+        shape = sample_view.get_shape(shape_id)
+
+        if shape and shape.t == "2DP":
+            log.info("Running SSX Injector task for point: %s", shape.name)
+            motor_positions = shape.get_centred_position().as_dict()
+            diffractometer.move_motors(motor_positions)
 
         #
         # open safety shutter
