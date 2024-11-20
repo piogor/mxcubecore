@@ -1422,7 +1422,7 @@ class BIOMAXCollect(DataCollect):
                 )
 
     def correct_omega_in_master_file(self, filename, overlap):
-        cmd = f"ssh {HPC_FE_HOST} {CORRECT_OMEGA_SCRIPT} {filename} {-overlap}"
+        cmd = f"ssh {HPC_FE_HOST} {CORRECT_OMEGA_SCRIPT} -f {filename} -o {-overlap}"
         logging.getLogger("HWR").info(
             "Correcting Omega in master file. Command to run is %s" % cmd
         )
