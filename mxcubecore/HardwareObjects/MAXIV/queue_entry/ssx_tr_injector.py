@@ -133,6 +133,11 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
         #
         self.ekspla_laser.run()
 
+        shape_id = self._data_model._task_data.collection_parameters.shape  # noqa: SLF001
+        shape = HWR.beamline.sample_view.get_shape(shape_id)
+        if shape and shape.t == "L":
+            self.interpolate_positions(shape)
+
         #
         # wait for acquisition to end
         #
