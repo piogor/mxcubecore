@@ -123,6 +123,11 @@ class SsxInjectorQueueEntry(AbstractSsxQueueEntry):
         detector = HWR.beamline.detector
         log.info("Sending software trigger to detector.")
         detector.trigger()
+        shape_id = self._data_model._task_data.collection_parameters.shape  # noqa: SLF001
+        shape = HWR.beamline.sample_view.get_shape(shape_id)
+        if shape and shape.t == "L":
+            self.interpolate_positions(shape)
+
         _wait_acquisition_done()
 
     def execute(self):
