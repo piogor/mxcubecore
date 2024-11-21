@@ -201,6 +201,40 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         collect.open_detector_cover()
         collect.open_fast_shutter()
 
+    def interpolate_positions(self, line):
+        start_cpos, end_cpos = line.cp_list
+        helical_oscil_pos = {
+            "1": start_cpos.as_dict(),
+            "2": end_cpos.as_dict(),
+        }
+        HWR.beamline.collect.set_helical_pos(helical_oscil_pos)
+        osc_start = self._data_model._task_data.collection_parameters.osc_start  # noqa: SLF001
+        osc_end = osc_start
+        exptime = HWR.beamline.detector.get_acquisition_time()
+        HWR.beamline.diffractometer.move_motors(
+            start_cpos.as_dict(),
+        )  # move to start of the line at the start of the experiment
+        HWR.beamline.diffractometer.osc_scan_4d(
+            osc_start,
+            osc_end,
+            exptime,
+            helical_oscil_pos,
+            wait=True,
+        )
+
+        #
+        # Work around a MD3Up bug.
+        #
+        # Currently, running 4D-scan command on MD3 at MicroMAX
+        # somehow screws up it's fast shutter state. The symptom is
+        # that it's not possible to open fast shutter again after a
+        # 4D-scan command is finished.
+        #
+        # Running 'abort' command restores the fast shutter state, thus
+        # works around the issue.
+        #
+        HWR.beamline.diffractometer.abort()
+
     def stop(self):
         super().stop()
         log.info("Aborting acquisition.")
