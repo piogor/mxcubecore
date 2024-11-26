@@ -47,6 +47,7 @@ class StandardCollectionParameters(BaseModel):
     shutterless: bool
     selection: list = Field([])
     shape: str = ""
+    create_point: bool = False
 
     class Config:
         extra = "ignore"
