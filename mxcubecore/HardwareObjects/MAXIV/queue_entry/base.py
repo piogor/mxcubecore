@@ -3,6 +3,7 @@ from pathlib import Path
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.model import queue_model_objects
+from mxcubecore.model.common import StandardCollectionParameters
 from mxcubecore.queue_entry.base_queue_entry import BaseQueueEntry
 from mxcubecore.utils.units import mm_to_meter
 
@@ -31,6 +32,10 @@ def restore_beamline():
         collect.close_detector_cover()
     except Exception:
         log.exception("Error while closing detector cover.")
+
+
+class SsxCollectionParameters(StandardCollectionParameters):
+    create_point: bool = True
 
 
 class AbstractSsxQueueEntry(BaseQueueEntry):
