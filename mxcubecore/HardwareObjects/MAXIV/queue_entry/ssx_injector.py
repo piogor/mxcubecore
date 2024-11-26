@@ -19,13 +19,13 @@ from mxcubecore.model.common import (
     CommonCollectionParamters,
     LegacyParameters,
     PathParameters,
-    StandardCollectionParameters,
 )
 from mxcubecore.model.queue_model_objects import DataCollection
 from mxcubecore.queue_entry.base_queue_entry import QueueExecutionException
 
 from .base import (
     AbstractSsxQueueEntry,
+    SsxCollectionParameters,
     restore_beamline,
 )
 
@@ -53,7 +53,7 @@ class SsxInjectorQueueModel(DataCollection):
 class InjectorTaskParameters(BaseModel):
     path_parameters: PathParameters
     common_parameters: CommonCollectionParamters
-    collection_parameters: StandardCollectionParameters
+    collection_parameters: SsxCollectionParameters
     user_collection_parameters: InjectorUserCollectionParameters
     legacy_parameters: LegacyParameters
 
