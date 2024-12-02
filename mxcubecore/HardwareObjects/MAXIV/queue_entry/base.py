@@ -53,7 +53,7 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         queue_model = HWR.beamline.queue_model
         path_template.run_number = queue_model.get_next_run_number(path_template)
 
-    def prepare_data_collection(self, num_triggers=1):
+    def prepare_data_collection(self, num_images, num_triggers):
         """
         Prepare beamline for a SSX data collection, i.e.:
 
@@ -72,7 +72,6 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
 
             return (
                 uc_params.exp_time,
-                uc_params.num_images,
                 uc_params.cellA,
                 uc_params.cellB,
                 uc_params.cellC,
@@ -99,7 +98,6 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         #
         (
             exp_time,
-            num_images,
             cell_a,
             cell_b,
             cell_c,
