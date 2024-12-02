@@ -43,12 +43,10 @@ def sec_to_ms(sec) -> float:
 
 class InjectorUserCollectionParameters(BaseModel):
     exp_time: float = Field(100e-6, gt=0, lt=1, title="Exposure time (s)")
-    num_images: int = Field(1000, gt=0, lt=10000000, title="Number of images")
-    num_triggers: int = Field(1000, gt=0, lt=300_000, title="Number of triggers")
+    images_per_trigger: int = Field(20, gt=0, lt=10000000, title="Images per trigger")
+    total_images: int = Field(10000, gt=0, lt=10000000, title="Total number of images")
     energy: float = Field()
     resolution: float = Field()
-    laser_pulse_delay: float = Field(0, title="Laser pulse delay (s)")
-    laser_pulse_width: float = Field(0, title="Laser pulse width (s)")
     cellA: float = Field(0, title="Cell A")  # noqa: N815
     cellB: float = Field(0, title="Cell B")  # noqa: N815
     cellC: float = Field(0, title="Cell C")  # noqa: N815
@@ -70,17 +68,6 @@ class InjectorTaskParameters(BaseModel):
 
     @staticmethod
     def update_dependent_fields(field_data):
-        if not HWR.beamline.collect.is_jungfrau():
-            # TODO: figure out how num_images and num_trigger field
-            # should behave when Eiger is used
-            return field_data
-
-        #
-        # Jungfrau specific hacks
-        #
-        storage_cell_count = HWR.beamline.detector.get_storage_cell_count()
-        field_data["num_images"] = storage_cell_count * field_data["num_triggers"]
-
         return field_data
 
     @staticmethod
@@ -88,13 +75,11 @@ class InjectorTaskParameters(BaseModel):
         return json.dumps(
             {
                 "ui:order": [
-                    "num_triggers",
-                    "num_images",
+                    "images_per_trigger",
+                    "total_images",
                     "exp_time",
                     "resolution",
                     "energy",
-                    "laser_pulse_delay",
-                    "laser_pulse_width",
                     "cellAlpha",
                     "cellA",
                     "cellBeta",
@@ -111,6 +96,17 @@ class InjectorTaskParameters(BaseModel):
         )
 
 
+def _get_total_images(total_images: int, images_per_trigger: int) -> int:
+    """
+    massage total_image to be evenly divisible by images_per_trigger
+    """
+    reminder = total_images % images_per_trigger
+    if reminder != 0:
+        total_images += images_per_trigger - reminder
+
+    return total_images
+
+
 class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
     QMO = SsxTrInjectorQueueModel
     DATA_MODEL = InjectorTaskParameters
@@ -123,8 +119,12 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
 
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001
+        total_images = _get_total_images(params.total_images, params.images_per_trigger)
 
-        self.prepare_data_collection(params.num_triggers)
+        num_images = params.images_per_trigger
+        num_triggers = total_images // params.images_per_trigger
+
+        self.prepare_data_collection(num_images, num_triggers)
 
         #
         # start acquisition
