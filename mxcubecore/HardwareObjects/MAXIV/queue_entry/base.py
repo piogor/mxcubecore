@@ -189,6 +189,7 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         # this moves in beam stop
         #
         diffractometer.set_phase("DataCollection")
+        diffractometer.check_beamstop_is_at_beam_position()
 
         #
         # open detector cover and fast shutter
