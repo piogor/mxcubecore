@@ -385,6 +385,8 @@ class MICROMAXCollect(DataCollect):
             self.user_log.info("Moving Diffractometer to Data Collection")
             self.diffractometer_hwobj.set_phase("DataCollection")
 
+        self.diffractometer_hwobj.check_beamstop_is_at_beam_position()
+
         self.flux_before_collect = 0  # self.get_instant_flux()
         self.estimated_flux_before_collect = 0  # self.get_estimated_flux()
         # flux value is a string

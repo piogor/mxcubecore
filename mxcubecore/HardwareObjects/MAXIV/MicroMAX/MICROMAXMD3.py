@@ -1,10 +1,13 @@
 import logging
 
+import gevent
 from gevent import monkey
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
 from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3
+
+log = logging.getLogger("HWR")
 
 monkey.patch_all(thread=False)
 
@@ -12,6 +15,12 @@ MONITORING_INTERVAL = 0.1
 DEFAULT_TASK_TIMEOUT = 200
 DEFAULT_TASK_RUNNING_TIMEOUT = 2
 DEFAULT_PHASE_TIMEOUT = 20
+# how often we poll when checking if the beamstop has reached its 'BEAM' position
+CHECK_BEAMSTOP_INTERVAL = 0.25
+
+
+class BeamstopPositionException(Exception):
+    """raised when Beamstop fails to reach required position"""
 
 
 class MICROMAXMD3(MAXIVMD3):
@@ -28,6 +37,35 @@ class MICROMAXMD3(MAXIVMD3):
         logging.getLogger("HWR").debug("State changed %s" % str(state))
         self.current_state = state
         self.emit("valueChanged", (self.current_state))
+
+    def check_beamstop_is_at_beam_position(self) -> None:
+        """Check that the beamstop is at its ``BEAM`` position.
+
+        Poll the beamstop position for ``DEFAULT_PHASE_TIMEOUT`` seconds until:
+
+        - either the beamstop reaches its ``BEAM`` position,
+          in that case the method returns;
+        - or the time runs out and the beamstop is still not at its ``BEAM`` position,
+          in that case ``BeamstopPositionException`` is raised.
+        """
+
+        log.info("waiting for Beamstop to reach 'BEAM' position")
+
+        poll_attempts = int(DEFAULT_PHASE_TIMEOUT / CHECK_BEAMSTOP_INTERVAL)
+        for _ in range(poll_attempts):
+            beamstop_position = self.command_dict["getBeamstopPosition"]()
+            log.info(f"Beamstop position {beamstop_position}")
+
+            if beamstop_position == "BEAM":
+                log.info(f"Beamstop is now at '{beamstop_position}'")
+                return
+
+            gevent.sleep(CHECK_BEAMSTOP_INTERVAL)
+
+        log.error("giving up waiting for Beamstop to reach 'BEAM' position")
+        raise BeamstopPositionException(
+            f"Beamstop not at 'BEAM' position, current position '{beamstop_position}'."
+        )
 
     def raster_scan(
         self,
