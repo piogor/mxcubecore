@@ -9,14 +9,12 @@ import json
 import logging
 from typing import ClassVar
 
-import gevent
 from pydantic.v1 import (
     BaseModel,
     Field,
 )
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX import ekspla
 from mxcubecore.model.common import (
     CommonCollectionParamters,
     LegacyParameters,
@@ -34,17 +32,9 @@ from .base import (
 log = logging.getLogger("queue_exec")
 
 
-def sec_to_ms(sec) -> float:
-    """
-    convert seconds to milliseconds (ms)
-    """
-    return sec * 1_000.0
-
-
 class InjectorUserCollectionParameters(BaseModel):
-    exp_time: float = Field(100e-6, gt=0, lt=1, title="Exposure time (s)")
-    images_per_trigger: int = Field(20, gt=0, lt=10000000, title="Images per trigger")
-    total_images: int = Field(10000, gt=0, lt=10000000, title="Total number of images")
+    exp_time: float = Field(100e-4, gt=0, lt=1, title="Exposure time (s)")
+    num_images: int = Field(1000, gt=0, lt=10000000, title="Number of images")
     energy: float = Field()
     resolution: float = Field()
     space_group: str = Field()
@@ -56,7 +46,7 @@ class InjectorUserCollectionParameters(BaseModel):
     cellGamma: float = Field(0, title="Cell γ")  # noqa: N815
 
 
-class SsxTrInjectorQueueModel(DataCollection):
+class SsxInjectorQueueModel(DataCollection):
     pass
 
 
@@ -76,74 +66,60 @@ class InjectorTaskParameters(BaseModel):
         return json.dumps(
             {
                 "ui:order": [
-                    "images_per_trigger",
-                    "total_images",
+                    "num_images",
                     "exp_time",
                     "resolution",
                     "energy",
                     "space_group",
-                    "cellAlpha",
                     "cellA",
-                    "cellBeta",
+                    "cellAlpha",
                     "cellB",
-                    "cellGamma",
+                    "cellBeta",
                     "cellC",
+                    "cellGamma",
                     "*",
                 ],
                 "ui:submitButtonOptions": {
                     "norender": "true",
                 },
-                "num_images": {"ui:readonly": "true"},
             },
         )
 
 
-def _get_total_images(total_images: int, images_per_trigger: int) -> int:
+def _wait_acquisition_done():
     """
-    massage total_image to be evenly divisible by images_per_trigger
+    wait unit detector reports that data acquisition have stopped
     """
-    reminder = total_images % images_per_trigger
-    if reminder != 0:
-        total_images += images_per_trigger - reminder
+    detector = HWR.beamline.detector
 
-    return total_images
+    log.info("Waiting for acquisition to finish.")
+
+    #
+    # deal with different behaviour of Jungfrau vs Eiger hardware objects
+    #
+    if HWR.beamline.collect.is_jungfrau():
+        detector.wait_ready()
+    else:
+        # we are using eiger detector
+        detector.wait_idle()
+    log.info("Acquisition is finished.")
 
 
-class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
-    QMO = SsxTrInjectorQueueModel
+class SsxInjectorQueueEntry(AbstractSsxQueueEntry):
+    QMO = SsxInjectorQueueModel
     DATA_MODEL = InjectorTaskParameters
-    NAME = "SSX Injector Time Resolved"
+    NAME = "SSX Injector Collection"
     REQUIRES: ClassVar = ["point", "line", "no_shape", "chip", "mesh"]
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.ekspla_laser = ekspla.Ekspla()
 
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001
-        total_images = _get_total_images(params.total_images, params.images_per_trigger)
 
-        num_images = params.images_per_trigger
-        num_triggers = total_images // params.images_per_trigger
+        self.prepare_data_collection(params.num_images, num_triggers=1)
 
-        self.prepare_data_collection(num_images, num_triggers)
-
-        #
-        # start acquisition
-        #
-        self.ekspla_laser.run()
-
-        #
-        # wait for acquisition to end
-        #
-        log.info("Waiting for acquisition to finish.")
-        HWR.beamline.detector.wait_ready()
-        log.info("Acquisition is finished.")
-
-        #
-        # stop generating trigger signals
-        #
-        self.ekspla_laser.stop()
+        detector = HWR.beamline.detector
+        log.info("Sending software trigger to detector.")
+        detector.trigger()
+        _wait_acquisition_done()
 
     def execute(self):
         try:
@@ -153,13 +129,3 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
             raise QueueExecutionException(str(ex), self) from ex
         finally:
             restore_beamline()
-
-    def stop(self):
-        # stop generating trigger signals
-        self.ekspla_laser.stop()
-
-        # give detector chance to finish last train of triggers
-        gevent.sleep(1.0)
-
-        # this will ask detector to stop acquisition
-        super().stop()
