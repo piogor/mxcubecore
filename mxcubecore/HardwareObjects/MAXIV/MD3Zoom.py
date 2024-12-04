@@ -30,6 +30,15 @@ class MD3Zoom(ExporterNState):
         self._nominal_limits = limits
         self.emit("limitsChanged", (limits,))
 
+    def set_value(self, value, timeout=0):
+        if isinstance(value, int):
+            # Make it possible to set zoom levels as integers,
+            # as this is the format we will get from the front end,
+            # for example when 'goto 2D point' feature is used.
+            value = self.VALUES(value)
+
+        super().set_value(value, timeout)
+
     def _initialise_values(self):
         """Initialise the ValueEnum"""
         low, high = self.get_limits()

@@ -823,7 +823,15 @@ class MAXIVMD3(GenericDiffractometer):
         pos = self.centring_hwobj.centeredPosition()
         if return_by_names:
             pos = self.convert_from_obj_to_name(pos)
-        pos.pop("zoom", None)
+
+        #
+        # Zoom motor values are enums of integers,
+        # they will fail to serialized as JSON when send to front end.
+        # Convert them to plain integer to make it work.
+        #
+        if "zoom" in pos:
+            pos["zoom"] = pos["zoom"].value
+
         return pos
 
     def abort(self):
