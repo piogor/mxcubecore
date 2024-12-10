@@ -114,7 +114,11 @@ class SsxInjectorQueueEntry(AbstractSsxQueueEntry):
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001
 
-        self.prepare_data_collection(params.num_images, num_triggers=1)
+        self.prepare_data_collection(
+            params.num_images,
+            num_triggers=1,
+            software_trigger=True,
+        )
 
         detector = HWR.beamline.detector
         log.info("Sending software trigger to detector.")
