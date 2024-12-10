@@ -29,6 +29,7 @@ from .base import (
     AbstractSsxQueueEntry,
     SsxCollectionParameters,
     restore_beamline,
+    wait_acquisition_done,
 )
 
 log = logging.getLogger("queue_exec")
@@ -141,9 +142,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
         #
         # wait for acquisition to end
         #
-        log.info("Waiting for acquisition to finish.")
-        HWR.beamline.detector.wait_ready()
-        log.info("Acquisition is finished.")
+        wait_acquisition_done()
 
         #
         # stop generating trigger signals

@@ -1,6 +1,8 @@
 import logging
 from pathlib import Path
 
+import gevent
+
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.model import queue_model_objects
 from mxcubecore.model.common import StandardCollectionParameters
@@ -32,6 +34,38 @@ def restore_beamline():
         collect.close_detector_cover()
     except Exception:
         log.exception("Error while closing detector cover.")
+
+
+def wait_acquisition_done():
+    """Wait unit detector reports that data acquisition have stopped."""
+    detector = HWR.beamline.detector
+
+    log.info("Waiting for acquisition to finish.")
+
+    #
+    # deal with different behaviour of Jungfrau vs Eiger hardware objects
+    #
+    if HWR.beamline.collect.is_jungfrau():
+        #
+        # We are using Jungfrau detector. Jungfrau goes to 'ready' state
+        # when acquisition is done.
+        #
+        detector.wait_ready()
+    else:
+        #
+        # We are using EIGER detector. EIGER goes to 'idle' state
+        # when acquisition is done.
+        #
+        # We can't use the wait_idle() method here. wait_idle() times out after
+        # hard-coded amount of time. For SSX tasks, we need wait indefinitely,
+        # until the user manually stops the task.
+        #
+        # Thus do a custom loop here instead.
+        #
+        while not detector.is_idle():
+            gevent.sleep(0.25)
+
+    log.info("Acquisition is finished.")
 
 
 class SsxCollectionParameters(StandardCollectionParameters):
