@@ -204,7 +204,7 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
             trigger_mode = "ints" if software_trigger else "exts"
             det_cfg["TriggerMode"] = trigger_mode
 
-        detector.prepare_acquisition(det_cfg)
+        dozor_dict = detector.prepare_acquisition(det_cfg)
         detector.wait_config_done()
         detector.start_acquisition()
 
@@ -223,6 +223,9 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
 
         collect.create_file_directories()
         collect.generate_crystfel_input_files(det_cfg)
+
+        # set-up header appendix for this collection
+        collect.setup_header_appendix(shape_id, dozor_dict)
 
         # restore old SSX mode state
         collect.ssx_mode = old_ssx_mode

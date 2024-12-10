@@ -1122,6 +1122,60 @@ class MICROMAXCollect(DataCollect):
         if self.dtox_hwobj is not None:
             return self.dtox_hwobj.get_limits()
 
+    def setup_header_appendix(self, shape_id, dozor_dict, row=0, col=0):
+        """Set up the Header Appendix to be included into collection's data files.
+
+        Creates json string, which contains meta-data for this data collection.
+        Sends this string to detector hardware object, to be included into Header Appendix
+        section of the data files for the next collection.
+
+        Some of the meta-data is used by varius analysis pipelines.
+        """
+        header_appendix = {
+            "collect_dict": {
+                "experiment_type": self.current_dc_parameters["experiment_type"],
+                "ssx_mode": self.ssx_mode,
+                "row": row,
+                "col": col,
+                # this value should be from x-ray centering
+                "target_beam_size_factor": 2.0,
+                # assigning collection ID is not implemented (yet) for SSX tasks,
+                # set 'col_id' to None if collection ID is not available
+                "col_id": self.current_dc_parameters.get("collection_id"),
+                "process_dir": self.current_dc_parameters["auto_dir"],
+                "shape_id": shape_id,
+                "mxcube_server": self.get_mxcube_server_ip(),
+            },
+        }
+
+        #
+        # add mesh scan parameters, if needed
+        #
+        if self.current_dc_parameters["experiment_type"] == "Mesh":
+            # hardcoded values corresponding to MD3UP
+            header_appendix["start_corner"] = "top-right"
+            header_appendix["scan_pattern"] = "zig-zag"
+            header_appendix["scan_orientation"] = "vertical"
+
+        #
+        # dozor part
+        #
+        if dozor_dict:
+            header_appendix["dozor_dict"] = dozor_dict
+
+        #
+        # add sample 'space group' and 'unit cell' parameters to header appendix,
+        # if the user have specified them
+        #
+        sample_reference_dict = self.get_header_appendix_sample_reference_dict(
+            self.current_dc_parameters["sample_reference"]
+        )
+        if sample_reference_dict:
+            # user specified some sample reference params, add them to header appendix
+            header_appendix["sample_reference"] = sample_reference_dict
+
+        self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
+
     def prepare_detector(self):
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         (
@@ -1131,13 +1185,8 @@ class MICROMAXCollect(DataCollect):
             osc_range,
         ) = self.triggers_to_collect[0]
 
-        mesh_dict = dict()
         if self.current_dc_parameters["experiment_type"] == "Mesh":
             ntrigger = self.get_mesh_num_lines()
-            # hardcoded values corresponds do md3 detector:
-            mesh_dict["start_corner"] = "top-right"
-            mesh_dict["scan_pattern"] = "zig-zag"
-            mesh_dict["scan_orientation"] = "vertical"
         else:
             ntrigger = len(self.triggers_to_collect)
         config = self.detector_hwobj.col_config
@@ -1197,37 +1246,13 @@ class MICROMAXCollect(DataCollect):
         self.detector_hwobj.enable_stream()
         dozor_dict = self.detector_hwobj.prepare_acquisition(config)
 
-        # set image appendix, used by online analysis
-        target_beam_size_factor = 2.0  # this value should be from x-ray centering
-        collect_dict = {
-            "exp_type": self.current_dc_parameters["experiment_type"],
-            "ssx_mode": self.ssx_mode,
-            "row": ntrigger,
-            "col": nframes_per_trigger,
-            "target_beam_size_factor": target_beam_size_factor,
-            "col_id": self.current_dc_parameters["collection_id"],
-            "process_dir": self.current_dc_parameters["auto_dir"],
-            "shape_id": self.current_dc_parameters["shape"],
-            "mxcube_server": self.get_mxcube_server_ip(),
-            **mesh_dict,
-        }
-        header_appendix = {
-            "dozor_dict": dozor_dict,
-            "collect_dict": collect_dict,
-        }
-
-        #
-        # add sample 'space group' and 'unit cell' parameters to header appendix,
-        # if the user have specified them
-        #
-        sample_reference_dict = self.get_header_appendix_sample_reference_dict(
-            self.current_dc_parameters["sample_reference"]
+        # set-up header appendix for this collection
+        self.setup_header_appendix(
+            self.current_dc_parameters["shape"],
+            dozor_dict,
+            row=ntrigger,
+            col=nframes_per_trigger,
         )
-        if sample_reference_dict:
-            # user specified some sample reference params, add them to header appendix
-            header_appendix["sample_reference"] = sample_reference_dict
-
-        self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
         return config
 
     def stop_collect(self):
