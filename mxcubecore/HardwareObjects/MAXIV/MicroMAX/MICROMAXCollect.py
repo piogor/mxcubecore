@@ -1361,6 +1361,12 @@ class MICROMAXCollect(DataCollect):
             self.move_detector_to_safe_position()
 
         self.close_safety_shutter()
+        if self.is_jungfrau():
+            #
+            # if we are using Jungfrau, take the chance
+            # to do a 'recalibration' each time we mount a new sample
+            #
+            self.detector_hwobj.pedestal()
 
     def _update_image_to_display(self):
         fname1 = "/mxn/groups/sw/mxsw/albula_autoload/to_display"
