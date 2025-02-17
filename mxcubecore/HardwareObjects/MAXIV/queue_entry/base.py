@@ -8,6 +8,10 @@ from mxcubecore.utils.units import mm_to_meter
 
 log = logging.getLogger("queue_exec")
 
+# A work-around value used to indicate 'no omega rotation'
+# when configuring Jungfrau detector.
+JUNGFRAU_NON_ZERO_OMEGA_INCREMENT = 0.000001
+
 
 def restore_beamline():
     collect = HWR.beamline.collect
@@ -136,6 +140,9 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         det_cfg["CountTime"] = exp_time
         det_cfg["FilenamePattern"] = str(Path(root_dir, f"{path_prefix}_{run_number}"))
         if collect.is_jungfrau():
+            # Jungfrau consider 0 omega increment an invalid setting,
+            # and will refuse to arm. Set omega increment to a work-around value.
+            det_cfg["OmegaIncrement"] = JUNGFRAU_NON_ZERO_OMEGA_INCREMENT
             # unit cell parameters are Jungfrau specific,
             # Eiger does not support them
             det_cfg["UnitCellA"] = cell_a
