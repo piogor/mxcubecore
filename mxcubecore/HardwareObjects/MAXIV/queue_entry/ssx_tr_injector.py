@@ -16,7 +16,10 @@ from pydantic.v1 import (
 )
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX import pandabox
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX import (
+    ekspla,
+    pandabox,
+)
 from mxcubecore.model.common import (
     CommonCollectionParamters,
     LegacyParameters,
@@ -112,6 +115,10 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
     NAME = "SSX Injector Time Resolved"
     REQUIRES: ClassVar = ["point", "line", "no_shape", "chip", "mesh"]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ekspla_laser = ekspla.Ekspla()
+
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001
 
@@ -133,6 +140,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
         # start acquisition
         #
         pandabox.start_measurement()
+        self.ekspla_laser.run()
 
         #
         # wait for acquisition to end
@@ -144,6 +152,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
         #
         # stop generating trigger signals
         #
+        self.ekspla_laser.stop()
         pandabox.stop_measurement()
 
     def execute(self):
@@ -157,6 +166,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
 
     def stop(self):
         # stop generating trigger signals
+        self.ekspla_laser.stop()
         pandabox.stop_measurement()
         # give detector chance to finish last train of triggers
         gevent.sleep(1.0)
