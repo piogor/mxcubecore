@@ -16,10 +16,7 @@ from pydantic.v1 import (
 )
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX import (
-    ekspla,
-    pandabox,
-)
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX import ekspla
 from mxcubecore.model.common import (
     CommonCollectionParamters,
     LegacyParameters,
@@ -127,24 +124,11 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001
 
-        #
-        # configure pandABox to generate desired trigger signals
-        #
-
-        ssx_cfg = pandabox.SSXInjectConfig(
-            enable_custom_output=True,
-            custom_output_delay=sec_to_ms(params.laser_pulse_delay),
-            custom_output_pulse_width=sec_to_ms(params.laser_pulse_width),
-            max_triggers=params.num_triggers,
-        )
-        pandabox.load_ssx_inject_schema(ssx_cfg)
-
         self.prepare_data_collection(params.num_triggers)
 
         #
         # start acquisition
         #
-        pandabox.start_measurement()
         self.ekspla_laser.run()
 
         #
@@ -158,7 +142,6 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
         # stop generating trigger signals
         #
         self.ekspla_laser.stop()
-        pandabox.stop_measurement()
 
     def execute(self):
         try:
@@ -172,7 +155,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
     def stop(self):
         # stop generating trigger signals
         self.ekspla_laser.stop()
-        pandabox.stop_measurement()
+
         # give detector chance to finish last train of triggers
         gevent.sleep(1.0)
 
