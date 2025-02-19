@@ -278,6 +278,15 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         HWR.beamline.diffractometer.abort()
 
     def stop(self):
-        super().stop()
         log.info("Aborting acquisition.")
-        HWR.beamline.detector.stop_acquisition()
+
+        # We want to close the fast shutter as fast as possible on abort.
+        collect = HWR.beamline.collect
+        collect.close_fast_shutter()
+
+        super().stop()
+        detector = HWR.beamline.detector
+
+        # Now we can cancel acquisition - it's ok to have some dark images.
+        detector.cancel_acquisition()
+        collect.close_detector_cover()
