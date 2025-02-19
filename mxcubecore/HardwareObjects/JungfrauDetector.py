@@ -225,6 +225,10 @@ class JungfrauDetector(AbstractDetector):
         self.dev.Stop()
         self.wait_ready()
 
+    # EigerDetector differentiates between stop_acqusition and cancel_acqusition.
+    # For compatibility, we define cancel_acquisition as an alias for stop_acquisition.
+    cancel_acquisition = stop_acquisition
+
     def get_acquisition_time(self) -> float:
         """
         current acquisition time, in seconds
