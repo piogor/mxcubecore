@@ -1,5 +1,6 @@
 import logging
 import time
+from typing import Callable
 
 import gevent
 
@@ -117,6 +118,8 @@ class MAXIVMD3(GenericDiffractometer):
                 "Cannot initialize diffractometer Fast Shutter"
             )
 
+        self._watch_cam_scale_changes()
+
         try:
             use_sc = self.get_property("use_sc")
             self.set_use_sc(use_sc)
@@ -136,6 +139,37 @@ class MAXIVMD3(GenericDiffractometer):
                 )
         except Exception as ex:
             logging.getLogger("HWR").warning("Omega axis is not defined. {}".format(ex))
+
+    def _emit_pixels_per_mm_changed(self):
+        self.emit("pixelsPerMmChanged", (self.pixels_per_mm_x, self.pixels_per_mm_y))
+
+    def _update_pixels_per_mm_x(self, coax_cam_scale_x: float, **_):
+        """Update pixels-per-millimeter in X axis factor."""
+        self.pixels_per_mm_x = 1.0 / coax_cam_scale_x
+        self._emit_pixels_per_mm_changed()
+
+    def _update_pixels_per_mm_y(self, coax_cam_scale_y: float, **_):
+        """Update pixels-per-millimeter in Y axis factor."""
+        self.pixels_per_mm_y = 1.0 / coax_cam_scale_y
+        self._emit_pixels_per_mm_changed()
+
+    def _watch_cam_scale_changes(self):
+        """Add callbacks to update zoom level scaling variables.
+
+        Add callback to watch changes of CoaxCamScaleX and CoaxCamScaleY attributes.
+        These attributes are updated on video zoom level changes. Recalculate our
+        internal pixels-per-millimeter variables on each change.
+        """
+
+        def connect(name: str, callback: Callable):
+            channel = self.channel_dict[name]
+            channel.connect_signal("update", callback)
+
+            # fetch initial value
+            callback(channel.get_value())
+
+        connect("CoaxCamScaleX", self._update_pixels_per_mm_x)
+        connect("CoaxCamScaleY", self._update_pixels_per_mm_y)
 
     ## ------------------------------- ##
     ##      TASK ID MANAGEMENT         ##
@@ -338,25 +372,13 @@ class MAXIVMD3(GenericDiffractometer):
 
     def get_pixels_per_mm(self):
         """
-        Get the values from coaxCamScaleX and coaxCamScaleY channels diretly
+        Get current pixels-per-millimeter values.
 
         :returns: list with two floats
         """
-        zoom = HWR.beamline.sample_view.camera.get_image_zoom()
-        return (
-            zoom / self.channel_dict["CoaxCamScaleX"].get_value(),
-            1 / self.channel_dict["CoaxCamScaleY"].get_value(),
-        )
-
-    def update_zoom_calibration(self):
-        """ """
-        zoom = HWR.beamline.sample_view.camera.get_image_zoom()
-        self.pixels_per_mm_x = zoom / self.channel_dict["CoaxCamScaleX"].get_value()
-        self.pixels_per_mm_y = zoom / self.channel_dict["CoaxCamScaleY"].get_value()
-        self.emit("pixelsPerMmChanged", ((self.pixels_per_mm_x, self.pixels_per_mm_y)))
+        return self.pixels_per_mm_x, self.pixels_per_mm_y
 
     def manual_centring(self):
-        self.update_zoom_calibration()
 
         self.centring_hwobj.initCentringProcedure()
         for click in range(3):
@@ -539,11 +561,6 @@ class MAXIVMD3(GenericDiffractometer):
         self.wait_device_ready(5)
         self.channel_dict["ScanNumberOfFrames"].set_value(value)
         self.wait_device_ready(5)
-
-    def zoom_position_changed(self, value):
-        self.update_zoom_calibration()
-        self.current_motor_positions["zoom"] = value
-        self.refresh_omega_reference_position()
 
     def motor_positions_to_screen(self, centred_positions_dict):
         c = centred_positions_dict
@@ -811,7 +828,6 @@ class MAXIVMD3(GenericDiffractometer):
             self.wait_ready(timeout)
 
     def get_centred_point_from_coord(self, x, y, return_by_names=None):
-        self.update_zoom_calibration()
         self.centring_hwobj.initCentringProcedure()
         self.centring_hwobj.appendCentringDataPoint(
             {
