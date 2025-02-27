@@ -428,9 +428,6 @@ class MAXIVAutoProcessing(HardwareObject):
             self.log.error("Could not store images in lims, error was {}".format(ex))
 
     def store_image_in_lims_by_frame_num(self, frame, motor_position_id=None):
-        """
-        Descript. :
-        """
         # Dont save mesh first and last images
         # Mesh images (best positions) are stored after data analysis
         self.log.info("TODO: fix store_image_in_lims_by_frame_num method for nimages>1")
@@ -534,9 +531,6 @@ class MAXIVAutoProcessing(HardwareObject):
     def store_image_in_lims(
         self, frame_number, motor_position_id=None, collection=None
     ):
-        """
-        Descript. :
-        """
         if collection is None:
             collection = self.current_dc_parameters
         if self.lims_client_hwobj:
