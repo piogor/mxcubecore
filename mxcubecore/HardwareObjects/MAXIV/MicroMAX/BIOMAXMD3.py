@@ -137,9 +137,12 @@ class MAXIVMD3(GenericDiffractometer):
             if self.omega_reference_motor is not None:
                 self.connect(
                     self.omega_reference_motor,
-                    "value_hanged",
+                    "value_changed",
                     self.omega_reference_motor_moved,
                 )
+            self.omega_reference_focus = self.get_object_by_role(
+                self.omega_reference_par["focus_ref"]
+            )
         except Exception as ex:
             logging.getLogger("HWR").warning("Omega axis is not defined. {}".format(ex))
 
@@ -382,6 +385,8 @@ class MAXIVMD3(GenericDiffractometer):
         return self.pixels_per_mm_x, self.pixels_per_mm_y
 
     def manual_centring(self):
+        self.move_to_omega_reference_pos()
+        self.wait_device_ready(10)
 
         self.centring_hwobj.initCentringProcedure()
         for click in range(3):
@@ -553,7 +558,10 @@ class MAXIVMD3(GenericDiffractometer):
 
     def move_to_omega_reference_pos(self):
         pos = self.omega_reference_par["position"]
-        self.omega_reference_motor.move(pos)
+        self.omega_reference_motor.set_value(pos)
+
+        omega_reference_focus_pos = self.omega_reference_par["focus_pos"]
+        self.omega_reference_focus.set_value(omega_reference_focus_pos)
 
     def set_scan_number_of_passes(self, value):
         self.wait_device_ready(5)
