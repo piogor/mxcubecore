@@ -1260,8 +1260,8 @@ class MICROMAXCollect(DataCollect):
         Stops data collection
         """
         self.log.warning("Stopping collection ....")
-        self.close_detector_cover()
         self.diffractometer_hwobj.abort()
+        self.close_detector_cover()
         self.detector_hwobj.abort()
         self.detector_hwobj.disarm()
         self.move_to_centered_position()

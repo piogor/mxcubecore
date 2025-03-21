@@ -1210,8 +1210,8 @@ class BIOMAXCollect(DataCollect):
         Stops data collection
         """
         logging.getLogger("HWR").error("Stopping collection ....")
-        self.close_detector_cover()
         self.diffractometer_hwobj.abort()
+        self.close_detector_cover()
         self.detector_hwobj.abort()
         self.detector_hwobj.disarm()
         if self.data_collect_task is not None:
