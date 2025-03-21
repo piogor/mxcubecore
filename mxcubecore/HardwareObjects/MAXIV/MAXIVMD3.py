@@ -16,6 +16,9 @@ from mxcubecore.HardwareObjects.GenericDiffractometer import (
 
 monkey.patch_all(thread=False)
 
+# time we wait after issuing MD3 abort() command, to let MD3 'settle down'
+WAIT_AFTER_ABORT = 5.0
+
 MONITORING_INTERVAL = 0.1
 DEFAULT_TASK_TIMEOUT = 200
 DEFAULT_TASK_RUNNING_TIMEOUT = 2
@@ -856,6 +859,19 @@ class MAXIVMD3(GenericDiffractometer):
         """
         log.warning("[MAXIVMD3]: aborting tasks")
         self.command_dict["abort"]()
+
+        #
+        # Wait for a while after sending 'abort' command,
+        # before doing anything else.
+        #
+        # This way we work around some kind of MD3 bugs,
+        # where interacting with MD3 too quickly after an abort
+        # crashes its control software.
+        #
+        # Note using self.wait_device_ready() did not work here for some reason.
+        #
+        time.sleep(WAIT_AFTER_ABORT)
+
         log.warning("[MAXIVMD3]: all tasks aborted")
 
     def move_omega_relative(self, relative_angle):
