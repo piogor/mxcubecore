@@ -171,6 +171,7 @@ class MICROMAXCollect(DataCollect):
         Actual collect sequence
         """
         self.user_log.info("Collection: Preparing to collect")
+        self.diffractometer_hwobj.set_direct_beam_enabled(False)
         # todo, add more exceptions and abort
         try:
             self.emit("collectReady", (False,))
@@ -1339,6 +1340,7 @@ class MICROMAXCollect(DataCollect):
         try:
             self.close_detector_cover()
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
+            self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
             flux = self.flux_hwobj.calc_flux()
         except Exception as ex:
@@ -1350,6 +1352,7 @@ class MICROMAXCollect(DataCollect):
         finally:
             # close fast shutter
             self.close_fast_shutter()
+            self.diffractometer_hwobj.set_direct_beam_enabled(False)
             if keep_position:
                 self.diffractometer_hwobj.finish_calculate_flux(ori_motors, ori_phase)
             else:

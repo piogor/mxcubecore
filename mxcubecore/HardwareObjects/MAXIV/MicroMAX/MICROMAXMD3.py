@@ -33,6 +33,11 @@ class MICROMAXMD3(MAXIVMD3):
         self.image_width = None
         self.image_height = None
 
+        self.set_direct_beam_enabled(False)
+
+    def set_direct_beam_enabled(self, enabled: bool):
+        self.channel_dict["DirectBeamEnabled"].set_value(enabled)
+
     def state_changed(self, state):
         logging.getLogger("HWR").debug("State changed %s" % str(state))
         self.current_state = state
