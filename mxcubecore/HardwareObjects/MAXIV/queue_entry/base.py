@@ -164,6 +164,11 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
             diffractometer.move_motors(motor_positions)
 
         #
+        # make sure MD3 'direct beam' mode is disabled
+        #
+        diffractometer.set_direct_beam_enabled(False)
+
+        #
         # open safety shutter
         #
         collect.open_safety_shutter()
