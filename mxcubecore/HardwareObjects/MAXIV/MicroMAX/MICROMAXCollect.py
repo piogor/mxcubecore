@@ -265,7 +265,9 @@ class MICROMAXCollect(DataCollect):
 
             self.emit_collection_finished()
 
-        except Exception as ex:
+        # GreenletExit is raised when a greenlet is killed.
+        # It has to be handled separately, because it inherits from BaseException.
+        except (gevent.GreenletExit, Exception) as ex:
             self.log.exception("[COLLECT] Data collection failed: %s" % ex)
             self.user_log.error("[COLLECT] Data collection failed: %s" % ex)
             self.emit_collection_failed()
