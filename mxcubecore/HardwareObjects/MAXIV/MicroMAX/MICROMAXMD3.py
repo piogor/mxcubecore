@@ -210,3 +210,37 @@ class MICROMAXMD3(MAXIVMD3):
             )
             logging.getLogger("HWR").error(error_msg)
             raise
+
+    def move_to_beam(self, x, y, omega=None):  # noqa: ARG002
+        # Temporary solution to use either alignment or
+        # sample table motors for 'move to beam' movements,
+        # depending if we run in SSX or normal mode.
+        # Once the more permanent 'SSX fixed target' mode
+        # is implemented, this method should be revised
+        # and removed or updated accordingly.
+        #
+        ssx_mode = HWR.beamline.collect.ssx_mode
+        log.info(f"[MICROMAXMD3]/move_to_beam({x:.4f} {y:.4f}) ssx_mode={ssx_mode}")
+
+        if ssx_mode:
+            horizontal_axis = self.phiz_motor_hwobj
+            vertical_axis = self.phiy_motor_hwobj
+        else:
+            horizontal_axis = self.cent_vertical_pseudo_motor
+            vertical_axis = self.phiy_motor_hwobj
+
+        try:
+            self.emit_progress_message("Move to beam...")
+            beam_xc, beam_yc = HWR.beamline.beam.get_beam_position()
+            # the amount below is the absolute move
+            y_move_rel = (y - beam_yc) / float(self.pixels_per_mm_x)
+            x_move_abs = horizontal_axis.get_value() - (x - beam_xc) / float(
+                self.pixels_per_mm_y
+            )
+            self.emit_progress_message("")
+
+            vertical_axis.set_value_relative(y_move_rel)
+            horizontal_axis.set_value(x_move_abs)
+            self.wait_ready(5)
+        except Exception:
+            log.exception("MD3: could not move to beam.")
