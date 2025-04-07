@@ -879,13 +879,16 @@ class MAXIVMD3(GenericDiffractometer):
             try:
                 motor_positions.pop("kappa")
                 motor_positions.pop("kappa_phi")
-            except:
+            except Exception:
                 pass
         for motor in motor_positions.keys():
             position = motor_positions[motor]
-            logging.getLogger("HWR").debug(
-                f"moving motor {motor} to position {position}"
-            )
+            try:
+                msg = f"moving motor {motor.actuator_name} to position {position:.4f}"
+            except Exception:
+                msg = f"moving motor {motor} to position {position:.4f}"
+            log.info(msg)
+
             if type(motor) is str:
                 motor_role = motor
                 motor = self.motor_hwobj_dict[motor_role]
