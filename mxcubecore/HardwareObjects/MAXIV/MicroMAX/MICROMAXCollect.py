@@ -1088,22 +1088,24 @@ class MICROMAXCollect(DataCollect):
             "...................value %s, detector movement start..... %s"
             % (value, self.dtox_hwobj.get_value())
         )
-        if upper_limit is not None and lower_limit is not None:
-            if value >= upper_limit or value <= lower_limit:
-                self.log.exception("Can't move detector, the value is out of limits")
-                self.stop_collect()
-            else:
-                try:
-                    if self.dtox_hwobj is not None:
-                        self.dtox_hwobj.set_value(value)
-                        self.dtox_hwobj.wait_end_of_move(50)
-                except Exception:
-                    self.user_log.error("Cannot move detector.")
-                    self.log.exception("Problems when moving detector!!")
-                    self.stop_collect()
-                    self.emit_collection_failed()
-        else:
+
+        if upper_limit is None or lower_limit is None:
             self.log.exception("Can't get distance limits, not moving detector!!")
+
+        if value >= upper_limit or value <= lower_limit:
+            self.log.exception("Can't move detector, the value is out of limits")
+            self.stop_collect()
+            return
+        try:
+            if self.dtox_hwobj is not None:
+                self.dtox_hwobj.set_value(value)
+                self.dtox_hwobj.wait_end_of_move(50)
+        except Exception:
+            self.user_log.error("Cannot move detector.")
+            self.log.exception("Problems when moving detector!!")
+            self.stop_collect()
+            self.emit_collection_failed()
+
         self.log.info(
             "....................value %s detector movement finished.....%s"
             % (value, self.dtox_hwobj.get_value())
