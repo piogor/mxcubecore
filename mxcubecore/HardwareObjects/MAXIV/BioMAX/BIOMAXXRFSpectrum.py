@@ -553,8 +553,6 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
             self.spectrum_info_dict.pop("prefix")
             self.spectrum_info_dict.pop("spectrum_directory")
             self.spectrum_info_dict.pop("archive_directory")
-            return HWR.beamline.lims.storeXfeSpectrum(self.spectrum_info_dict)
-        except Exception as ex:
-            logging.getLogger("HWR").warning(
-                "Cannot save XRFSpectrum info to Ispyb %s", ex
-            )
+            return HWR.beamline.lims.store_xfe_spectrum(self.spectrum_info_dict)
+        except Exception:
+            logging.getLogger("HWR").exception("Cannot save XRFSpectrum info to Ispyb")
