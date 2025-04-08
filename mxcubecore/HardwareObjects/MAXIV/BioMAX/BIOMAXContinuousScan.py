@@ -668,13 +668,11 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
             )
             db_status = None
             try:
-                db_status = HWR.beamline.lims.storeEnergyScan(
+                db_status = HWR.beamline.lims.store_energy_scan(
                     self.energy_scan_parameters
                 )
-            except Exception as ex:
-                logging.getLogger("HWR").warning(
-                    "Energy scan store in lims failed %s" % str(ex)
-                )
+            except Exception:
+                logging.getLogger("HWR").exception("Energy scan store in lims failed")
             if db_status:
                 energyscanid = int(db_status["energyScanId"])
             else:
