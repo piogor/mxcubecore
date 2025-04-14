@@ -63,6 +63,7 @@ class MICROMAXCollect(DataCollect):
         self.collection_dictionaries = []
         self.scicat_enabled = False
         self.collection_uuid = ""
+        self.number_of_snapshots = 0
 
         self.flux_before_collect = None
         self.estimated_flux_before_collect = None
@@ -869,7 +870,7 @@ class MICROMAXCollect(DataCollect):
             return image_id
 
     def take_crystal_snapshots(self):
-        if self.current_dc_parameters["take_snapshots"]:
+        if self.number_of_snapshots > 0:
             # snapshot_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
             # save the image to the data collection directory for the moment
             snapshot_directory = os.path.join(
@@ -881,23 +882,15 @@ class MICROMAXCollect(DataCollect):
                 except Exception:
                     self.log.exception("Collection: Error creating snapshot directory")
 
-            # for plate head, takes only one image
-            if (
-                self.diffractometer_hwobj.head_type
-                == GenericDiffractometer.HEAD_TYPE_PLATE
-            ):
-                number_of_snapshots = 1
-            else:
-                number_of_snapshots = 4  # 4 take only one image for the moment
             self.user_log.info(
-                "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
+                "Collection: Taking %d sample snapshot(s)" % self.number_of_snapshots
             )
             if self.diffractometer_hwobj.get_current_phase() != "Centring":
                 self.user_log.info("Moving Diffractometer to CentringPhase")
                 self.diffractometer_hwobj.set_phase("Centring")
                 self.move_to_centered_position()
 
-            for snapshot_index in range(number_of_snapshots):
+            for snapshot_index in range(self.number_of_snapshots):
                 snapshot_filename = os.path.join(
                     snapshot_directory,
                     "%s_%s_%s.snapshot.jpeg"
@@ -913,7 +906,7 @@ class MICROMAXCollect(DataCollect):
                 # self._do_take_snapshot(snapshot_filename)
                 self._take_crystal_snapshot(snapshot_filename)
                 time.sleep(1)  # needed, otherwise will get the same images
-                if number_of_snapshots > 1:
+                if self.number_of_snapshots > 1:
                     self.diffractometer_hwobj.move_omega_relative(90)
                     time.sleep(1)  # needed, otherwise will get the same images
 
@@ -959,7 +952,7 @@ class MICROMAXCollect(DataCollect):
     @task
     def _take_crystal_snapshot(self, filename):
         # take image from server
-        self.diffractometer_hwobj.camera.take_snapshot(filename)
+        HWR.beamline.sample_view.camera.take_snapshot(filename)
 
     def set_detector_roi(self, value):
         """Set the detector ROI mode."""
