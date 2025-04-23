@@ -22,7 +22,10 @@ from mxcubecore.model.common import (
     StandardCollectionParameters,
 )
 from mxcubecore.model.queue_model_objects import DataCollection
-from mxcubecore.queue_entry.base_queue_entry import QueueExecutionException
+from mxcubecore.queue_entry.base_queue_entry import (
+    QueueExecutionException,
+    TaskPrerequisite,
+)
 
 from .base import (
     AbstractSsxQueueEntry,
@@ -91,7 +94,13 @@ class SsxInjectorQueueEntry(AbstractSsxQueueEntry):
     QMO = SsxInjectorQueueModel
     DATA_MODEL = InjectorTaskParameters
     NAME = "SSX Injector Collection"
-    REQUIRES: ClassVar = ["point", "line", "no_shape", "chip", "mesh"]
+    REQUIRES: ClassVar[list[TaskPrerequisite]] = [
+        TaskPrerequisite.POINT,
+        TaskPrerequisite.LINE,
+        TaskPrerequisite.CHIP,
+        TaskPrerequisite.MESH,
+        TaskPrerequisite.NO_SHAPE_2D,
+    ]
 
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001

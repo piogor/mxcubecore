@@ -24,7 +24,10 @@ from mxcubecore.model.common import (
     StandardCollectionParameters,
 )
 from mxcubecore.model.queue_model_objects import DataCollection
-from mxcubecore.queue_entry.base_queue_entry import QueueExecutionException
+from mxcubecore.queue_entry.base_queue_entry import (
+    QueueExecutionException,
+    TaskPrerequisite,
+)
 
 from .base import (
     AbstractSsxQueueEntry,
@@ -114,7 +117,13 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
     QMO = SsxTrInjectorQueueModel
     DATA_MODEL = InjectorTaskParameters
     NAME = "SSX Injector Time Resolved"
-    REQUIRES: ClassVar = ["point", "line", "no_shape", "chip", "mesh"]
+    REQUIRES: ClassVar[list[TaskPrerequisite]] = [
+        TaskPrerequisite.POINT,
+        TaskPrerequisite.LINE,
+        TaskPrerequisite.CHIP,
+        TaskPrerequisite.MESH,
+        TaskPrerequisite.NO_SHAPE_2D,
+    ]
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
