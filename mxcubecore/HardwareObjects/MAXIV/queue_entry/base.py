@@ -5,7 +5,6 @@ import gevent
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.model import queue_model_objects
-from mxcubecore.model.common import StandardCollectionParameters
 from mxcubecore.queue_entry.base_queue_entry import BaseQueueEntry
 from mxcubecore.utils.units import mm_to_meter
 
@@ -66,10 +65,6 @@ def wait_acquisition_done():
             gevent.sleep(0.25)
 
     log.info("Acquisition is finished.")
-
-
-class SsxCollectionParameters(StandardCollectionParameters):
-    create_point: bool = True
 
 
 class AbstractSsxQueueEntry(BaseQueueEntry):
