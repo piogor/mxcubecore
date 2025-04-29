@@ -107,7 +107,7 @@ class PrepareOpenHutch:
                 logging.getLogger("HWR").info("Unloading mounted sample.")
                 HWR.beamline.sample_changer.unload(None, wait=True)
 
-            if HWR.beamline.sample_changer._chnInSoak.get_value():
+            if HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK":
                 logging.getLogger("HWR").info(
                     "Sample Changer was in SOAK, going to DRY"
                 )
@@ -285,7 +285,7 @@ class EmptyMount:
             logging.getLogger("HWR").error(exception)
             raise exception
         if HWR.beamline.sample_changer.is_powered():
-            if HWR.beamline.sample_changer.get_channel_value("InSoak"):
+            if HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK":
                 logging.getLogger("HWR").debug(
                     "[SC][Empty mount] Running command 'Abort'..."
                 )
