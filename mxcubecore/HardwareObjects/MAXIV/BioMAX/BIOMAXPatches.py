@@ -213,7 +213,7 @@ class BIOMAXPatches(HardwareObject):
         self.sc_recovery_after_timeout()
 
     def sc_in_soak(self):
-        return HWR.beamline.sample_changer._chnInSoak.get_value()
+        return HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK"
 
     def init(self, *args):
         self.__load = HWR.beamline.sample_changer.load

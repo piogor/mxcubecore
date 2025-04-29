@@ -51,13 +51,13 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
         self._is_handling_md3_not_safe = False
 
-        self._add_tango_channel("InSoak")
         self._add_tango_channel("PoseRx", "PoseRX")
         self._add_tango_channel("PoseRy", "PoseRY")
         self._add_tango_channel("PoseRz", "PoseRZ")
         self._add_tango_channel("PoseX")
         self._add_tango_channel("PoseY")
         self._add_tango_channel("PoseZ")
+        self._add_tango_channel("PositionName")  # To check for the soaking position
 
         message_channel = self._add_tango_channel(
             "Message",
