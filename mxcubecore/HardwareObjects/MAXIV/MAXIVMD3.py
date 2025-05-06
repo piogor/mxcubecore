@@ -117,12 +117,13 @@ class MAXIVMD3(GenericDiffractometer):
         self.acceptCentring = self.accept_centring
         self.startCentringMethod = self.start_centring_method
 
+        self.zoom_motor_hwobj = self.get_object_by_role("zoom")
+        self.focus_motor_hwobj = self.get_object_by_role("focus")
+
         self.phi_motor_hwobj = self.motor_hwobj_dict["phi"]
         self.phix_motor_hwobj = self.motor_hwobj_dict["phix"]
         self.phiy_motor_hwobj = self.motor_hwobj_dict["phiy"]
         self.phiz_motor_hwobj = self.motor_hwobj_dict["phiz"]
-        self.zoom_motor_hwobj = self.motor_hwobj_dict["zoom"]
-        self.focus_motor_hwobj = self.motor_hwobj_dict["focus"]
         self.sample_x_motor_hwobj = self.motor_hwobj_dict["sampx"]
         self.sample_y_motor_hwobj = self.motor_hwobj_dict["sampy"]
         try:
@@ -184,6 +185,17 @@ class MAXIVMD3(GenericDiffractometer):
             )
         except Exception as ex:
             logging.getLogger("HWR").warning("Omega axis is not defined. {}".format(ex))
+
+    def get_motors(self):
+        motors = super().get_motors()
+
+        #
+        # add motors not in 'centring motors' list
+        #
+        motors["zoom"] = self.zoom_motor_hwobj
+        motors["focus"] = self.focus_motor_hwobj
+
+        return motors
 
     def bookmark_position(self):
         """Bookmark current MD3 motor positions.
