@@ -948,7 +948,7 @@ class MICROMAXCollect(DataCollect):
                     self.diffractometer_hwobj.move_omega_relative(90)
                     time.sleep(1)  # needed, otherwise will get the same images
 
-    def trigger_auto_processing(self, process_event, frame_number):
+    def trigger_auto_processing(self, process_event, _frame_number):
         self.log.info(
             "[COLLECT] triggering auto processing, self.current_dc_parameters: %s"
             % self.current_dc_parameters
@@ -957,7 +957,7 @@ class MICROMAXCollect(DataCollect):
         if self.autoprocessing_hwobj is not None:
             try:
                 self.autoprocessing_hwobj.execute_autoprocessing(
-                    process_event, self.current_dc_parameters, frame_number
+                    process_event, self.current_dc_parameters, "micromax"
                 )
             except Exception:
                 self.log.exception("[COLLECT] Error launching MAXIV autoprocessing")
