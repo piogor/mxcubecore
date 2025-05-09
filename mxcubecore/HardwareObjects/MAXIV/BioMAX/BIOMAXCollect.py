@@ -930,7 +930,7 @@ class BIOMAXCollect(DataCollect):
                     self.diffractometer_hwobj.move_omega_relative(90)
                     time.sleep(1)  # needed, otherwise will get the same images
 
-    def trigger_auto_processing(self, process_event, frame_number):
+    def trigger_auto_processing(self, process_event, _frame_number):
         logging.getLogger("HWR").info(
             "[COLLECT] triggering auto processing, self.current_dc_parameters: %s"
             % self.current_dc_parameters
@@ -939,7 +939,7 @@ class BIOMAXCollect(DataCollect):
         autoprocess_hwobj = HWR.beamline.online_processing
         if autoprocess_hwobj:
             autoprocess_hwobj.execute_autoprocessing(
-                process_event, self.current_dc_parameters, frame_number
+                process_event, self.current_dc_parameters, "biomax"
             )
         else:
             logging.getLogger("HWR").warn(

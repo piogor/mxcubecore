@@ -17,19 +17,20 @@
 #  You should have received a copy of the GNU General Public License
 #  along with MXCuBE.  If not, see <http://www.gnu.org/licenses/>.
 
-import errno
-import json
 import logging
 import os
 import subprocess
-import time
 from string import Template
-from textwrap import dedent
 
 import gevent
-from XSDataAutoprocv1_0 import XSDataAutoprocInput
 
 from mxcubecore.BaseHardwareObjects import HardwareObject
+
+#
+# default path to EDNA2 processing script,
+# if not specified in the hardware objects config
+#
+DEFAULT_EDNA2_SUBMIT_PATH = "/mxn/groups/sw/mxsw/mxcube_scripts/edna2proc_submit.sh"
 
 
 class MAXIVAutoProcessing(HardwareObject):
@@ -105,128 +106,97 @@ class MAXIVAutoProcessing(HardwareObject):
         if spg_dict_file is not None:
             self.spg_dict = self.read_spg_dictionary(spg_file=spg_dict_file)
 
-    def execute_autoprocessing(self, process_event, params_dict, frame_number):
+        self.edna2_submit_path = self.get_property(
+            "edna2_submit_path", DEFAULT_EDNA2_SUBMIT_PATH
+        )
+
+    def _run_ssh_command(self, args: list[str]):
+        """Run a command over ssh on HPC front-end host.
+
+        Runs specified command using ssh on the ``self.host`` host.
+        Args:
+            args: arguments of ``sh`` command to run.
+        """
+        command = ["ssh", "-o", "StrictHostKeyChecking=no", self.host, "sh", *args]
+        self.log.info("Running command: {}".format(" ".join(command)))
+        try:
+            subprocess.run(command, check=True, capture_output=True)  # noqa: S603
+        except subprocess.CalledProcessError:
+            self.log.exception("Executing command %s failed", command)
+
+    def execute_autoprocessing(
+        self, process_event: str, params_dict: dict, beamline: str
+    ):
+        """Execute autoprocessing.
+
+        Prepare parameters and run edna2 processing script.
+
+        Args:
+            process_event: description of process phase usually equal to "after".
+            params_dict: Dictionary contaning processing information, such as:
+              auto_dir, file information, sample information, data collection id,
+              information about oscilation sequence.
+            beamline: beamline name, equal to ``biomax`` or ``micromax``.
+        """
         auto_dir = params_dict["auto_dir"]
         xds_dir = params_dict["xds_dir"]
         data_path = params_dict["fileinfo"]["filename"]
-        sample_info = params_dict.get("sample_reference")
 
-        cmd = "cd %s\n" % xds_dir
+        cmd = ""
         if self.generate_xds_inp_user_path is None:
             self.log.warning(
                 "[AutoProcessing] the script generate_xds_inp for user is missing!!"
             )
         else:
-            cmd += "%s %s\n" % (self.generate_xds_inp_user_path, data_path)
-            cmd += "chmod 660 XDS.INP\n"
+            cmd += (
+                f"cd {xds_dir}\n"
+                f"{self.generate_xds_inp_user_path} {data_path}\n"
+                "chmod 660 XDS.INP\n"
+            )
         if self.generate_xds_inp_proc_path is None:
-            self.log.error(
-                "[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!"
-            )
-            raise Exception(
-                "[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!"
-            )
-        cmd += "cd %s\n" % auto_dir
-        cmd += "%s %s\n" % (self.generate_xds_inp_proc_path, data_path)
+            msg = "[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!"
+            self.log.error(msg)
+            raise Exception(msg)
+        cmd += f"cd {auto_dir}\n{self.generate_xds_inp_proc_path} {data_path}\n"
 
         if process_event == "after":
             dataCollectionId = str(params_dict["collection_id"])
             numImages = params_dict["oscillation_sequence"][0]["number_of_images"]
             startImageNum = params_dict["oscillation_sequence"][0]["start_image_number"]
-            anomalous = False
+            sample_info = params_dict.get("sample_reference")
+            residues = 200
+
             cell = sample_info.get("cell", "0,0,0,0,0,0")
-            # some processing software don't work if only the angles are provided
+            # Some processing software doesn't work if only the angles are provided
             if cell == ",,,,," or cell[0:5] == "0,0,0":
                 cell = "0,0,0,0,0,0"
-            space_group = sample_info.get("spacegroup", 0)
 
-            # Undefined and None can be from ISPyB
-            if (
-                space_group is None
-                or space_group == ""
-                or space_group == "None"
-                or space_group == "Undefined"
-                or space_group == "Notset"
-            ):
+            space_group = sample_info.get("spacegroup", 0)
+            # Undefined and None can be read from ISPyB
+            if space_group in [None, "", "None", "Undefined", "Notset"]:
                 space_group = 0
             else:
-                # remove spaces from user input if there's any
                 space_group = str(space_group).replace(" ", "")
 
-            edna2Setup = "/mxn/groups/sw/mxsw/env_setup/edna2_proc_micromax.sh"
-
-            pyDozorJson = {
-                "dataCollectionId": int(dataCollectionId),
-                "workingDirectory": auto_dir,
-                "masterFile": data_path,
-                "startNo": startImageNum,
-                "batchSize": numImages,
-                "doISPyBUpload": True,
-                "doSubmit": True,
-                "returnSpotList": False,
-            }
-            inDataPyDozorFilePath = os.path.join(auto_dir, "inDataPyDozor.json")
-            with open(inDataPyDozorFilePath, "w+") as fp:
-                json.dump(pyDozorJson, fp, indent=4)
-
-            slurmStrDozor = """\
-            sbatch <<-EOF
-            \t#!/bin/bash
-            \t#SBATCH --exclusive
-            \t#SBATCH --partition=bio-sf
-            \t#SBATCH --mem=0
-            \t#SBATCH -t 00:10:00
-            \t#SBATCH -J "EDNA2"
-            \t#SBATCH --output EDNA2Dozor_%j.out
-            \t#SBATCH --chdir {a}
-            \tsource {b}
-            \trun_edna2.py --inDataFile {a}/inDataPyDozor.json ControlPyDozor
-            \tEOF
-            """.format(a=auto_dir, b=edna2Setup)
-            slurmStrDozor = dedent(slurmStrDozor)
-
-            cmd += slurmStrDozor + "\n"
-
-            autoPROCJson = {
-                "dataCollectionId": int(dataCollectionId),
-                "masterFilePath": data_path,
-                "workingDirectory": auto_dir,
-                "anomalous": anomalous,
-                "spaceGroup": space_group,
-                "unitCell": cell,
-                "onlineAutoProcessing": True,
-                "waitForFiles": True,
-                "doUploadIspyb": True,
-                "test": False,
-            }
-            inDataJsonFilePath = os.path.join(
-                auto_dir, "inDataMAXIVAutoProcessing.json"
+            cmd += " ".join(
+                [
+                    f"{self.edna2_submit_path}",
+                    f"--beamline={beamline}",
+                    f"--input={auto_dir}",
+                    f"--datacollectionid={dataCollectionId}",
+                    f"--masterfile={data_path}",
+                    f"--startImageNumber={startImageNum}",
+                    f"--numImages={numImages}",
+                    f"--residues={residues}",
+                    f"--unitcell={cell}",
+                    f"--spacegroup={space_group}\n",
+                ]
             )
-            with open(inDataJsonFilePath, "w+") as fp:
-                json.dump(autoPROCJson, fp, indent=4)
-
-            slurmStr = """\
-            sbatch <<-EOF
-            \t#!/bin/bash
-            \t#SBATCH --exclusive
-            \t#SBATCH --partition=all,fujitsu
-            \t#SBATCH --mem=0
-            \t#SBATCH -t 02:00:00
-            \t#SBATCH -J "EDNA2"
-            \t#SBATCH --output MAXIVAutoProcessing_%j.out
-            \t#SBATCH --chdir {a}
-            \tsource {b}
-            \trun_edna2.py --inDataFile {a}/inDataMAXIVAutoProcessing.json MAXIVFastProcessingTask
-            \tEOF
-            """.format(a=auto_dir, b=edna2Setup)
-            slurmStr = dedent(slurmStr)
-
-            cmd += slurmStr
 
         script_dir = os.path.join(auto_dir, "autoproc_gen.sh")
         with open(script_dir, "w+") as script:
             script.write(cmd)
-        os.system("ssh {} sh {}&".format(self.host, script_dir))
+        self._run_ssh_command([script_dir])
 
     def start_dataset_repacking(self, dc_params, bl_config):
         """
