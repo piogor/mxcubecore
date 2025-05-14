@@ -11,6 +11,8 @@ import math
 import os
 import sys
 import time
+from pathlib import Path
+from subprocess import Popen
 
 import gevent
 
@@ -70,6 +72,11 @@ class MICROMAXCollect(DataCollect):
         self.flux_after_collect = None
         self.estimated_flux_after_collect = None
         self.ssx_mode = False
+        self.image_file_template = None
+        self.file_location = None
+        self.archive_directory = None
+        self.jpeg_full_path = None
+        self.thumbnail_full_path = None
 
     def init(self):
         self.ready_event = gevent.event.Event()
@@ -755,15 +762,27 @@ class MICROMAXCollect(DataCollect):
             self.scicat_hwobj.end_scan(self.current_dc_parameters)
 
     def post_collection_store_image(self, collection=None):
-        """
-        Generate and store ijn ispyb thumbnail images
+        """Generate and store thumbnail images and store them in the LIMS system.
+
+        This method processes the first image of a data collection, stores it in
+        jpeg format with its thumbnail (reduced size image). Provide the location
+        of images to the Laboratory Information Management System (LIMS).If no
+        collection is provided, it defaults to using the current data collection
+        parameters.
+
+        Args:
+            collection (dict, optional): A dictionary containing data collection parameters.
+                If not provided, the method uses `self.current_dc_parameters`.
         """
         # only store the first image
-        self.log.info("Storing images in lims, frame number: 1")
         if collection is None:
             collection = self.current_dc_parameters
         try:
-            self.store_image_in_lims(1, collection=collection)
+            self.log.info("Storing images in lims: %s", collection)
+            self.update_collection_image_filenames(
+                frame_number=1, collection=collection
+            )
+            self.store_image_in_lims(frame_number=1, collection=collection)
             self.generate_and_copy_thumbnails(collection["fileinfo"]["filename"], 1)
         except Exception:
             self.log.exception("Could not store images in lims")
@@ -774,100 +793,119 @@ class MICROMAXCollect(DataCollect):
         self.log.info("TODO: fix store_image_in_lims_by_frame_num method for nimages>1")
         return
 
+    def update_collection_image_filenames(self, frame_number, collection):
+        """Update collection images' names based on collection information.
+
+        Generated names uses the following templates:
+         * image_file_template: acronym-protein_runnumber_framenumber_master.h5
+         * thumbnail_filename: acronym-protein_runnumber_framenumber.thumb.jpeg
+         * jpeg_filename: acronym-protein_runnumber_framenumber.jpeg
+
+        Args:
+            frame_number (int): Frame number to update the filenames for.
+            collection (dict): Collection dictionary containing file information.
+        """
+        if not self.lims_client_hwobj:
+            return
+
+        file_info = collection["fileinfo"]
+        self.file_location = file_info["directory"]
+        self.image_file_template = file_info["template"].replace(
+            "_master", f"_{frame_number}_master"
+        )
+        self.archive_directory = file_info["archive_directory"]
+        if self.archive_directory:
+            jpeg_filename = self.image_file_template.replace("_master.h5", ".jpeg")
+            thumbnail_filename = self.image_file_template.replace(
+                "_master.h5", ".thumb.jpeg"
+            )
+            self.jpeg_full_path = os.path.join(self.archive_directory, jpeg_filename)
+            self.thumbnail_full_path = os.path.join(
+                self.archive_directory, thumbnail_filename
+            )
+            self.log.info(
+                "[COLLECT] Collection jpeg and thumbnail output paths: %s, %s",
+                self.jpeg_full_path,
+                self.thumbnail_full_path,
+            )
+
     def generate_and_copy_thumbnails(self, data_path, frame_number):
+        """Build command and run thumbnail generation script.
+
+        Args:
+            data_path (str): Path to the data file - collection .h5 master file.
+            frame_number (int): Frame number to generate the thumbnail for.
+        """
         if self.gen_thumbnail_script is None:
             self.log.warning(
-                "[COLLECT] Generating thumbnail script is not defined, no thumbnails will be created!!"
+                "[COLLECT] Generating thumbnail script is not defined, "
+                "no thumbnails will be created!!"
             )
             return
-        #  generare diffraction thumbnails
-        image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-        archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-        thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-        jpeg_thumbnail_file_template = os.path.join(archive_directory, thumb_filename)
-        jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-
-        self.log.info(
-            "[COLLECT] Generating thumbnails, output filename: %s"
-            % jpeg_thumbnail_full_path
-        )
-        self.log.info("[COLLECT] Generating thumbnails, data path: %s" % data_path)
-        cmd = "ssh clu0-fe-0 %s  %s  %d  %s &" % (
+        cmd = [
+            "ssh",
+            "clu0-fe-0",
             self.gen_thumbnail_script,
             data_path,
-            frame_number,
-            jpeg_thumbnail_full_path,
+            str(frame_number),
+            self.jpeg_full_path,
+            self.thumbnail_full_path,
+        ]
+        self.log.info(
+            "[COLLECT] Generating thumbnails with command: %s %s %s %s %s %s %s",
+            *cmd,
         )
-        self.log.info(cmd)
-        os.system(cmd)
+        Popen(cmd)  # noqa: S603
 
     def store_image_in_lims(
         self, frame_number, motor_position_id=None, collection=None
     ):
-        if collection is None:
-            collection = self.current_dc_parameters
-        if self.lims_client_hwobj:
-            file_location = collection["fileinfo"]["directory"]
-            image_file_template = collection["fileinfo"]["template"]
-            filename = image_file_template % frame_number
-            lims_image = {
-                "dataCollectionId": collection["collection_id"],
-                "fileName": filename,
-                "fileLocation": file_location,
-                "imageNumber": frame_number,
-                "measuredIntensity": self.get_measured_intensity(),
-                "synchrotronCurrent": self.get_machine_current(),
-                "machineMessage": self.get_machine_message(),
-                "temperature": self.get_cryo_temperature(),
-            }
-            archive_directory = collection["fileinfo"]["archive_directory"]
+        """Store image in lims.
 
-            if archive_directory:
-                jpeg_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                thumb_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
-                jpeg_thumbnail_file_template = os.path.join(
-                    archive_directory, thumb_filename
-                )
-                jpeg_full_path = jpeg_file_template % frame_number
-                jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-                lims_image["jpegFileFullPath"] = jpeg_full_path
-                lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
-                lims_image["fileLocation"] = collection["fileinfo"]["directory"]
-            if motor_position_id:
-                lims_image["motorPositionId"] = motor_position_id
-            self.log.info(
-                "LIMS IMAGE: %s, %s, %s, %s"
-                % (
-                    jpeg_filename,
-                    thumb_filename,
-                    jpeg_full_path,
-                    jpeg_thumbnail_full_path,
-                )
+        Create a dictionary with the image information and call the
+        store_image method of the lims client hardware object.
+
+        Args:
+            frame_number (int): Frame number to store.
+            motor_position_id (int): Motor position ID to store.
+            collection (dict): Collection dictionary containing collection information.
+        """
+        if not self.lims_client_hwobj:
+            return None
+        lims_image = {
+            "dataCollectionId": collection["sessionId"],
+            "fileName": self.image_file_template,
+            "fileLocation": self.file_location,
+            "imageNumber": frame_number,
+            "measuredIntensity": self.get_measured_intensity(),
+            "synchrotronCurrent": self.get_machine_current(),
+            "machineMessage": self.get_machine_message(),
+            "temperature": self.get_cryo_temperature(),
+        }
+
+        if self.archive_directory:
+            lims_image["jpegFileFullPath"] = self.jpeg_full_path
+            lims_image["jpegThumbnailFileFullPath"] = self.thumbnail_full_path
+
+        if motor_position_id:
+            lims_image["motorPositionId"] = motor_position_id
+
+        self.log.info("Storing lims image: %s", lims_image)
+        try:
+            image_id = self.lims_client_hwobj.store_image(lims_image)
+        except Exception as ex:
+            self.log.error("Could not store images in lims, error was: %s", ex)
+            return None
+
+        # temp fix for ispyb permission issues
+        try:
+            session_dir = Path(self.archive_directory).parents[2]
+            session_dir.chmod(0o777)
+        except Exception as ex:
+            self.log.warning(
+                "Could not change permissions on ispyb storage, error was: %s", ex
             )
-            try:
-                image_id = self.lims_client_hwobj.store_image(lims_image)
-            except Exception as ex:
-                self.log.error(
-                    "Could not store images in lims, error was {}".format(ex)
-                )
-
-            # temp fix for ispyb permission issues
-            try:
-                session_dir = os.path.join(archive_directory, "../../../")
-                os.system("chmod -R 777 %s" % (session_dir))
-            except Exception as ex:
-                self.log.warning(
-                    "Could not change permissions on ispyb storage, error was {}".format(
-                        ex
-                    )
-                )
-
-            return image_id
+        return image_id
 
     def take_crystal_snapshots(self):
         if self.number_of_snapshots > 0:
