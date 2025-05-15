@@ -71,8 +71,8 @@ class InjectorTaskParameters(BaseModel):
     legacy_parameters: LegacyParameters
 
     @staticmethod
-    def update_dependent_fields(field_data):
-        return field_data
+    def update_dependent_fields(_field_data):
+        return {}
 
     @staticmethod
     def ui_schema():
