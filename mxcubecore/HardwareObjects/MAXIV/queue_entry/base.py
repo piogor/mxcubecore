@@ -1,10 +1,12 @@
 import logging
+from enum import Enum
 from pathlib import Path
 
 import gevent
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.model import queue_model_objects
+from mxcubecore.model.crystal_symmetry import XTAL_SPACEGROUPS
 from mxcubecore.queue_entry.base_queue_entry import BaseQueueEntry
 from mxcubecore.utils.units import mm_to_meter
 
@@ -13,6 +15,30 @@ log = logging.getLogger("queue_exec")
 # A work-around value used to indicate 'no omega rotation'
 # when configuring Jungfrau detector.
 JUNGFRAU_NON_ZERO_OMEGA_INCREMENT = 0.000001
+
+
+_space_group_enum_members = {
+    # Some space groups have names that are not valid enum member names,
+    # thus their names are stripped for the member names, as these are irrelevant.
+    f"SG_{idx}": space_group
+    for (idx, space_group) in enumerate(XTAL_SPACEGROUPS)
+    if space_group  # skips the empty space group
+}
+
+SpaceGroup = Enum("SpaceGroup", _space_group_enum_members, type=str)
+
+
+# This is a hack to remove the default description from the SpaceGroup enum.
+@classmethod
+def _remove_enum_description(_cls, field_schema: dict) -> None:
+    """
+    Pydantic v1 calls this whenever it generates JSON Schema for an Enum type.
+    We simply pop off the default "An enumeration." description.
+    """
+    field_schema.pop("description", None)
+
+
+SpaceGroup.__modify_schema__ = _remove_enum_description
 
 
 def restore_beamline():
