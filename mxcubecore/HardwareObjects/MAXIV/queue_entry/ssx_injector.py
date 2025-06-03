@@ -42,7 +42,7 @@ class InjectorUserCollectionParameters(BaseModel):
     num_images: int = Field(1000, gt=0, lt=10000000, title="Number of images")
     energy: float = Field()
     resolution: float = Field()
-    space_group: SpaceGroup = Field(title="Space group")
+    space_group: SpaceGroup = Field(next(iter(SpaceGroup)), title="Space group")
     cellA: float = Field(0, title="Cell A")  # noqa: N815
     cellB: float = Field(0, title="Cell B")  # noqa: N815
     cellC: float = Field(0, title="Cell C")  # noqa: N815
