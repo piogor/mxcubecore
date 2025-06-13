@@ -5,7 +5,6 @@ Description:  This module implements the hardware object for the
 Biomax data collection
 """
 
-import json
 import logging
 import math
 import os
@@ -13,6 +12,7 @@ import sys
 import time
 from pathlib import Path
 from subprocess import Popen
+from typing import Any
 
 import gevent
 
@@ -1158,59 +1158,31 @@ class MICROMAXCollect(DataCollect):
         if self.dtox_hwobj is not None:
             return self.dtox_hwobj.get_limits()
 
-    def setup_header_appendix(self, shape_id, dozor_dict, row=0, col=0):
-        """Set up the Header Appendix to be included into collection's data files.
+    def _create_header_appendix(
+        self,
+        shape_id: str,
+        dozor_dict: dict[str, Any] | None,
+        row: int = 0,
+        col: int = 0,
+    ) -> dict[str, Any]:
+        header_appendix = super()._create_header_appendix(
+            shape_id,
+            dozor_dict,
+            row,
+            col,
+        )
+        collect_dict = header_appendix["collect_dict"]
+        collect_dict["ssx_mode"] = self.ssx_mode
+        collect_dict["target_beam_size_factor"] = (
+            2.0  # this value should be from x-ray centering
+        )
 
-        Creates json string, which contains meta-data for this data collection.
-        Sends this string to detector hardware object, to be included into Header Appendix
-        section of the data files for the next collection.
-
-        Some of the meta-data is used by varius analysis pipelines.
-        """
-        header_appendix = {
-            "collect_dict": {
-                "experiment_type": self.current_dc_parameters["experiment_type"],
-                "ssx_mode": self.ssx_mode,
-                "row": row,
-                "col": col,
-                # this value should be from x-ray centering
-                "target_beam_size_factor": 2.0,
-                # assigning collection ID is not implemented (yet) for SSX tasks,
-                # set 'col_id' to None if collection ID is not available
-                "col_id": self.current_dc_parameters.get("collection_id"),
-                "process_dir": self.current_dc_parameters["auto_dir"],
-                "shape_id": shape_id,
-                "mxcube_server": self.get_mxcube_server_ip(),
-            },
-        }
-
-        #
-        # add mesh scan parameters, if needed
-        #
         if self.current_dc_parameters["experiment_type"] == "Mesh":
             # hardcoded values corresponding to MD3UP
             header_appendix["start_corner"] = "top-right"
             header_appendix["scan_pattern"] = "zig-zag"
             header_appendix["scan_orientation"] = "vertical"
-
-        #
-        # dozor part
-        #
-        if dozor_dict:
-            header_appendix["dozor_dict"] = dozor_dict
-
-        #
-        # add sample 'space group' and 'unit cell' parameters to header appendix,
-        # if the user have specified them
-        #
-        sample_reference_dict = self.get_header_appendix_sample_reference_dict(
-            self.current_dc_parameters["sample_reference"]
-        )
-        if sample_reference_dict:
-            # user specified some sample reference params, add them to header appendix
-            header_appendix["sample_reference"] = sample_reference_dict
-
-        self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
+        return header_appendix
 
     def prepare_detector(self):
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
