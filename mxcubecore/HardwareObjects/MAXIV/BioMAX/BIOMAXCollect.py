@@ -4,6 +4,7 @@ import os
 import sys
 import time
 import uuid
+from typing import Any
 
 import gevent
 import PyTango
@@ -1115,37 +1116,14 @@ class BIOMAXCollect(DataCollect):
             # enable stream interface
             # appendix with grid name, collection id
             self.detector_hwobj.enable_stream()
-
             dozor_dict = self.detector_hwobj.prepare_acquisition(config)
-            mesh_params = HWR.beamline.get_default_acquisition_parameters(
-                "mesh"
-            ).as_dict()
-            collect_dict = {
-                "experiment_type": "mesh",
-                "col_id": self.current_dc_parameters["collection_id"],
-                "shape_id": self.get_current_shape_id(),
-                "row": ntrigger,
-                "col": nframes_per_trigger,
-                "process_dir": self.current_dc_parameters["auto_dir"],
-                "mxcube_server": self.get_mxcube_server_ip(),
-                "cell_counting": mesh_params.get("cell_counting", None),
-                "start_corner": mesh_params.get("mesh_center", None),
-                "mesh_range": mesh_params.get("mesh_range", None),
-                "scan_pattern": mesh_params.get("cell_counting", None),
-                "scan_orientation": "vertical",  # should not be here
-            }
-            header_appendix = {
-                "dozor_dict": dozor_dict,
-                "collect_dict": collect_dict,
-            }
-
-            sample_reference_dict = self.get_header_appendix_sample_reference_dict(
-                self.current_dc_parameters["sample_reference"]
+            self.setup_header_appendix(
+                shape_id=self.get_current_shape_id(),
+                dozor_dict=dozor_dict,
+                row=ntrigger,
+                col=nframes_per_trigger,
             )
-            if sample_reference_dict:
-                header_appendix["sample_reference"] = sample_reference_dict
 
-            self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
         self.detector_hwobj.prepare_acquisition(config)
 
     def stop_collect(self, owner=None):
@@ -1411,3 +1389,33 @@ class BIOMAXCollect(DataCollect):
             self.diffractometer_hwobj.centring_status["valid"] = True
             self.diffractometer_hwobj.accept_centring()
         hwr_log.info("Centring positions saved. Motors: {}".format(cpos))
+
+    def _create_header_appendix(
+        self,
+        shape_id: str,
+        dozor_dict: dict[str, Any] | None,
+        row: int = 0,
+        col: int = 0,
+    ) -> dict[str, Any]:
+        header_appendix = super()._create_header_appendix(
+            shape_id,
+            dozor_dict,
+            row,
+            col,
+        )
+        exp_type = self.current_dc_parameters.get("experiment_type", "Mesh")
+        if self.current_dc_parameters["experiment_type"] == "Mesh":
+            mesh_params = HWR.beamline.get_default_acquisition_parameters(
+                "mesh"
+            ).as_dict()
+            collect_dict = header_appendix["collect_dict"]
+            collect_dict.update(
+                {
+                    "cell_counting": mesh_params.get("cell_counting", None),
+                    "start_corner": mesh_params.get("mesh_center", None),
+                    "mesh_range": mesh_params.get("mesh_range", None),
+                    "scan_pattern": mesh_params.get("cell_counting", None),
+                    "scan_orientation": "vertical",  # should not be here
+                }
+            )
+        return header_appendix
