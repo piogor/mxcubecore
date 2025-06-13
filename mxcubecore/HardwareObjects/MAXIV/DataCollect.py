@@ -10,8 +10,10 @@ a data collection hardware object.
 # ruff: noqa: N999
 #
 
+import json
 import socket
 from typing import (
+    Any,
     Callable,
     Optional,
 )
@@ -211,3 +213,79 @@ class DataCollect(AbstractCollect, HardwareObject):
         )
 
         return filter_empty_vals(space_group=space_group, unit_cell=unit_cell)
+
+    def _create_header_appendix(
+        self,
+        shape_id: str,
+        dozor_dict: dict[str, Any] | None,
+        row: int = 0,
+        col: int = 0,
+    ) -> dict[str, Any]:
+        """Create collection metadata for the header appendix.
+
+        It is meant to be later applied using ``setup_header_appendix`` method.
+        It returns a dictionary with a shared portion of the parameters.
+        Additional parameters may be added by the child classes.
+
+        Returns:
+            A dictionary of collection metadata (as strings)
+            to be included into the Header Appendix section of the data files.
+        """
+
+        header_appendix = {
+            "collect_dict": {
+                "experiment_type": self.current_dc_parameters["experiment_type"],
+                "row": row,
+                "col": col,
+                # assigning collection ID is not implemented (yet) for SSX tasks,
+                # set 'col_id' to None if collection ID is not available
+                "col_id": self.current_dc_parameters.get("collection_id"),
+                "process_dir": self.current_dc_parameters["auto_dir"],
+                "shape_id": shape_id,
+                "mxcube_server": self.get_mxcube_server_ip(),
+            },
+        }
+
+        #
+        # dozor part
+        #
+        if dozor_dict:
+            header_appendix["dozor_dict"] = dozor_dict
+
+        #
+        # add sample 'space group' and 'unit cell' parameters to header appendix,
+        # if the user have specified them
+        #
+        sample_reference_dict = self.get_header_appendix_sample_reference_dict(
+            self.current_dc_parameters["sample_reference"],
+        )
+        if sample_reference_dict:
+            # user specified some sample reference params, add them to header appendix
+            header_appendix["sample_reference"] = sample_reference_dict
+
+        return header_appendix
+
+    def setup_header_appendix(
+        self,
+        shape_id: str,
+        dozor_dict: dict[str, Any] | None = None,
+        row: int = 0,
+        col: int = 0,
+    ):
+        """Set up the Header Appendix to be included into collection's data files.
+
+        Creates json string, which contains meta-data for this data collection.
+        Sends this string to detector hardware object, to be included into
+        Header Appendix section of the data files for the next collection.
+
+        Some of the meta-data is used by varius analysis pipelines.
+        """
+
+        header_appendix = self._create_header_appendix(
+            shape_id,
+            dozor_dict,
+            row,
+            col,
+        )
+
+        self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
