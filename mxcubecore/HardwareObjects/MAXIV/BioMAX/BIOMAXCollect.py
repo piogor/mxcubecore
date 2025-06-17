@@ -878,6 +878,7 @@ class BIOMAXCollect(DataCollect):
             return image_id
 
     def take_crystal_snapshots(self):
+        diffr = self.diffractometer_hwobj
         if self.current_dc_parameters["take_snapshots"]:
             # snapshot_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
             # save the image to the data collection directory for the moment
@@ -893,21 +894,18 @@ class BIOMAXCollect(DataCollect):
                     )
 
             # for plate head, takes only one image
-            if (
-                self.diffractometer_hwobj.head_type
-                == self.diffractometer_hwobj.HEAD_TYPE_PLATE
-            ):
+            if diffr.is_head_plate():  # noqa: SIM108
                 number_of_snapshots = 1
             else:
                 number_of_snapshots = 4  # 4 take only one image for the moment
             logging.getLogger("user_level_log").info(
                 "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
             )
-            if self.diffractometer_hwobj.get_current_phase() != "Centring":
+            if not diffr.is_in_centring():
                 logging.getLogger("user_level_log").info(
                     "Moving Diffractometer to CentringPhase"
                 )
-                self.diffractometer_hwobj.set_phase("Centring", wait=True, timeout=200)
+                diffr.set_centring_phase(wait=True, timeout=200)
                 self.move_to_centered_position()
 
             for snapshot_index in range(number_of_snapshots):
@@ -927,7 +925,7 @@ class BIOMAXCollect(DataCollect):
                 self._take_crystal_snapshot(snapshot_filename)
                 time.sleep(1)  # needed, otherwise will get the same images
                 if number_of_snapshots > 1:
-                    self.diffractometer_hwobj.move_omega_relative(90)
+                    diffr.move_omega_relative(90)
                     time.sleep(1)  # needed, otherwise will get the same images
 
     def trigger_auto_processing(self, process_event, _frame_number):
