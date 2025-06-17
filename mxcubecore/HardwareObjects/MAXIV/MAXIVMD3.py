@@ -866,14 +866,17 @@ class MAXIVMD3(GenericDiffractometer):
                 logging.getLogger("HWR").error(msg)
                 raise RuntimeError(msg)
 
-    def move_to_motors_positions(self, motors_positions, wait=False):
-        try:
-            motors_positions.pop("zoom")
-        except:
-            pass
+    def move_to_motors_positions(self, motor_positions, wait=False):
+        motor_positions.pop("zoom", None)
+        motor_positions.pop("focus", None)
+
+        if not self.is_head_minikappa():
+            motor_positions.pop("kappa", None)
+            motor_positions.pop("kappa_phi", None)
+
         self.emit_progress_message("Moving to motors positions...")
         self.move_to_motors_positions_procedure = gevent.spawn(
-            self.move_motors, motors_positions
+            self.move_motors, motor_positions
         )
         self.move_to_motors_positions_procedure.link(self.move_motors_done)
         if wait:
@@ -887,12 +890,13 @@ class MAXIVMD3(GenericDiffractometer):
                             and target values.
         :type motors_dict: dict
         """
-        if self.head_type == GenericDiffractometer.HEAD_TYPE_PERMANENT:
-            try:
-                motor_positions.pop("kappa")
-                motor_positions.pop("kappa_phi")
-            except Exception:
-                pass
+        motor_positions.pop("zoom", None)
+        motor_positions.pop("focus", None)
+
+        if not self.is_head_minikappa():
+            motor_positions.pop("kappa", None)
+            motor_positions.pop("kappa_phi", None)
+
         for motor in motor_positions.keys():
             position = motor_positions[motor]
             try:
@@ -909,14 +913,21 @@ class MAXIVMD3(GenericDiffractometer):
             motor.set_value(position)
         self.wait_ready(timeout)
 
-    def move_sync_motors(self, motors_dict, wait=True, timeout=30):
+    def move_sync_motors(self, motor_positions, wait=True, timeout=30):
+        motor_positions.pop("zoom", None)
+        motor_positions.pop("focus", None)
+
+        if not self.is_head_minikappa():
+            motor_positions.pop("kappa", None)
+            motor_positions.pop("kappa_phi", None)
+
         argin = ""
         logging.getLogger("HWR").debug(
-            "MAXIVMD3: in move_sync_motors, wait: %s, motors: %s, tims: %s "
-            % (wait, motors_dict, time.time())
+            "MAXIVMD3: in move_sync_motors, wait: %s, motors: %s"
+            % (wait, motor_positions)
         )
-        for motor in motors_dict.keys():
-            position = motors_dict[motor]
+        for motor in motor_positions.keys():
+            position = motor_positions[motor]
             if position is None:
                 continue
             name = self.MOTOR_TO_EXPORTER_NAME[motor]
@@ -1005,10 +1016,11 @@ class MAXIVMD3(GenericDiffractometer):
         }
 
     def set_calculate_flux_phase(self):
-        if self.head_type == GenericDiffractometer.HEAD_TYPE_MINIKAPPA:
+        if not self.is_head_minikappa():
+            motors = ["phi", "phiz", "phiy", "sampx", "sampy"]
+        else:
             motors = [
                 "phi",
-                "focus",
                 "phiz",
                 "phiy",
                 "sampx",
@@ -1016,8 +1028,6 @@ class MAXIVMD3(GenericDiffractometer):
                 "kappa",
                 "kappa_phi",
             ]
-        else:
-            motors = ["phi", "focus", "phiz", "phiy", "sampx", "sampy"]
         ori_motors = {}
 
         for motor in motors:
@@ -1083,6 +1093,39 @@ class MAXIVMD3(GenericDiffractometer):
         self.command_dict["startMoveOrganDevices"]("OFF\tPARK\tPARK\tPARK")
         if wait:
             self.wait_ready(30)
+
+    def is_head(self, head_type) -> bool:
+        return self.head_type == head_type
+
+    def is_head_minikappa(self) -> bool:
+        return self.head_type == self.HEAD_TYPE_MINIKAPPA
+
+    def is_head_plate(self) -> bool:
+        return self.head_type == self.HEAD_TYPE_PLATE
+
+    def set_phase_transfer(self, wait=False, timeout=None):
+        self.set_phase("Transfer", wait=wait, timeout=timeout)
+
+    def set_phase_centring(self, wait=False, timeout=None):
+        self.set_phase("Centring", wait=wait, timeout=timeout)
+
+    def set_phase_data_collection(self, wait=False, timeout=None):
+        self.set_phase("DataCollection", wait=wait, timeout=timeout)
+
+    def set_phase_beam_location(self, wait=False, timeout=None):
+        self.set_phase("BeamLocation", wait=wait, timeout=timeout)
+
+    def is_in_transfer(self) -> bool:
+        return self.current_phase == "Transfer"
+
+    def is_in_centring(self) -> bool:
+        return self.current_phase == "Centring"
+
+    def is_in_data_collection(self) -> bool:
+        return self.current_phase == "DataCollection"
+
+    def is_in_beam_location(self) -> bool:
+        return self.current_phase == "BeamLocation"
 
 
 def test():
