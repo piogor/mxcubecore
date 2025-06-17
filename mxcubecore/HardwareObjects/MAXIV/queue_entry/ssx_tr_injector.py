@@ -77,6 +77,18 @@ class InjectorTaskParameters(BaseModel):
 
     @staticmethod
     def ui_schema():
+        processing_group_options = {
+            "ui:options": {"group": "Processing"},
+        }
+        processing_group = [
+            "cellA",
+            "cellAlpha",
+            "cellB",
+            "cellBeta",
+            "cellC",
+            "cellGamma",
+            "space_group",
+        ]
         return json.dumps(
             {
                 "ui:order": [
@@ -85,19 +97,17 @@ class InjectorTaskParameters(BaseModel):
                     "exp_time",
                     "resolution",
                     "energy",
-                    "space_group",
-                    "cellAlpha",
-                    "cellA",
-                    "cellBeta",
-                    "cellB",
-                    "cellGamma",
-                    "cellC",
+                    *processing_group,
                     "*",
                 ],
                 "ui:submitButtonOptions": {
                     "norender": "true",
                 },
                 "num_images": {"ui:readonly": "true"},
+                **{
+                    input_name: processing_group_options
+                    for input_name in processing_group
+                },
             },
         )
 
