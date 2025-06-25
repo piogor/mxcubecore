@@ -95,7 +95,9 @@ class JungfrauDetector(AbstractDetector):
             DEFAULT_IMAGES_PER_FILE,
         )
 
-        self.dev = DeviceProxy(self.detector_device)
+        detector_device = self.get_property("detector_device")
+        self.dev = DeviceProxy(detector_device)
+
         # Arm() command can block for more than 3 seconds,
         # increase the default tango timeout
         self.dev.set_timeout_millis(TANGO_TIMEOUT_MS)
@@ -108,7 +110,7 @@ class JungfrauDetector(AbstractDetector):
             {
                 "type": "tango",
                 "name": "_chnState",
-                "tangoname": self.detector_device,
+                "tangoname": detector_device,
                 "polling": 300,
             },
             "State",
