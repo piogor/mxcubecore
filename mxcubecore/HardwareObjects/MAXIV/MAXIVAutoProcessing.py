@@ -37,7 +37,6 @@ class MAXIVAutoProcessing(HardwareObject):
     def __init__(self, name):
         HardwareObject.__init__(self, name)
         self.result = None
-        self.autoproc_programs = None
         self.generate_xds_inp_user_path = None  # generate XDS.INP for user
         self.generate_xds_inp_proc_path = (
             None  # generate XDS.INP for processing pipelines
@@ -70,7 +69,6 @@ class MAXIVAutoProcessing(HardwareObject):
         return spg_list
 
     def init(self):
-        self.autoproc_programs = self["programs"]
         self.generate_xds_inp_user_path = self.get_property(
             "generate_xds_inp_user_path", self.generate_xds_inp_user_path
         )
