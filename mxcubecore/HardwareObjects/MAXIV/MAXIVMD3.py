@@ -83,6 +83,21 @@ class MAXIVMD3(GenericDiffractometer):
         self.C3D_MODE = GenericDiffractometer.CENTRING_METHOD_AUTO
         self.MANUAL3CLICK_MODE = "Manual 3-click"
         self.last_centered_position = None
+        self._centring = None
+
+    @property
+    def centring_hwobj(self):
+        if self._centring is None:
+            #
+            # Due to circular dependency between CentringMath and MD3 hardware objects,
+            # we need to load reference to CentringMath object lazily on first usage.
+            #
+            # MD3 must be created before CentringMath, as it loads references to its motors,
+            # thus CentringMath object does not exist when executing MAXIVMD3.init() method.
+            #
+            self._centring = HWR.beamline.get_object_by_role("centring")
+
+        return self._centring
 
     def init(self):
         GenericDiffractometer.init(self)
@@ -99,12 +114,6 @@ class MAXIVMD3(GenericDiffractometer):
         self.front_light_switch = self.get_object_by_role("frontlightswitch")
         self.fluodet = self.get_object_by_role("fluodet")
         self.rex = self.get_object_by_role("rex")
-
-        self.centring_hwobj = self.get_object_by_role("centring")
-        if self.centring_hwobj is None:
-            logging.getLogger("HWR").debug(
-                "MAXIVMinidiff: Centring math is not defined"
-            )
 
         try:
             self.beamstop_z = self.get_object_by_role("beamstop_z")
