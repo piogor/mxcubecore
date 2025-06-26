@@ -21,9 +21,11 @@
 BIOMAXXRFSpectrum
 """
 
+import contextlib
 import glob
 import logging
 import os
+import pathlib
 import time
 
 import gevent
@@ -397,7 +399,10 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
 
             with gevent.Timeout(15, Exception("Timeout waiting for file")):
                 while not os.path.exists(filename):
-                    gevent.sleep(0.5)
+                    gevent.sleep(1.0)
+                    # we're just tickling the filesystem
+                    with contextlib.suppress(FileNotFoundError):
+                        pathlib.Path(filename).stat()
 
             with h5py.File(filename, "r") as spectrum_file:
                 # reading the spectrum h5 file from the saved directory
