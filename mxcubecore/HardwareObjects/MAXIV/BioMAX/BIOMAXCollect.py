@@ -66,6 +66,8 @@ class BIOMAXCollect(DataCollect):
         self.flux_after_collect = None
 
     def init(self):
+        super().init()
+
         self.ready_event = gevent.event.Event()
         self.diffractometer_hwobj = HWR.beamline.diffractometer
         self.lims_client_hwobj = HWR.beamline.lims
@@ -80,7 +82,6 @@ class BIOMAXCollect(DataCollect):
         self.sample_changer_hwobj = HWR.beamline.sample_changer
         self.sample_changer_maint_hwobj = HWR.beamline.sample_changer_maintenance
         self.dtox_hwobj = self.get_object_by_role("dtox")
-        self.detector_cover_hwobj = self.get_object_by_role("detector_cover")
         self.session_hwobj = HWR.beamline.session
         self.datacatalog_url = self.get_property("datacatalog_url", None)
         self.datacatalog_token = self.get_property("datacatalog_token", None)
