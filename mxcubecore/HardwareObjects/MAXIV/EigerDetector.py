@@ -23,6 +23,11 @@ class EigerDetector(AbstractDetector):
     def __init__(self, *args, **kwargs):
         AbstractDetector.__init__(self, *args, **kwargs)
 
+        # slot for 'Detector Cover' hardware object
+        self.cover = None
+        # slot for 'Detector Distance' hardware object
+        self.detector_distance = None
+
         self.device = None
         self.file_suffix = None
         self.default_exposure_time = None
@@ -35,6 +40,10 @@ class EigerDetector(AbstractDetector):
 
     def init(self):
         super().init()
+
+        self.cover = self.get_object_by_role("cover")
+        self.detector_distance = self.get_object_by_role("detector_distance")
+
         tango_device = self.get_property("detector_device")
         self.file_suffix = self.get_property("file_suffix")
         self.default_exposure_time = self.get_property("default_exposure_time")

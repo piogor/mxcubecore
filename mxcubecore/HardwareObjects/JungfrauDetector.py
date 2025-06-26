@@ -64,6 +64,11 @@ class JungfrauDetector(AbstractDetector):
     def __init__(self, name):
         super().__init__(name)
 
+        # slot for 'Detector Cover' hardware object
+        self.cover = None
+        # slot for 'Detector Distance' hardware object
+        self.detector_distance = None
+
         self.col_config = {
             "OmegaStart": None,
             "OmegaIncrement": None,
@@ -88,6 +93,9 @@ class JungfrauDetector(AbstractDetector):
 
     def init(self):
         super().init()
+
+        self.cover = self.get_object_by_role("cover")
+        self.detector_distance = self.get_object_by_role("detector_distance")
 
         # read the optional 'images_per_file' config property
         self.col_config["ImagesPerFile"] = self.get_property(
