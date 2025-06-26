@@ -30,8 +30,7 @@ class EigerDetector(AbstractDetector):
         self.buffer_limit = None
         self.dcu = None
         self.config_state = None
-        self.initialized = False
-        self.status_chan = None
+        self._status_channel = None
         self.energy_change_threshold_default = 20
 
     def init(self):
@@ -146,15 +145,16 @@ class EigerDetector(AbstractDetector):
                 channel_name,
             )
 
-        self.add_channel(
+        self._status_channel = self.add_channel(
             {
                 "type": "tango",
                 "name": "Status",
                 "tangoname": tango_device,
-                "polling": 1000,
+                "polling": None,  # No polling necessary
             },
             "Status",
         )
+
         for cmd_name in cmd_list:
             self.add_command(
                 {
@@ -193,25 +193,15 @@ class EigerDetector(AbstractDetector):
 
         frame_time_info = self._frame_time_channel.get_info()
         self.frame_time_min = float(frame_time_info.min_value)
-        _status = self.get_channel_object("Status")
 
-        _status.connect_signal("update", self.status_update)
         self.update_state(self.STATES.READY)
 
     #  STATUS , status can be "idle", "ready", "UNKNOWN"
     def get_status(self):
-        if self.status_chan is None:
-            self.status_chan = self.get_channel_object("Status")
+        if self._status_channel is None:
+            return "not_init"
 
-            if self.status_chan is not None:
-                self.initialized = True
-            else:
-                return "not_init"
-
-        return self.status_chan.get_value().split("\n")[0]
-
-    def status_update(*args):
-        logging.getLogger("HWR").debug("eiger satus update {}".format(args))
+        return self._status_channel.get_value().split("\n")[0]
 
     def is_idle(self):
         return self.get_status()[:4] == "idle"
