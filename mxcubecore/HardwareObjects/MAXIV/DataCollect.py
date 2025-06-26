@@ -85,6 +85,9 @@ def parse_unit_cell_params(params: str) -> list[Optional[float]]:
 
 
 class DataCollect(AbstractCollect, HardwareObject):
+    def init(self):
+        self.detector_cover = HWR.beamline.detector.cover
+
     def open_safety_shutter(self):
         """
         send 'open' request to safety shutter and wait until it's open
@@ -122,7 +125,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         try:
             self.log.info("Opening the detector cover.")
             open_tango_shutter(
-                self.detector_cover_hwobj,
+                self.detector_cover,
                 DETECTOR_COVER_TIMEOUT,
                 "detector cover",
             )
@@ -137,7 +140,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         try:
             self.log.info("Closing the detector cover")
             close_tango_shutter(
-                self.detector_cover_hwobj,
+                self.detector_cover,
                 DETECTOR_COVER_TIMEOUT,
                 "detector cover",
             )

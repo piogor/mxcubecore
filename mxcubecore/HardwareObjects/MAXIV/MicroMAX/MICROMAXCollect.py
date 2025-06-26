@@ -79,6 +79,8 @@ class MICROMAXCollect(DataCollect):
         self.thumbnail_full_path = None
 
     def init(self):
+        super().init()
+
         self.ready_event = gevent.event.Event()
         bl = HWR.beamline
 
@@ -99,8 +101,9 @@ class MICROMAXCollect(DataCollect):
         self.transmission_hwobj = bl.transmission
         # self.sample_changer_hwobj = self.getObjectByRole("sample_changer")
         # self.sample_changer_maint_hwobj = self.getObjectByRole("sample_changer_maintenance")
+
         self.dtox_hwobj = bl.detector.detector_distance
-        self.detector_cover_hwobj = self.detector_hwobj.get_object_by_role("cover")
+
         self.session_hwobj = bl.session
         self.shape_history_hwobj = HWR.beamline.sample_view
         self.scicat_enabled = self.get_property("scicat_enabled", False)
