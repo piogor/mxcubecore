@@ -44,29 +44,17 @@ class EigerDetector(AbstractDetector):
         self.dcu = self.get_property("dcu")
         attr_list = (
             "NbImages",
-            "Temperature",
-            "Humidity",
             "CountTime",
             "CountrateCorrectionCountCutoff",
             "FrameTime",
             "PhotonEnergy",
             "Wavelength",
             "EnergyThreshold",
-            "FlatfieldEnabled",
-            "AutoSummationEnabled",
             "TriggerMode",
-            "RateCorrectionEnabled",
-            "BitDepthImage",
             "ReadoutTime",
-            "Description",
-            "Time",
             "NbTriggers",
             "XPixelSize",
             "YPixelSize",
-            "CountTimeInte",
-            "DownloadDirectory",
-            "FilesInBuffer",
-            "Error",
             "BeamCenterX",
             "BeamCenterY",
             "DetectorDistance",
@@ -78,8 +66,6 @@ class EigerDetector(AbstractDetector):
             "PhiStart",
             "Compression",
             "RoiMode",
-            "State",
-            # "Status",
             "XPixelsDetector",
             "YPixelsDetector",
             "CollectionUUID",
@@ -91,8 +77,6 @@ class EigerDetector(AbstractDetector):
             "FilenamePattern",
             "ImagesPerFile",
             "BufferFree",
-            "FileWriterState",
-            "ImageNbStart",
             "MonitorMode",
             "DiscardNew",
             "FileWriterMode",
@@ -157,7 +141,7 @@ class EigerDetector(AbstractDetector):
                     "type": "tango",
                     "name": channel_name,
                     "tangoname": tango_device,
-                    "polling": 12000,
+                    "polling": None,  # No polling necessary
                 },
                 channel_name,
             )
@@ -198,16 +182,16 @@ class EigerDetector(AbstractDetector):
         self.get_channel_object("Compression").init_device()
         self.get_channel_object("Compression").set_value("bslz4")
 
-        self.photon_energy_channel = self.get_channel_object("PhotonEnergy")
-        self.photon_energy_channel.init_device()
-        photon_energy_info = self.photon_energy_channel.get_info()
+        self._photon_energy_channel = self.get_channel_object("PhotonEnergy")
+        self._photon_energy_channel.init_device()
+        photon_energy_info = self._photon_energy_channel.get_info()
         self.photon_energy_max = float(photon_energy_info.max_value)
         self.photon_energy_min = float(photon_energy_info.min_value)
 
-        self.frame_time_channel = self.get_channel_object("FrameTime")
-        self.frame_time_channel.init_device()
+        self._frame_time_channel = self.get_channel_object("FrameTime")
+        self._frame_time_channel.init_device()
 
-        frame_time_info = self.frame_time_channel.get_info()
+        frame_time_info = self._frame_time_channel.get_info()
         self.frame_time_min = float(frame_time_info.min_value)
         _status = self.get_channel_object("Status")
 
