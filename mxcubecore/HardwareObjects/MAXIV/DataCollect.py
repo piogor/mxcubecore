@@ -18,6 +18,7 @@ from typing import (
 
 import gevent
 
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects import TangoShutter
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
@@ -86,6 +87,10 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         send 'open' request to safety shutter and wait until it's open
         """
+        if HWR.beamline.emulate("safety_shutter"):
+            self.log.info("FAKE Opening the safety shutter.")
+            return
+
         self.log.info("Opening the safety shutter.")
         open_tango_shutter(
             self.safety_shutter_hwobj,
@@ -108,6 +113,10 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         send 'open' request to the detector cover and wait until it's open
         """
+        if HWR.beamline.emulate("detector_cover"):
+            self.log.info("FAKE Opening detector cover.")
+            return
+
         try:
             self.log.info("Opening the detector cover.")
             open_tango_shutter(
