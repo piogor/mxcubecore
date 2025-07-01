@@ -209,6 +209,13 @@ class ISARA(SampleChanger):
                 "barcode",
             )
 
+        self.connect(self._cmdLoad, "commandFailed", self._on_command_fail)
+        self.connect(self._cmdUnload, "commandFailed", self._on_command_fail)
+        self.connect(self._cmdChainedLoad, "commandFailed", self._on_command_fail)
+        self.connect(self._cmdAbort, "commandFailed", self._on_command_fail)
+        self.connect(self._cmdPowerOn, "commandFailed", self._on_command_fail)
+        self.connect(self._cmdScanSample, "commandFailed", self._on_command_fail)
+
         #
         # determine Cats geometry and prepare objects
         #
@@ -1024,3 +1031,12 @@ class ISARA(SampleChanger):
         self._trigger_contents_updated_event()
         self._update_loaded_sample()
         self._trigger_info_changed_event()
+
+    def _on_command_fail(self, _code: int, command_name: str):
+        """This command trigers showing error panel in case an ISARA command fails
+
+        Args:
+            _code: Always -1
+            command_name: Name of the command that failed
+        """
+        self.user_log.critical("Failed executing ISARA command %s" % command_name)
