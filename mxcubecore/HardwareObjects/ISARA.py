@@ -23,13 +23,13 @@ from tango import (
     DevState,
 )
 
-from mxcubecore.Command.Tango import TangoChannel
 from mxcubecore.HardwareObjects.abstract.AbstractSampleChanger import (
     Container,
     SampleChanger,
     SampleChangerState,
 )
 from mxcubecore.HardwareObjects.abstract.sample_changer.Sample import Sample
+from mxcubecore.utils.tango import TangoAttributeReadError, add_attribute_channel
 
 __author__ = "Mikel Eguiraun"
 __credits__ = ["The MXCuBE collaboration"]
@@ -40,12 +40,6 @@ ATTRIBUTE_POLLING = 300
 NUMBER_OF_PUCKS = 29
 # number of samples per puck
 NUMBER_OF_SAMPLES = 16
-
-
-class _AttrConnectionError(Exception):
-    def __init__(self, attribute_name: str):
-        super().__init__()
-        self.attribute_name = attribute_name
 
 
 class Basket(Container):
@@ -142,7 +136,7 @@ class ISARA(SampleChanger):
 
         try:
             self._create_attr_channels()
-        except _AttrConnectionError as ex:
+        except TangoAttributeReadError as ex:
             #
             # If we can't connect to some of the attributes, then the tango device
             # is in unusable state.
@@ -254,34 +248,38 @@ class ISARA(SampleChanger):
 
         self.update_info()
 
-    def _add_attr_channel(self, attribute_name: str) -> TangoChannel:
-        channel = self.add_channel(
-            {
-                "type": "tango",
-                "name": f"_chn{attribute_name}",
-                "tangoname": self.tangoname,
-                "polling": ATTRIBUTE_POLLING,
-            },
-            attribute_name,
-        )
-
-        if not channel.is_connected():
-            raise _AttrConnectionError(attribute_name)
-
-        return channel
-
     def _create_attr_channels(self):
         """Create channels"""
-        self._chnState = self._add_attr_channel("State")
-        self._chnStatus = self._add_attr_channel("Status")
-        self._chnPowered = self._add_attr_channel("Powered")
-        self._chnPathRunning = self._add_attr_channel("PathRunning")
-        self._chnPathSafe = self._add_attr_channel("PathSafe")
-        self._chnNumLoadedSample = self._add_attr_channel("SampleNumberOnDiff")
-        self._chnPuckLoadedSample = self._add_attr_channel("PuckNumberOnDiff")
-        self._chnSampleIsDetected = self._add_attr_channel("SampleDetectedOnGonio")
-        self._chnCurrentTool = self._add_attr_channel("Tool")
-        self._chnBasketPresence = self._add_attr_channel("CassettePresence")
+        self._chnState = add_attribute_channel(
+            self, self.tangoname, "State", ATTRIBUTE_POLLING
+        )
+        self._chnStatus = add_attribute_channel(
+            self, self.tangoname, "Status", ATTRIBUTE_POLLING
+        )
+        self._chnPowered = add_attribute_channel(
+            self, self.tangoname, "Powered", ATTRIBUTE_POLLING
+        )
+        self._chnPathRunning = add_attribute_channel(
+            self, self.tangoname, "PathRunning", ATTRIBUTE_POLLING
+        )
+        self._chnPathSafe = add_attribute_channel(
+            self, self.tangoname, "PathSafe", ATTRIBUTE_POLLING
+        )
+        self._chnNumLoadedSample = add_attribute_channel(
+            self, self.tangoname, "SampleNumberOnDiff", ATTRIBUTE_POLLING
+        )
+        self._chnPuckLoadedSample = add_attribute_channel(
+            self, self.tangoname, "PuckNumberOnDiff", ATTRIBUTE_POLLING
+        )
+        self._chnSampleIsDetected = add_attribute_channel(
+            self, self.tangoname, "SampleDetectedOnGonio", ATTRIBUTE_POLLING
+        )
+        self._chnCurrentTool = add_attribute_channel(
+            self, self.tangoname, "Tool", ATTRIBUTE_POLLING
+        )
+        self._chnBasketPresence = add_attribute_channel(
+            self, self.tangoname, "CassettePresence", ATTRIBUTE_POLLING
+        )
 
     def connect_notify(self, signal):
         if signal == SampleChanger.INFO_CHANGED_EVENT:
