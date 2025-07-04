@@ -802,7 +802,6 @@ convention = "google"
     "ARG002",
     "BLE001",
     "E722",
-    "F401",
     "N999",
     "RET505",
     "T201",

@@ -11,7 +11,7 @@ from scipy.constants import (
     kilo,
 )
 
-from mxcubecore.HardwareObjects import Resolution
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractResolution import AbstractResolution
 
 
@@ -20,11 +20,11 @@ class BIOMAXResolution(AbstractResolution):
         AbstractResolution.__init__(self, *args, **kwargs)
 
     def init(self):
-        self.energy = None
+        bl = HWR.beamline
 
-        self.dtox = self.get_object_by_role("dtox")
-        self.energy = self.get_object_by_role("energy")
-        self.detector = self.get_object_by_role("detector")
+        self.dtox = bl.detector.detector_distance
+        self.energy = bl.energy
+        self.detector = bl.detector
 
         if self.detector:
             try:
