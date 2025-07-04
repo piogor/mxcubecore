@@ -37,6 +37,7 @@ class BIOMAXEiger(AbstractDetector):
         super(BIOMAXEiger, self).init()
         tango_device = self.get_property("detector_device")
         self.file_suffix = self.get_property("file_suffix")
+        self.beam = self.get_property("beam")
         self.default_exposure_time = self.get_property("default_exposure_time")
         self.default_compression = self.get_property("default_compression")
         self.buffer_limit = self.get_property("buffer_limit")

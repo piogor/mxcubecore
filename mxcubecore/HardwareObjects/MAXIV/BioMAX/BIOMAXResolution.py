@@ -73,12 +73,11 @@ class BIOMAXResolution(AbstractResolution):
     def get_beam_centre(self, dtox=None):
         if dtox is None:
             dtox = self.dtox.get_value()
-        ax = float(self.detector["beam"].get_property("ax"))
-        bx = float(self.detector["beam"].get_property("bx"))
-        ay = float(self.detector["beam"].get_property("ay"))
-        by = float(self.detector["beam"].get_property("by"))
 
-        return float(dtox) * ax + bx, float(dtox) * ay + by
+        beam = self.detector.beam
+        distance = float(dtox)
+
+        return distance * beam["ax"] + beam["bx"], distance * beam["ay"] + beam["by"]
 
     def recalculate_resolution(self):
         self.current_resolution = self.dist2res(self.dtox.get_value())
