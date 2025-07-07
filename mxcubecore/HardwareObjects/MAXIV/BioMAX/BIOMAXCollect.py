@@ -81,7 +81,7 @@ class BIOMAXCollect(DataCollect):
         self.transmission_hwobj = HWR.beamline.transmission
         self.sample_changer_hwobj = HWR.beamline.sample_changer
         self.sample_changer_maint_hwobj = HWR.beamline.sample_changer_maintenance
-        self.dtox_hwobj = self.get_object_by_role("dtox")
+        self.dtox_hwobj = HWR.beamline.detector.detector_distance
         self.session_hwobj = HWR.beamline.session
         self.datacatalog_url = self.get_property("datacatalog_url", None)
         self.datacatalog_token = self.get_property("datacatalog_token", None)
