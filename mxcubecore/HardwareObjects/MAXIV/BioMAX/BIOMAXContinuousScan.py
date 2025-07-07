@@ -908,13 +908,7 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
                 {'symbol': 'Fe', 'energy': 'K'
             ]
         """
-        elements = []
-        try:
-            for el in self["elements"]:
-                elements.append({"symbol": el.symbol, "energy": el.energy})
-        except IndexError:
-            pass
-        return elements
+        return self.get_property("elements")
 
     def open_safety_shutter(self, timeout):
         """
