@@ -144,7 +144,7 @@ class MAXIVMD3(GenericDiffractometer):
         except:
             self.kappa_phi_motor_hwobj = None
 
-        self.beam_info_hwobj = self.get_object_by_role("beam_info")
+        self.beam_info_hwobj = HWR.beamline.beam
 
         self.cent_vertical_pseudo_motor = None
         try:
