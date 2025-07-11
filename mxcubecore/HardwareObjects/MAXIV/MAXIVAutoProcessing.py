@@ -412,9 +412,34 @@ class MAXIVAutoProcessing(HardwareObject):
             self.log.exception("[AutoProcessing] Error generating input file")
         self.log.info("[AutoProcessing] Generate input file {}".format(output))
 
-    def find_spg_full_name(self, value):
+    def find_spg_full_name(self, value) -> str:
         spg = list(filter(lambda spg: spg["short_name"] == value, self.spg_dict))
         return spg[0]["full_name"]
+
+    def find_spg_number(self, space_group_short_name: str) -> int:
+        """Finds the space group number by its short name.
+
+        Args:
+            space_group_short_name: short name of the space group, e.g. "P21".
+
+        Returns:
+            space group number, e.g. 4 for "P21".
+
+        Raises:
+            ValueError: if the space group is not found in the dictionary.
+        """
+        try:
+            space_group = next(
+                # spg_dict is, in fact, a list of dictionaries - don't be fooled!
+                spg
+                for spg in self.spg_dict
+                if spg["short_name"] == space_group_short_name
+            )
+        except StopIteration:
+            err_msg = f"[AutoProcessing] Space group {space_group_short_name} not found"
+            raise ValueError(err_msg) from None
+        else:
+            return space_group["num"]
 
     def generate_pdb(self, sample_ref, output_file):
         cell = sample_ref.get("cell", "0,0,0,0,0,0")
