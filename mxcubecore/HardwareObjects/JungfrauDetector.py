@@ -197,6 +197,7 @@ class JungfrauDetector(AbstractDetector):
         maybe_set("unit_cell__alpha", "UnitCellAlpha")
         maybe_set("unit_cell__beta", "UnitCellBeta")
         maybe_set("unit_cell__gamma", "UnitCellGamma")
+        maybe_set("space_group_number", "SpaceGroupNumber")
 
         exposure_time = sec_to_us(config["CountTime"])
         # image_time_us has to be multiple of frame_time_us
