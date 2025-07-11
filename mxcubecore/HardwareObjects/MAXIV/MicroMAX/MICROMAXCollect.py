@@ -1293,6 +1293,9 @@ class MICROMAXCollect(DataCollect):
         return self.transmission_hwobj.get_value()
 
     def set_transmission(self, value):
+        if self.transmission_hwobj.read_only:
+            self.user_log.warning("not changing transmission, it's read-only")
+            return
         try:
             self.transmission_hwobj.set_value(float(value), True)
         except Exception as ex:
