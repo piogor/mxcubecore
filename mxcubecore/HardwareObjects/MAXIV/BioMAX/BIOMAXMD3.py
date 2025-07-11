@@ -139,30 +139,6 @@ class BIOMAXMD3(MAXIVMD3):
         self.pixels_per_mm_y = zoom / self.channel_dict["CoaxCamScaleY"].get_value()
         self.emit("pixelsPerMmChanged", ((self.pixels_per_mm_x, self.pixels_per_mm_y)))
 
-    def manual_centring(self):
-        self.update_zoom_calibration()
-        self.centring_hwobj.initCentringProcedure()
-        for click in range(3):
-            self.user_clicked_event = gevent.event.AsyncResult()
-            x, y = self.user_clicked_event.get()
-            self.centring_hwobj.appendCentringDataPoint(
-                {
-                    "X": (x - self.beam_position[0]) / self.pixels_per_mm_x,
-                    "Y": (y - self.beam_position[1]) / self.pixels_per_mm_y,
-                }
-            )
-            if self.in_plate_mode():
-                dynamic_limits = self.phi_motor_hwobj.get_dynamic_limits()
-                if click == 0:
-                    self.phi_motor_hwobj.set_value(dynamic_limits[0])
-                elif click == 1:
-                    self.phi_motor_hwobj.set_value(dynamic_limits[1])
-            else:
-                if click < 2:
-                    self.phi_motor_hwobj.set_value_relative(90)
-        self.omega_reference_add_constraint()
-        return self.centring_hwobj.centeredPosition(return_by_name=False)
-
     def blinded_by_the_lights(self, img: np.ndarray, threshold=1000) -> bool:
         """
         returns True if img is overexposed, which happens right after the backlight comes on.
