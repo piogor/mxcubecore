@@ -404,11 +404,10 @@ class MICROMAXCollect(DataCollect):
 
         self.diffractometer_hwobj.check_beamstop_is_at_beam_position()
 
+        # Currently there are no flux readings at MicroMAX.
+        # So these values are always 0.
         self.flux_before_collect = 0  # self.get_instant_flux()
         self.estimated_flux_before_collect = 0  # self.get_estimated_flux()
-        # flux value is a string
-        if float(self.flux_before_collect) < 1:
-            self.user_log.error("Collection: Flux is 0, please check the beam!!")
 
         self.diffractometer_hwobj.wait_ready(20)
         self.move_to_centered_position()
