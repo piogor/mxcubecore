@@ -390,7 +390,8 @@ class MICROMAXCollect(DataCollect):
             self.user_log.exception("Collection: cannot set prepare detector.")
             msg = "[COLLECT] Error preparing detector: %s" % ex
             self.log.error(msg)
-            raise Exception(msg)
+            self.stop_collect()
+            raise Exception(msg) from ex
 
         if self.ssx_mode:
             self.generate_crystfel_input_files(det_config)
