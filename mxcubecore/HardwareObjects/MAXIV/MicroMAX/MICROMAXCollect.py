@@ -850,7 +850,7 @@ class MICROMAXCollect(DataCollect):
             return
         cmd = [
             "ssh",
-            "clu0-fe-0",
+            "clu0-fe-2",
             self.gen_thumbnail_script,
             data_path,
             str(frame_number),
