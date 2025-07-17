@@ -1014,12 +1014,12 @@ class MAXIVMD3(GenericDiffractometer):
             "kappa": (
                 float(self.kappa_motor_hwobj.get_value())
                 if self.kappa_motor_hwobj
-                else None
+                else 0.0
             ),
             "kappa_phi": (
                 float(self.kappa_phi_motor_hwobj.get_value())
                 if self.kappa_phi_motor_hwobj
-                else None
+                else 0.0
             ),
             "zoom": float(self.zoom_motor_hwobj.get_value().value),
         }
