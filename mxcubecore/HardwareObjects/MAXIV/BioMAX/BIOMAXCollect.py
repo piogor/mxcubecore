@@ -264,7 +264,7 @@ class BIOMAXCollect(DataCollect):
                 )
             self.emit_collection_finished()
         except Exception as ex:
-            hwr_log.error("[COLLECT] Data collection failed: %s" % ex)
+            hwr_log.exception("[COLLECT] Data collection failed: %s" % ex)
             self.emit_collection_failed()
             self.close_fast_shutter()
             self.close_detector_cover()
@@ -1074,9 +1074,12 @@ class BIOMAXCollect(DataCollect):
         """
         config["OmegaStart"] = osc_start  # oscillation_parameters["start"]
         config["OmegaIncrement"] = osc_range  # oscillation_parameters["range"]
-        config["KappaStart"] = self.diffractometer_hwobj.kappa.get_value()
+
+        current_pos = self.diffractometer_hwobj.get_positions()
+        config["KappaStart"] = current_pos["kappa"]
         config["KappaIncrement"] = 0.0
-        config["PhiStart"] = self.diffractometer_hwobj.kappa_phi.get_value()
+        config["PhiStart"] = current_pos["kappa_phi"]
+
         config["PhiIncrement"] = 0.0
         (
             beam_centre_x,
