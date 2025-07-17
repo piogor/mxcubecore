@@ -20,7 +20,7 @@ CORRECT_OMEGA_SCRIPT = (
     "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega_2024.py"
 )
 GENERATE_THUMBNAIL_SCRIPT = "/mxn/groups/sw/mxsw/mxcube_scripts/generate_thumbnail"
-HPC_FE_HOST = "clu0-fe-0"
+HPC_FE_HOST = "clu0-fe-2"
 DET_SAFE_POSITION = 800
 
 hwr_log = logging.getLogger("HWR")
