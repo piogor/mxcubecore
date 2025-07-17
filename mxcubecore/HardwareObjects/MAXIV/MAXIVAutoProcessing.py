@@ -79,7 +79,7 @@ class MAXIVAutoProcessing(HardwareObject):
             "generate_autoproc_path", self.gen_autoproc_path
         )
         self.log = logging.getLogger("HWR")
-        self.host = "clu0-fe-0"
+        self.host = "clu0-fe-2"
         self.gen_thumbnail_script = self.get_property(
             "gen_thumbnail_script",
             "/mxn/groups/sw/mxsw/mxcube_scripts/generate_thumbnail",
@@ -487,7 +487,7 @@ class MAXIVAutoProcessing(HardwareObject):
             % jpeg_thumbnail_full_path
         )
         self.log.info("[COLLECT] Generating thumbnails, data path: %s" % data_path)
-        cmd = "ssh clu0-fe-0 %s  %s  %d  %s &" % (
+        cmd = "ssh clu0-fe-2 %s  %s  %d  %s &" % (
             self.gen_thumbnail_script,
             data_path,
             frame_number,
