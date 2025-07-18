@@ -85,8 +85,25 @@ def parse_unit_cell_params(params: str) -> list[Optional[float]]:
 
 
 class DataCollect(AbstractCollect, HardwareObject):
+    DEFAULT_DETECTOR_SAFE_DISTANCE = 800
+
     def init(self):
         self.detector_cover = HWR.beamline.detector.cover
+        self.detector_safe_possion = self.get_property(
+            "detector_safe_distance",
+            self.DEFAULT_DETECTOR_SAFE_DISTANCE,
+        )
+
+    def move_detector_to_safe_position(self):
+        """Move detector to a safe position.
+
+        This is used to move the detector out of the way when changing samples.
+        """
+        self.log.info(
+            "Collection: Moving detector to the safe position: %s",
+            self.detector_safe_possion,
+        )
+        self.move_detector(self.detector_safe_possion)
 
     def open_safety_shutter(self):
         """
