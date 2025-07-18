@@ -29,8 +29,6 @@ from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 from mxcubecore.utils.units import um_to_mm
 
-DET_SAFE_POSITION = 500
-
 
 class MICROMAXCollect(DataCollect):
     """MicroMAX specific data collection hardware object."""
@@ -1393,9 +1391,6 @@ class MICROMAXCollect(DataCollect):
 
     def get_measured_intensity(self):
         return float(self.get_flux())
-
-    def move_detector_to_safe_position(self):
-        self.move_detector(DET_SAFE_POSITION)
 
     def prepare_for_new_sample(self, manual_mode=True):
         """Prepare beamline for a new sample."""
