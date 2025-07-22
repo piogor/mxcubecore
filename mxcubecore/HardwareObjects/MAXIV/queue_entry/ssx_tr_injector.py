@@ -7,16 +7,17 @@
 
 import json
 import logging
-from typing import ClassVar
+from typing import TYPE_CHECKING, ClassVar
 
-import gevent
 from pydantic.v1 import (
     BaseModel,
     Field,
 )
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX import ekspla
+
+if TYPE_CHECKING:
+    from mxcubecore.HardwareObjects.MAXIV.MicroMAX.abstract_laser import AbstractLaser
 from mxcubecore.model.common import (
     CommonCollectionParamters,
     LegacyParameters,
@@ -105,10 +106,7 @@ class InjectorTaskParameters(BaseModel):
                     "norender": "true",
                 },
                 "num_images": {"ui:readonly": "true"},
-                **{
-                    input_name: processing_group_options
-                    for input_name in processing_group
-                },
+                **dict.fromkeys(processing_group, processing_group_options),
             },
         )
 
@@ -138,7 +136,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.ekspla_laser = ekspla.Ekspla()
+        self.laser: AbstractLaser = HWR.beamline.get_object_by_role("laser")
 
     def _do_data_collection(self):
         params = self._data_model._task_data.user_collection_parameters  # noqa: SLF001
@@ -149,25 +147,19 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
 
         self.prepare_data_collection(num_images, num_triggers)
 
-        #
-        # start acquisition
-        #
-        self.ekspla_laser.run()
+        with self.laser.armed():
+            # start acquisition
 
-        shape_id = self._data_model._task_data.collection_parameters.shape  # noqa: SLF001
-        shape = HWR.beamline.sample_view.get_shape(shape_id)
-        if shape and shape.t == "L":
-            self.interpolate_positions(shape)
+            shape_id = self._data_model._task_data.collection_parameters.shape  # noqa: SLF001
+            shape = HWR.beamline.sample_view.get_shape(shape_id)
+            if shape and shape.t == "L":
+                self.interpolate_positions(shape)
 
-        #
-        # wait for acquisition to end
-        #
-        wait_acquisition_done()
-
-        #
-        # stop generating trigger signals
-        #
-        self.ekspla_laser.stop()
+            #
+            # wait for acquisition to end
+            #
+            wait_acquisition_done()
+            # stop generating trigger signals
 
     def execute(self):
         try:
@@ -179,11 +171,7 @@ class SsxTrInjectorQueueEntry(AbstractSsxQueueEntry):
             restore_beamline()
 
     def stop(self):
-        # stop generating trigger signals
-        self.ekspla_laser.stop()
-
-        # give detector chance to finish last train of triggers
-        gevent.sleep(1.0)
-
         # this will ask detector to stop acquisition
         super().stop()
+        # stop generating trigger signals
+        self.laser.disarm()
