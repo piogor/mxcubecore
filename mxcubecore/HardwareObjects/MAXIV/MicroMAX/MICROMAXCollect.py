@@ -1393,9 +1393,15 @@ class MICROMAXCollect(DataCollect):
 
     def prepare_for_new_sample(self, manual_mode=True):
         """Prepare beamline for a new sample."""
+        if HWR.beamline.is_hve_sample_delivery():
+            self.log.info(
+                "[HWR] Beamline in HVE delivery mode, no preparation for a new sample required."
+            )
+            return
 
-        self.log.info("[HWR] Preparing beamline for a new sample.")
-
+        self.log.info(
+            "[HWR] Beamline in OSC delivery mode, preparing beamline for a new sample."
+        )
         self.close_detector_cover()
 
         # HVE head is recognized as PLATE by the MD3. We do nothing for those two cases
