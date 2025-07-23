@@ -396,11 +396,10 @@ class MICROMAXCollect(DataCollect):
         if self.ssx_mode:
             self.generate_crystfel_input_files(det_config)
 
-        # move MD3 to DataCollection phase if it's not
-        if self.diffractometer_hwobj.get_current_phase() != "DataCollection":
-            self.user_log.info("Moving Diffractometer to Data Collection")
-            self.diffractometer_hwobj.set_phase("DataCollection")
-
+        # Move MD3 to DataCollection phase, even if it's already there
+        # This is a deliberate action to ensure that all organs go to corect position
+        # even if they have been moved.
+        self.diffractometer_hwobj.set_phase("DataCollection")
         self.diffractometer_hwobj.check_beamstop_is_at_beam_position()
 
         # Currently there are no flux readings at MicroMAX.
