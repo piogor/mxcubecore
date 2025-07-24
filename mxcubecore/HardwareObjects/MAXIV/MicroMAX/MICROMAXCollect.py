@@ -20,6 +20,7 @@ from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
+from mxcubecore.HardwareObjects.MAXIV import space_groups
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
     DataCollect,
     parse_unit_cell_params,
@@ -1244,9 +1245,7 @@ class MICROMAXCollect(DataCollect):
             sample_info = self.current_dc_parameters["sample_reference"]
             space_group = sample_info.get("spacegroup").strip() or None
             if space_group is not None:
-                space_group_number = self.autoprocessing_hwobj.find_spg_number(
-                    space_group
-                )
+                space_group_number = space_groups.get_number(space_group)
                 config["SpaceGroupNumber"] = space_group_number
             cell = sample_info.get("cell", ",,,,,")
             (

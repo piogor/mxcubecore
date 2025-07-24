@@ -1,27 +1,13 @@
 import math
-from typing import ClassVar
 
 import pytest
 
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import DataCollect
 
 
-class _DummyAutoProcessing:
-    SPACE_GROUPS_FULL_NAMES: ClassVar = {
-        "P1": "P 1",
-        "P21": "P 1 21 1",
-    }
-
-    def find_spg_full_name(self, space_group: str) -> str:
-        return self.SPACE_GROUPS_FULL_NAMES[space_group]
-
-
 @pytest.fixture
 def data_collect():
-    data_collect_hwo = DataCollect("dummy")
-    data_collect_hwo.autoprocessing_hwobj = _DummyAutoProcessing()
-
-    return data_collect_hwo
+    return DataCollect("dummy")
 
 
 def _sample_ref_dicts_equal(got: dict, expected: dict) -> bool:
