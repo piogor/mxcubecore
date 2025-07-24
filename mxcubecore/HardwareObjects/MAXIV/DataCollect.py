@@ -24,6 +24,7 @@ from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects import TangoShutter
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
+from mxcubecore.HardwareObjects.MAXIV import space_groups
 
 # max time we wait for safety shutter to open, in seconds
 SAFETY_SHUTTER_TIMEOUT = 5.0
@@ -214,7 +215,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         space_group = sample_reference_params.get("spacegroup", "")
         if space_group != "":
             # convert to PDB style of space group names
-            space_group = self.autoprocessing_hwobj.find_spg_full_name(space_group)
+            space_group = space_groups.get_full_name(space_group)
 
         #
         # deal with unit cell parameters

@@ -25,6 +25,7 @@ from string import Template
 import gevent
 
 from mxcubecore.BaseHardwareObjects import HardwareObject
+from mxcubecore.HardwareObjects.MAXIV import space_groups
 
 #
 # default path to EDNA2 processing script,
@@ -44,7 +45,6 @@ class MAXIVAutoProcessing(HardwareObject):
         self.gen_autoproc_path = None
         self.crystfel_geom_temp = {}
         self.crystfel_index_temp = None
-        self.spg_dict = None
 
     def read_file(self, file_path):
         try:
@@ -56,17 +56,6 @@ class MAXIVAutoProcessing(HardwareObject):
             )
             return None
         return content
-
-    def read_spg_dictionary(self, spg_file=None):
-        spg_list = []
-        with open(spg_file, "r") as infile:
-            for line in infile:
-                tmp = line.strip().split("'")
-                tmp2 = tmp[0].split()
-                spg_list.append(
-                    {"num": int(tmp2[0]), "short_name": tmp2[3], "full_name": tmp[1]}
-                )
-        return spg_list
 
     def init(self):
         self.generate_xds_inp_user_path = self.get_property(
@@ -100,9 +89,6 @@ class MAXIVAutoProcessing(HardwareObject):
             "/mxn/groups/sw/mxsw/mxcube_scripts/template/crystfel_index_temp.txt",
         )
         self.crystfel_index_temp = Template(self.read_file(index_temp_path))
-        spg_dict_file = self.get_property("spacegroup_dictionary_file", None)
-        if spg_dict_file is not None:
-            self.spg_dict = self.read_spg_dictionary(spg_file=spg_dict_file)
 
         self.edna2_submit_path = self.get_property(
             "edna2_submit_path", DEFAULT_EDNA2_SUBMIT_PATH
@@ -410,51 +396,28 @@ class MAXIVAutoProcessing(HardwareObject):
             self.log.exception("[AutoProcessing] Error generating input file")
         self.log.info("[AutoProcessing] Generate input file {}".format(output))
 
-    def find_spg_full_name(self, value) -> str:
-        spg = list(filter(lambda spg: spg["short_name"] == value, self.spg_dict))
-        return spg[0]["full_name"]
-
-    def find_spg_number(self, space_group_short_name: str) -> int:
-        """Finds the space group number by its short name.
-
-        Args:
-            space_group_short_name: short name of the space group, e.g. "P21".
-
-        Returns:
-            space group number, e.g. 4 for "P21".
-
-        Raises:
-            ValueError: if the space group is not found in the dictionary.
-        """
+    def get_space_group_full_name(self, sample_ref) -> str | None:
+        short_name = str(sample_ref.get("spacegroup", "")).replace(" ", "")
         try:
-            space_group = next(
-                # spg_dict is, in fact, a list of dictionaries - don't be fooled!
-                spg
-                for spg in self.spg_dict
-                if spg["short_name"] == space_group_short_name
-            )
-        except StopIteration:
-            err_msg = f"[AutoProcessing] Space group {space_group_short_name} not found"
-            raise ValueError(err_msg) from None
+            full_name = space_groups.get_full_name(short_name)
+        except ValueError:
+            # Values of "Undefined" and "None" can be obtained from ISPyB
+            self.log.exception("[AutoProcessing] Space group %s not found", short_name)
         else:
-            return space_group["num"]
+            self.log.info(
+                "[AutoProcessing] Input spacegroup is space_group %s", full_name
+            )
+            return full_name
 
     def generate_pdb(self, sample_ref, output_file):
         cell = sample_ref.get("cell", "0,0,0,0,0,0")
         if cell == ",,,,," or cell[0:5] == "0,0,0":
             return None
-        space_group = sample_ref.get("spacegroup", 0)
-        # Undefined and None can be from ISPyB
-        if space_group == "" or space_group == "None" or space_group == "Undefined":
+
+        spg_full_name = self.get_space_group_full_name(sample_ref)
+        if not spg_full_name:
             return None
-        self.log.info(
-            "[AutoProcessing] Input spacegroup is space_group {}".format(space_group)
-        )
-        space_group = str(space_group).replace(" ", "")
-        spg_full_name = self.find_spg_full_name(space_group)
-        self.log.info(
-            "[AutoProcessing] Input spacegroup is space_group {}".format(spg_full_name)
-        )
+
         # write cell parameters in PDB format
         cell_float = [float(x) for x in cell.split(",")]
         pdb = "CRYST1"
