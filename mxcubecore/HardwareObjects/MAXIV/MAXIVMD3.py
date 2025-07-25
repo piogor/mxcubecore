@@ -10,6 +10,7 @@ log = logging.getLogger("HWR")
 from gevent import monkey
 
 from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.ExporterMotor import ExporterMotor
 from mxcubecore.HardwareObjects.GenericDiffractometer import (
     DiffractometerState,
     GenericDiffractometer,
@@ -896,38 +897,49 @@ class MAXIVMD3(GenericDiffractometer):
         if wait:
             self.wait_ready(10)
 
-    def move_motors(self, motor_positions, timeout=15):
+    def move_motors(
+        self, motor_positions: dict[str | ExporterMotor, float], timeout: float = 15.0
+    ):
+        """Moves diffractometer motors to specified positions.
+
+        Re-uses the `move_sync_motors` method to perform the actual move operation.
+        This is caused, because the `move_motors` method is already used in the
+        public part of the codebase for this purpose.
+
+        Args:
+            motor_positions: dictionary mapping motors to their target positions.
+                Keys can be either motor names (str) or ExporterMotor objects.
+                Used motor names are the 'short' names, like 'phiy', 'phiz', etc.
+                instead of exporter names like `AlignmentY`.
+            timeout: timeout before the move operation is considered failed.
+                Given in seconds.
+        Raises:
+            Timeout: if the move operation does not finish within the timeout.
+            TimeoutError: if the MD3 command does not finish within it's internal timeout.
         """
-        Moves diffractometer motors to the requested positions
+        self.move_sync_motors(motor_positions, wait=True, timeout=timeout)
 
-        :param motors_dict: dictionary with motor names or hwobj
-                            and target values.
-        :type motors_dict: dict
+    def move_sync_motors(
+        self,
+        motor_positions: dict[str | ExporterMotor, float],
+        *,  # makes the `wait` and `timeout` arguments keyword-only
+        wait: bool = True,
+        timeout: float = 30.0,
+    ):
+        """Moves the specified motors to their target positions.
+
+        Args:
+            motor_positions: dictionary mapping motors to their target positions.
+                Keys can be either motor names (str) or ExporterMotor objects.
+                Used motor names are the 'short' names, like 'phiy', 'phiz'
+                etc. instead of exporter names like `AlignmentY`.
+            wait: If True, waits for the move to finish before returning.
+            timeout: Timeout in seconds to wait for the move to finish.
+
+        Raises:
+            Timeout: if the move operation does not finish within the timeout.
+            TimeoutError: if the MD3 command does not finish within its internal timeout.
         """
-        motor_positions.pop("zoom", None)
-        motor_positions.pop("focus", None)
-
-        if not self.is_head_minikappa():
-            motor_positions.pop("kappa", None)
-            motor_positions.pop("kappa_phi", None)
-
-        for motor in motor_positions.keys():
-            position = motor_positions[motor]
-            try:
-                msg = f"moving motor {motor.actuator_name} to position {position:.4f}"
-            except Exception:
-                msg = f"moving motor {motor} to position {position:.4f}"
-            log.info(msg)
-
-            if type(motor) is str:
-                motor_role = motor
-                motor = self.motor_hwobj_dict[motor_role]
-                if motor is None:
-                    continue
-            motor.set_value(position)
-        self.wait_ready(timeout)
-
-    def move_sync_motors(self, motor_positions, wait=True, timeout=30):
         motor_positions.pop("zoom", None)
         motor_positions.pop("focus", None)
 
@@ -940,11 +952,11 @@ class MAXIVMD3(GenericDiffractometer):
             "MAXIVMD3: in move_sync_motors, wait: %s, motors: %s"
             % (wait, motor_positions)
         )
-        for motor in motor_positions.keys():
-            position = motor_positions[motor]
-            if position is None:
-                continue
-            name = self.MOTOR_TO_EXPORTER_NAME[motor]
+        for motor, position in motor_positions.items():
+            if isinstance(motor, str):
+                name = self.MOTOR_TO_EXPORTER_NAME[motor]
+            else:
+                name = motor.actuator_name
             argin += "%s=%0.3f;" % (name, position)
         if not argin:
             return
