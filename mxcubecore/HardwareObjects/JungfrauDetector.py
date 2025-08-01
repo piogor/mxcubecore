@@ -173,10 +173,10 @@ class JungfrauDetector(AbstractDetector):
             """
             Optionally set tango device attribute from the config dictionary.
 
-            If config value is None, don't set.
-            If config value is not None, write its value to the specified attribute.
+            If config value is missing or is None, do nothing.
+            Otherwise, write config's value to the specified attribute.
             """
-            val = config[conf_name]
+            val = config.get(conf_name)
             if val is None:
                 return
             setattr(dev, attr, val)
