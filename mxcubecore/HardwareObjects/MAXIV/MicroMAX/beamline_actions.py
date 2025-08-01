@@ -2,7 +2,10 @@ import logging
 
 from tango import DeviceProxy
 
+from tango import DeviceProxy
+
 from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import NoPositionBookmarkedError
 from mxcubecore.utils.units import kev_to_ev
 
 log = logging.getLogger("user_level_log")
