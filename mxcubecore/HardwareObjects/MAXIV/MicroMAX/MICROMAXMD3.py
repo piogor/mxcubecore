@@ -244,3 +244,18 @@ class MICROMAXMD3(MAXIVMD3):
             self.wait_ready(5)
         except Exception:
             log.exception("MD3: could not move to beam.")
+
+    def close_fast_shutter(self, timeout: float = 2.0) -> None:
+        """Closes fast shutter.
+
+        On MicroMAX MD3Up closing the fast shutter, while it's already closed,
+        leads to some weird behaviour, so we want to avoid that.
+
+        Args:
+            timeout: Timeout for the operation, in seconds.
+        """
+        if self.is_fast_shutter_open():
+            super().close_fast_shutter(timeout)
+            return
+
+        logging.getLogger("HWR").info("[MICROMAXMD3] fast shutter is already closed")
