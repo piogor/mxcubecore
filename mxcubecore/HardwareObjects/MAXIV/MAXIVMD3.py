@@ -389,7 +389,12 @@ class MAXIVMD3(GenericDiffractometer):
             while not self.is_fast_shutter_open():
                 gevent.sleep(0.2)
 
-    def close_fast_shutter(self, timeout=2):
+    def close_fast_shutter(self, timeout: float = 2.0) -> None:
+        """Closes the fast shutter of the MD3 diffractometer.
+
+        Args:
+            timeout: Timeout for the operation, in seconds.
+        """
         logging.getLogger("HWR").info("Closing fast shutter")
         self.fast_shutter_channel.set_value(False)
         with gevent.Timeout(
