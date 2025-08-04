@@ -245,7 +245,7 @@ class JungfrauDetector(AbstractDetector):
         current acquisition time, in seconds
         """
         dev = self.dev
-        acq_time_us = dev.images_per_trigger * dev.image_time_us
+        acq_time_us = dev.images_per_trigger * dev.image_time_us * dev.ntrigger
         return us_to_sec(acq_time_us)
 
     def wait_config_done(self):
