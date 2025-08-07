@@ -64,6 +64,8 @@ class BIOMAXCollect(DataCollect):
         self.flux_before_collect = None
         self.flux_after_collect = None
 
+        self.number_of_snapshots: int = 0
+
     def init(self):
         super().init()
 
@@ -842,8 +844,9 @@ class BIOMAXCollect(DataCollect):
             return image_id
 
     def take_crystal_snapshots(self):
-        diffr = self.diffractometer_hwobj
-        if self.current_dc_parameters["take_snapshots"]:
+        diffr = HWR.beamline.diffractometer
+        number_of_snapshots = self.number_of_snapshots
+        if number_of_snapshots > 0:
             # snapshot_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
             # save the image to the data collection directory for the moment
             snapshot_directory = os.path.join(
@@ -856,16 +859,15 @@ class BIOMAXCollect(DataCollect):
                     hwr_log.exception("Collection: Error creating snapshot directory")
 
             # for plate head, takes only one image
-            if diffr.is_head_plate():  # noqa: SIM108
+            if diffr.is_head_plate():
                 number_of_snapshots = 1
-            else:
-                number_of_snapshots = 4  # 4 take only one image for the moment
             user_log.info(
-                "Collection: Taking %d sample snapshot(s)" % number_of_snapshots
+                "Collection: Taking %d sample snapshot(s)", number_of_snapshots
             )
+
             if not diffr.is_in_centring():
                 user_log.info("Moving Diffractometer to CentringPhase")
-                diffr.set_centring_phase(wait=True, timeout=200)
+                diffr.set_phase_centring(wait=True, timeout=200)
                 self.move_to_centered_position()
 
             for snapshot_index in range(number_of_snapshots):
@@ -883,6 +885,9 @@ class BIOMAXCollect(DataCollect):
                 ] = snapshot_filename
                 # self._do_take_snapshot(snapshot_filename)
                 self._take_crystal_snapshot(snapshot_filename)
+
+                hwr_log.info("Collection: Snapshot at: '%s'", snapshot_filename)
+
                 time.sleep(1)  # needed, otherwise will get the same images
                 if number_of_snapshots > 1:
                     diffr.move_omega_relative(90)
@@ -918,7 +923,7 @@ class BIOMAXCollect(DataCollect):
     @task
     def _take_crystal_snapshot(self, filename):
         # take image from server
-        self.diffractometer_hwobj.camera_hwobj.takeSnapshot(filename)
+        HWR.beamline.sample_view.camera.take_snapshot(filename)
 
     def set_detector_roi(self, value):
         """Set the detector roi mode."""
