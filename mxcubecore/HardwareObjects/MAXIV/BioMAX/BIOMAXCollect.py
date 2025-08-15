@@ -1273,7 +1273,6 @@ class BIOMAXCollect(DataCollect):
 
     def _update_image_to_display(self):
         fname1 = "/mxn/groups/biomax/wmxsoft/auto_load_img_cc/to_display"
-        fname2 = "/mxn/groups/biomax/ctrl_soft/auto_load_img_cc/to_display"
         time.sleep(self.display["delay"] + 3)
         frequency = 5
         step = int(math.ceil(frequency / self.display["exp"]))
@@ -1282,7 +1281,6 @@ class BIOMAXCollect(DataCollect):
         for i in range(1, self.display["nimages"] + 1, step):
             try:
                 os.system("echo %s, %s > %s" % (self.display["file_name1"], i, fname1))
-                os.system("echo %s, %s > %s" % (self.display["file_name2"], i, fname2))
             except Exception:
                 self.log.exception("Could not update image to display i=%d", i)
             if self.stop_display:
