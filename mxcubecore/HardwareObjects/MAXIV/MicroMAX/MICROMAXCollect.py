@@ -90,7 +90,6 @@ class MICROMAXCollect(DataCollect):
         self.energy_hwobj = bl.energy
         self.resolution_hwobj = bl.resolution
         self.detector_hwobj = bl.detector
-        self.flux_hwobj = bl.flux
         self.autoprocessing_hwobj = bl.offline_processing
         # self.autoprocessing_hwobj.lims_client_hwobj = self.lims_client_hwobj
         self.autoprocessing_hwobj.NIMAGES_TRIGGER_AUTO_PROC = (
@@ -1342,14 +1341,6 @@ class MICROMAXCollect(DataCollect):
         except Exception:
             return ""
 
-    def get_flux(self):
-        try:
-            flux = self.flux_hwobj.get_value()
-        except Exception:
-            self.log.exception("[HWR] Cannot retrieve flux value.")
-            flux = -1
-        return flux
-
     def get_instant_flux(self, keep_position=True):
         """Get the instant flux value, w/o checking beams stability.
 
@@ -1360,7 +1351,7 @@ class MICROMAXCollect(DataCollect):
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
-            flux = self.flux_hwobj.calc_flux()
+            flux = self.flux.calc_flux()
         except Exception as ex:
             self.log.error(
                 "[COLLECT] Cannot get the current flux value. Error was {}".format(ex)
@@ -1383,7 +1374,7 @@ class MICROMAXCollect(DataCollect):
 
         flux = 0
         try:
-            flux = self.flux_hwobj.estimate_flux()
+            flux = self.flux.estimate_flux()
         except Exception:
             self.log.error("[COLLECT] Cannot estimate flux from BCU")
         return flux

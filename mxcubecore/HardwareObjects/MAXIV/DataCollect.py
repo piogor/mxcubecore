@@ -94,6 +94,18 @@ class DataCollect(AbstractCollect, HardwareObject):
             "detector_safe_distance",
             self.DEFAULT_DETECTOR_SAFE_DISTANCE,
         )
+        self.flux = HWR.beamline.flux
+
+    def get_flux(self):
+        try:
+            flux = self.flux.get_value()
+        except Exception:
+            self.log.exception("[HWR] Cannot retrieve flux value.")
+            flux = -1
+        return flux
+
+    def get_measured_intensity(self):
+        return float(self.get_flux())
 
     def move_detector_to_safe_position(self):
         """Move detector to a safe position.
