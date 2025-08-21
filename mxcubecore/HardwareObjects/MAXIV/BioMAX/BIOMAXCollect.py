@@ -76,7 +76,6 @@ class BIOMAXCollect(DataCollect):
         self.energy_hwobj = HWR.beamline.energy
         self.resolution_hwobj = HWR.beamline.resolution
         self.detector_hwobj = HWR.beamline.detector
-        self.flux_hwobj = HWR.beamline.flux
         self.autoprocessing_hwobj = HWR.beamline.online_processing
         self.beam_info_hwobj = HWR.beamline.beam
         self.transmission_hwobj = HWR.beamline.transmission
@@ -1189,14 +1188,6 @@ class BIOMAXCollect(DataCollect):
         except:
             return ""
 
-    def get_flux(self):
-        try:
-            flux = self.flux_hwobj.get_flux()
-        except Exception:
-            hwr_log.error("[HWR] Cannot retrieve flux value")
-            flux = -1
-        return flux
-
     def get_instant_flux(self, keep_position=True):
         """Get the instant flux value, w/o checking beams stability.
 
@@ -1206,7 +1197,7 @@ class BIOMAXCollect(DataCollect):
 
         try:
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
-            flux = self.flux_hwobj.get_instant_flux()
+            flux = self.flux.get_instant_flux()
         except Exception:
             hwr_log.error("[COLLECT] Cannot get the current flux value")
             flux = -1
@@ -1220,9 +1211,6 @@ class BIOMAXCollect(DataCollect):
                 self.diffractometer_hwobj.finish_calculate_flux(None, ori_phase)
 
         return flux
-
-    def get_measured_intensity(self):
-        return float(self.get_flux())
 
     def prepare_for_new_sample(self, manual_mode=True):
         """Prepare beamline for a new sample."""
