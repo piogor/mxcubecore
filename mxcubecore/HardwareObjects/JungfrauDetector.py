@@ -268,3 +268,7 @@ class JungfrauDetector(AbstractDetector):
     def get_readout_time(self) -> float:
         """Get readout time in seconds."""
         return (self.dev.frame_time_us - self.dev.count_time_us) / 1e6
+
+    def get_frame_time_us(self) -> float:
+        """Get frame time in microseconds."""
+        return self.dev.frame_time_us
