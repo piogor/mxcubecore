@@ -10,8 +10,11 @@ a data collection hardware object.
 # ruff: noqa: N999
 #
 
+import dataclasses
 import json
+import pathlib
 import socket
+import subprocess
 from typing import (
     Any,
     Callable,
@@ -30,6 +33,45 @@ from mxcubecore.HardwareObjects.MAXIV import space_groups
 SAFETY_SHUTTER_TIMEOUT = 5.0
 # max time we wait for detector cover to open or close, in seconds
 DETECTOR_COVER_TIMEOUT = 10.0
+
+
+@dataclasses.dataclass
+class _FilesInfo:
+    """Names and paths for files and images.
+
+    These are the shorthands used in the following descriptions:
+
+    * ``{Line}`` stands for the name of the beamline
+    * ``{Prop}`` stands for the proposal
+    * ``{Sess}`` stands for the session
+    * ``{Prot}`` stands for the protein acronym
+    * ``{Samp}`` stands for the sample name
+    * ``{Run}`` stands for the run number
+    * ``{Frame}`` stands for the frame number (padded with zeroes up to 6 digits)
+
+    Attributes:
+        archive_directory_path:
+            Full path to archive directory:
+            ``/data/staff/.../{Line}/{Prop}/{Sess}/raw/{Prot}/{Prot}-{Samp}/``
+        h5_name:
+            File name of the raw H5 file:
+            ``{Prot}-{Samp}_{Run}_{Frame}_master.h5``
+        jpeg_path:
+            Full path to JPEG image:
+            ``{archive_directory_path}/{Prot}-{Samp}_{Run}_{Frame}.jpeg``
+        raw_directory_path:
+            Full path to directory containing raw H5 file:
+            ``/data/visitors/{Line}/{Prop}/{Sess}/raw/{Prot}/{Prot}-{Samp}/``
+        thumbnail_path:
+            Full path to thumbnail JPEG image:
+            ``{archive_directory_path}/{Prot}-{Samp}_{Run}_{Frame}.thumb.jpeg``
+    """
+
+    archive_directory_path: str
+    h5_name: str
+    jpeg_path: str
+    raw_directory_path: str
+    thumbnail_path: str
 
 
 def _poll_until(condition: Callable, timeout: float, timeout_error_messge: str):
@@ -86,9 +128,19 @@ def parse_unit_cell_params(params: str) -> list[Optional[float]]:
 
 
 class DataCollect(AbstractCollect, HardwareObject):
+    """Data collection for MAX IV."""
+
+    _GENERATE_DIFFRACTION_IMAGES_SCRIPT = (
+        "/mxn/groups/sw/mxsw/mxcube_scripts/generate_thumbnail"
+    )
+
+    _HPC_FE_HOST = "clu0-fe-2"
+
     DEFAULT_DETECTOR_SAFE_DISTANCE = 800
 
     def init(self):
+        super().init()
+
         self.detector_cover = HWR.beamline.detector.cover
         self.detector_safe_possion = self.get_property(
             "detector_safe_distance",
@@ -322,3 +374,219 @@ class DataCollect(AbstractCollect, HardwareObject):
         )
 
         self.detector_hwobj.set_header_appendix(json.dumps(header_appendix))
+
+    def store_image_in_lims(
+        self,
+        frame_number: int,
+        motor_position_id: int | None = None,
+    ) -> None:
+        # This is an override of ``AbstractCollect``.
+        # This is not clear why this method is part of the abstract API,
+        # since it does not seem to be used anywhere from outside the instances.
+        # Anyway, here we give it a (reasonable?) implementation.
+
+        collection = self.current_dc_parameters
+        if collection:
+            files_info = self._compute_files_info(collection, frame_number)
+
+            self._store_image_in_lims(
+                collection,
+                files_info,
+                frame_number,
+                motor_position_id,
+            )
+
+    def _post_collection_store_image(self, collection: dict | None = None) -> None:
+        """Generate and store diffraction images and store them in the LIMS system.
+
+        This method processes the first image of a data collection, stores it in
+        jpeg format with its thumbnail (reduced size image). Provide the location
+        of images to the Laboratory Information Management System (LIMS).If no
+        collection is provided, it defaults to using the current data collection
+        parameters.
+
+        Args:
+            collection:
+                A dictionary containing data collection parameters.
+                If not provided, the method uses ``self.current_dc_parameters``.
+        """
+
+        if collection is None:
+            collection = self.current_dc_parameters
+
+        self._store_diffraction_images(collection, 1)
+
+    def _store_diffraction_images(
+        self,
+        collection: dict,
+        frame_number: int,
+    ) -> None:
+        """Generate diffraction images and store them in LIMS.
+
+        Create diffraction images for the specified frame, as JPEGs.
+        Both a full-size and a thumbnail images are created.
+        Upload created images to LIMS, connecting them to specified data collection ID.
+        """
+
+        files_info = self._compute_files_info(collection, frame_number)
+        self.log.debug("Computed info for file names and paths: %s", files_info)
+
+        self.log.debug("Storing image in LIMS for frame #%d", frame_number)
+        try:
+            self._store_image_in_lims(collection, files_info, frame_number)
+        except Exception:
+            self.log.exception(
+                "Could not store image in LIMS for frame #%d, collection: %s",
+                frame_number,
+                collection,
+            )
+
+        self.log.debug("Generating diffraction images for frame #%d", frame_number)
+        file_name = collection["fileinfo"]["filename"]
+        try:
+            self._generate_diffraction_images(file_name, files_info, frame_number)
+        except Exception:
+            self.log.exception(
+                "Could not generate diffraction images for frame #%d, collection: %s",
+                frame_number,
+                collection,
+            )
+
+    def _compute_files_info(
+        self,
+        collection: dict,
+        frame_number: int,
+    ) -> _FilesInfo:
+        """Compute files info (names and paths) based on collection information.
+
+        Args:
+            collection: Collection dictionary containing file information.
+            frame_number: Frame number to update the filenames for.
+        """
+
+        file_info = collection["fileinfo"]
+
+        raw_directory_path = file_info["directory"]
+
+        file_template = file_info["template"]
+        h5_name = file_template.replace("_master", f"_{frame_number:06d}_master")
+
+        archive_directory_path = file_info["archive_directory"]
+        if archive_directory_path:
+            jpeg_name = h5_name.replace("_master.h5", ".jpeg")
+            jpeg_path = str(pathlib.Path(archive_directory_path, jpeg_name))
+
+            thumbnail_name = h5_name.replace("_master.h5", ".thumb.jpeg")
+            thumbnail_path = str(pathlib.Path(archive_directory_path, thumbnail_name))
+
+        return _FilesInfo(
+            archive_directory_path=archive_directory_path,
+            h5_name=h5_name,
+            jpeg_path=jpeg_path,
+            raw_directory_path=raw_directory_path,
+            thumbnail_path=thumbnail_path,
+        )
+
+    def _store_image_in_lims(
+        self,
+        collection: dict,
+        files_info: _FilesInfo,
+        frame_number: int,
+        motor_position_id: int | None = None,
+    ) -> None:
+        lims = HWR.beamline.lims
+        if lims.is_connected():
+            lims_image = {
+                "dataCollectionId": collection["collection_id"],
+                "fileLocation": files_info.raw_directory_path,
+                "fileName": files_info.h5_name,
+                "imageNumber": frame_number,
+                "machineMessage": self.get_machine_message(),
+                "measuredIntensity": self.get_measured_intensity(),
+                "synchrotronCurrent": self.get_machine_current(),
+                "temperature": self.get_cryo_temperature(),
+            }
+
+            if files_info.archive_directory_path:
+                lims_image["jpegFileFullPath"] = files_info.jpeg_path
+                lims_image["jpegThumbnailFileFullPath"] = files_info.thumbnail_path
+
+            if motor_position_id:
+                lims_image["motorPositionId"] = motor_position_id
+
+            self.log.debug(
+                "Storing LIMS image for frame #%d: %s",
+                frame_number,
+                lims_image,
+            )
+
+            try:
+                lims.store_image(lims_image)
+            except Exception:
+                self.log.exception(
+                    "Could not store image in LIMS for frame #%d: %s",
+                    frame_number,
+                    lims_image,
+                )
+
+        # Temporary fix for permission issues with ISPyB
+        if files_info.archive_directory_path:
+            session_dir = pathlib.Path(files_info.archive_directory_path).parents[2]
+            try:
+                session_dir.chmod(0o777)
+            except Exception:
+                self.log.exception(
+                    "Could not change permissions on storage for ISPyB: %s",
+                    session_dir,
+                )
+
+    def _generate_diffraction_images(
+        self,
+        data_path: str,
+        files_info: _FilesInfo,
+        frame_number: int,
+    ) -> None:
+        """Build command to run diffraction images generation script on HPC cluster.
+
+        Args:
+            data_path: Path to the data file - collection .h5 master file.
+            image_paths: Paths to images to be created.
+            frame_number: Frame number to generate the diffraction images for.
+        """
+        command: list[str] = [
+            self._GENERATE_DIFFRACTION_IMAGES_SCRIPT,
+            data_path,
+            str(frame_number),
+            files_info.jpeg_path,
+            files_info.thumbnail_path,
+        ]
+        self.log.debug(
+            "Generating diffraction images on HPC cluster with command: %s",
+            command,
+        )
+        self._run_ssh_command(self._HPC_FE_HOST, command)
+
+    def _run_ssh_command(self, host: str, command: list[str]) -> None:
+        ssh_command = [
+            "ssh",
+            "-oPasswordAuthentication=no",  # Do not try to use password authentication.
+            "-oStrictHostKeyChecking=no",  # In case the host keys changed. Unsafe?
+            host,
+            *command,
+        ]
+        self.log.debug("Running SSH command: %s", ssh_command)
+        try:
+            subprocess.run(  # noqa: S603
+                ssh_command,
+                check=True,
+                stderr=subprocess.STDOUT,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+        except subprocess.CalledProcessError as exc:
+            self.log.exception(
+                "Could not run SSH command: %s -- stderr: %s",
+                ssh_command,
+                exc.stdout,
+            )
+            raise

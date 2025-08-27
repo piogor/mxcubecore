@@ -19,8 +19,6 @@ from mxcubecore.TaskUtils import task
 CORRECT_OMEGA_SCRIPT = (
     "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega_2024.py"
 )
-GENERATE_THUMBNAIL_SCRIPT = "/mxn/groups/sw/mxsw/mxcube_scripts/generate_thumbnail"
-HPC_FE_HOST = "clu0-fe-2"
 
 hwr_log = logging.getLogger("HWR")
 user_log = logging.getLogger("user_level_log")
@@ -663,7 +661,7 @@ class BIOMAXCollect(DataCollect):
             gevent.spawn(self.trigger_auto_processing, "after", 0)
 
         # we store the first and the last images, TODO: every 45 degree
-        gevent.spawn(self.post_collection_store_image)
+        gevent.spawn(self._post_collection_store_image)
 
         if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
             # disable stream interface
@@ -721,126 +719,22 @@ class BIOMAXCollect(DataCollect):
             except Exception as ex:
                 hwr_log.error("[COLLECT] Error creating XDS files, %s" % ex)
 
-            # we store the first and the last images, TODO: every 45 degree
-            hwr_log.info("Storing images in lims, frame number: 1")
-            try:
-                self._store_image_in_lims(1)
-                self.generate_and_copy_thumbnails(
-                    self.current_dc_parameters["fileinfo"]["filename"], 1
-                )
-            except Exception:
-                self.log.exception("Could not store first image in LIMS")
+            self._store_diffraction_images(self.current_dc_parameters, 1)
 
             last_frame = self.current_dc_parameters["oscillation_sequence"][0][
                 "number_of_images"
             ]
             if last_frame > 1:
-                hwr_log.info("Storing images in lims, frame number: %d" % last_frame)
-                try:
-                    self._store_image_in_lims(last_frame)
-                    self.generate_and_copy_thumbnails(
-                        self.current_dc_parameters["fileinfo"]["filename"], last_frame
-                    )
-                except Exception:
-                    self.log.exception("Could not store last image in LIMS")
+                self._store_diffraction_images(self.current_dc_parameters, last_frame)
 
         if self.scicat_enabled and not self.session_hwobj.is_proprietary():
             self.scicat_hwobj.end_scan(self.current_dc_parameters)
-
-    def post_collection_store_image(self):
-        # we store the first and the last images, TODO: every 45 degree
-        hwr_log.info("Storing images in lims, frame number: 1")
-        try:
-            self.store_image_in_lims(1)
-            self.generate_and_copy_thumbnails(
-                self.current_dc_parameters["fileinfo"]["filename"], 1
-            )
-        except Exception:
-            self.log.exception("Could not store first image in LIMS")
 
     def _store_image_in_lims_by_frame_num(self, frame, motor_position_id=None):
         # Dont save mesh first and last images
         # Mesh images (best positions) are stored after data analysis
         hwr_log.info("TODO: fix store_image_in_lims_by_frame_num method for nimages>1")
         return
-
-    def generate_and_copy_thumbnails(self, data_path, frame_number):
-        #  generare diffraction thumbnails
-        file_template = self.current_dc_parameters["fileinfo"]["template"]
-        image_file_template = file_template.replace("master", "data_%06d")
-        archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-        thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-        jpeg_thumbnail_file_template = os.path.join(archive_directory, thumb_filename)
-        jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-
-        hwr_log.info(
-            "[COLLECT] Generating thumbnails, output filename: %s"
-            % jpeg_thumbnail_full_path
-        )
-        hwr_log.info("[COLLECT] Generating thumbnails, data path: %s" % data_path)
-        cmd = f"ssh {HPC_FE_HOST} {GENERATE_THUMBNAIL_SCRIPT} {data_path} {frame_number} {jpeg_thumbnail_full_path}"
-        hwr_log.info(cmd)
-        os.system(cmd)
-
-    def _store_image_in_lims(self, frame_number, motor_position_id=None):
-        if self.lims_client_hwobj:
-            file_location = self.current_dc_parameters["fileinfo"]["directory"]
-            image_file_template = self.current_dc_parameters["fileinfo"]["template"]
-            filename = image_file_template % frame_number
-            lims_image = {
-                "dataCollectionId": self.current_dc_parameters["collection_id"],
-                "fileName": filename,
-                "fileLocation": file_location,
-                "imageNumber": frame_number,
-                "measuredIntensity": self.get_measured_intensity(),
-                "synchrotronCurrent": self.get_machine_current(),
-                "machineMessage": self.get_machine_message(),
-                "temperature": self.get_cryo_temperature(),
-            }
-            archive_directory = self.current_dc_parameters["fileinfo"][
-                "archive_directory"
-            ]
-
-            if archive_directory:
-                jpeg_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                thumb_filename = (
-                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
-                )
-                jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
-                jpeg_thumbnail_file_template = os.path.join(
-                    archive_directory, thumb_filename
-                )
-                jpeg_full_path = jpeg_file_template % frame_number
-                jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
-                lims_image["jpegFileFullPath"] = jpeg_full_path
-                lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
-                lims_image["fileLocation"] = self.current_dc_parameters["fileinfo"][
-                    "directory"
-                ]
-            if motor_position_id:
-                lims_image["motorPositionId"] = motor_position_id
-            hwr_log.info(
-                "LIMS IMAGE: %s, %s, %s, %s"
-                % (
-                    jpeg_filename,
-                    thumb_filename,
-                    jpeg_full_path,
-                    jpeg_thumbnail_full_path,
-                )
-            )
-            try:
-                image_id = self.lims_client_hwobj.store_image(lims_image)
-            except Exception:
-                self.log.exception("Could not store image")
-            # temp fix for ispyb permission issues
-            try:
-                session_dir = os.path.join(archive_directory, "../../../")
-            except Exception:
-                self.log.exception("Could not build `session_dir`")
-
-            return image_id
 
     def take_crystal_snapshots(self):
         diffr = HWR.beamline.diffractometer
@@ -1327,9 +1221,15 @@ class BIOMAXCollect(DataCollect):
                 hwr_log.exception("Could not update data collection in LIMS")
 
     def correct_omega_in_master_file(self, filename, overlap):
-        cmd = f"ssh {HPC_FE_HOST} {CORRECT_OMEGA_SCRIPT} -f {filename} -o {-overlap}"
-        hwr_log.info("Correcting Omega in master file. Command to run is %s" % cmd)
-        os.system(cmd)
+        self.log.info(
+            "Correcting Omega in master file with filename %s and overlap %s",
+            filename,
+            overlap,
+        )
+        self._run_ssh_command(
+            self._HPC_FE_HOST,
+            f"{CORRECT_OMEGA_SCRIPT} -f {filename} -o {-overlap}",
+        )
 
     def wait_for_xray_center_result(self, shape_id):
         # is there an issue if one re-runs the collection?
