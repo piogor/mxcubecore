@@ -53,7 +53,6 @@ class MICROMAXFlux(AbstractFlux):
 
         self.detector_hwobj = None
         self.detector_distance_hwobj = None
-        self.energy_hwobj = None
 
         self.air_length = None
         self.energy = None
@@ -71,7 +70,6 @@ class MICROMAXFlux(AbstractFlux):
         self.det_mot = {}
 
     def init(self):
-        self.energy_hwobj = self.get_object_by_role("energy")
         self.detector_hwobj = HWR.beamline.detector
         self.opt_diode["ch1"] = tango.DeviceProxy("expchan/albaem_ctrl_02/2")
         self.opt_diode["ch2"] = tango.DeviceProxy("expchan/albaem_ctrl_02/3")
@@ -116,7 +114,7 @@ class MICROMAXFlux(AbstractFlux):
         return full_flux
 
     def calc_flux(self):
-        energy_ev = self.energy_hwobj.get_current_energy() * 1000.0
+        energy_ev = HWR.beamline.energy.get_current_energy() * 1000.0
         tmp = self.detector_hwobj.get_property("model")
         det = tmp.lower()  # det can be "jungfrau" or "eiger"
         det_dist = self.det_mot[det].Position
@@ -126,7 +124,7 @@ class MICROMAXFlux(AbstractFlux):
         return flux
 
     def check_beam_opt(self):
-        energy_ev = self.energy_hwobj.get_current_energy() * 1000.0
+        energy_ev = HWR.beamline.energy.get_current_energy() * 1000.0
         msg = ""
         total = 0.0
         for i in range(1, 5):
