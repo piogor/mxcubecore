@@ -4,11 +4,8 @@ MAXIV Beamline hardware object.
 """
 
 # ruff: noqa: N999
-import logging
 
 from mxcubecore.HardwareObjects.Beamline import Beamline
-
-log = logging.getLogger("HWR")
 
 
 class MAXIVBeamline(Beamline):
