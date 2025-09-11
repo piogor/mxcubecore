@@ -21,6 +21,7 @@ import typing
 import gevent
 
 import mxcubecore.HardwareObjects.ISARA
+from mxcubecore.utils.tango import add_attribute_channel
 
 HWR_LOGGER = logging.getLogger("HWR")
 USER_LOGGER = logging.getLogger("user_level_log")
@@ -51,20 +52,6 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
         self._is_handling_md3_not_safe = False
 
-        self._add_tango_channel("PoseRx", "PoseRX")
-        self._add_tango_channel("PoseRy", "PoseRY")
-        self._add_tango_channel("PoseRz", "PoseRZ")
-        self._add_tango_channel("PoseX")
-        self._add_tango_channel("PoseY")
-        self._add_tango_channel("PoseZ")
-        self._add_tango_channel("PositionName")  # To check for the soaking position
-
-        message_channel = self._add_tango_channel(
-            "Message",
-            polling=CHANNEL_POLLING_PERIOD,
-        )
-        message_channel.connect_signal("update", self._message_changed)
-
         self._add_tango_command("Abort")
         self._add_tango_command("Back")
         self._add_tango_command("ClearMemory")
@@ -74,38 +61,28 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         self._add_tango_command("Recover")
         self._add_tango_command("Reset")
 
-    def _add_tango_channel(
-        self,
-        channel_name: str,
-        tango_attribute_name: typing.Optional[str] = None,
-        polling: typing.Optional[float] = None,
-    ) -> mxcubecore.CommandContainer.ChannelObject:
-        """Add channel for a Tango attribute.
+    def _create_attr_channels(self):
+        super()._create_attr_channels()
 
-        Args:
-            channel_name: Name of the channel to be created.
-            tango_attribute_name: Name of the Tango attribute to be used as source.
-                If this is ``None``, then ``channel_name`` is used instead.
-            polling: Polling period in milliseconds.
-                If this is ``None``, then polling is disabled.
-
-        Returns:
-            The newly created channel.
-        """
-        channel = self.add_channel(
-            {
-                "type": "tango",
-                "name": channel_name,
-                "tangoname": self.tangoname,
-                "polling": polling,
-            },
-            tango_attribute_name if tango_attribute_name else channel_name,
+        #
+        # Set-up ISARA1 specific channels
+        #
+        add_attribute_channel(self, self.tangoname, "PoseRX")
+        add_attribute_channel(self, self.tangoname, "PoseRY")
+        add_attribute_channel(self, self.tangoname, "PoseRZ")
+        add_attribute_channel(self, self.tangoname, "PoseX")
+        add_attribute_channel(self, self.tangoname, "PoseY")
+        add_attribute_channel(self, self.tangoname, "PoseZ")
+        add_attribute_channel(
+            self,
+            self.tangoname,
+            "Message",
+            CHANNEL_POLLING_PERIOD,
+            self._message_changed,
         )
-        if not channel:
-            raise Exception(
-                f"Could not create channel {channel_name=} {tango_attribute_name=}",
-            )
-        return channel
+
+        # To check for the soaking position
+        add_attribute_channel(self, self.tangoname, "PositionName")
 
     def _add_tango_command(
         self,
@@ -160,9 +137,9 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         ref_z = self.get_property("mount_pose_z")
         tolerance = self.get_property("mount_pose_tolerance")
 
-        pose_rx = self.get_channel_value("PoseRx")
-        pose_ry = self.get_channel_value("PoseRy")
-        pose_rz = self.get_channel_value("PoseRz")
+        pose_rx = self.get_channel_value("PoseRX")
+        pose_ry = self.get_channel_value("PoseRY")
+        pose_rz = self.get_channel_value("PoseRZ")
         pose_x = self.get_channel_value("PoseX")
         pose_y = self.get_channel_value("PoseY")
         pose_z = self.get_channel_value("PoseZ")
