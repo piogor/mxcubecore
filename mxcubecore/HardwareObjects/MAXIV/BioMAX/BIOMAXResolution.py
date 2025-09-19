@@ -55,7 +55,7 @@ class BIOMAXResolution(AbstractResolution):
         self.update_detector_position()
 
     def update_detector_position(self, state=None):
-        self.emit("valueChanged", state)
+        self.recalculate_resolution()
 
     def det_roi_changed(self):
         self.det_width = self.detector.get_x_pixels_in_detector()
