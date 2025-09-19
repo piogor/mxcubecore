@@ -559,6 +559,15 @@ class MICROMAXCollect(DataCollect):
         return range_x, range_y
 
     def oscil(self, start, end, exptime, npass, wait=True):
+        def get_table_pitch() -> int:
+            """Figure out if mesh scan table pitch should be enabled."""
+
+            if HWR.beamline.is_fixed_target_sample_delivery():
+                # table pitch disabled for fixed-target collections
+                return 0
+
+            return 1
+
         time.sleep(1)
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         msg = (
@@ -596,6 +605,7 @@ class MICROMAXCollect(DataCollect):
                 self.get_mesh_total_nb_frames(),  # is in fact nframes per line
                 invert_direction=1,
                 wait=wait,
+                table_pitch=get_table_pitch(),
             )
         else:
             self.diffractometer_hwobj.do_oscillation_scan(start, end, exptime, wait)
