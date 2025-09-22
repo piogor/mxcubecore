@@ -1,4 +1,7 @@
 import gevent
+import numpy as np
+from loopfinder.motion import CentringNavigatorUp
+from loopfinder.vision import canny_masker, mini, tunnel_vision
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
@@ -245,3 +248,22 @@ class MICROMAXMD3(MAXIVMD3):
             return
 
         self.log.info("fast shutter is already closed")
+
+    def centring_navigator(self, tolerance_mm: float) -> CentringNavigatorUp:
+        """
+        This returns a custom navigator for loop centering on MicroMAX.
+        The navigator for micromax uses the subclass CentringNavigatorUp for use
+        with the upwards-facing MD3. It also has tunnel-vision to avoid the sharp
+        edge of the micromax backlight.
+        """
+
+        def foreground_segmentor(img: np.ndarray):
+            return mini(
+                lambda mini_img: tunnel_vision(canny_masker(mini_img, min_sharpness=25))
+            )(img)
+
+        return CentringNavigatorUp(
+            target_coordinates=tuple(self.beam_position),
+            tolerance=tolerance_mm * self.pixels_per_mm_x,
+            segmentor=foreground_segmentor,
+        )
