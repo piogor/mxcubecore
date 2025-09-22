@@ -33,6 +33,10 @@ run-test:
       python-ldap=3.4.3
     - micromamba activate mxcubecore
     - pip install --editable '.[maxiv]' pytest pytest-cov pytest-mock
+    - pip uninstall -y opencv-python opencv-python-headless
+    - pip install opencv-python-headless
+    - ls $CONDA_PREFIX/lib/python3.11/site-packages
+    - python -c "import cv2"
   script:
     - pytest -v --cov-report term-missing --cov-report html --junitxml=report.xml
   artifacts:
