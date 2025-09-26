@@ -198,9 +198,11 @@ class BIOMAXPatches(HardwareObject):
         )
 
         self.before_load_sample()
-        self.__load(sample)
+        result = self.__load(sample)
         self.sc_recovery_after_timeout()
         self.after_load_sample()
+
+        return result
 
     def new_unload(self, *args, **kwargs):
         logging.getLogger("HWR").info(
