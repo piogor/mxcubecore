@@ -25,12 +25,6 @@ class BIOMAXMD3(MAXIVMD3):
         self.plate_row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
         self.head_type = self.channel_dict["HeadType"].get_value()
 
-    def get_camera_image(self):
-        """Get the current image from the md3 camera as a numpy array"""
-        self.wait_device_ready(10)
-        img_buf, w, h = HWR.beamline.sample_view.camera.get_image_array()
-        return img_buf.reshape(h, w, 3)
-
     def get_center_pos(self):
         """Returns the current motor positions except for zoom level. Used for loop centering"""
         cpos = self.get_positions()
@@ -39,12 +33,12 @@ class BIOMAXMD3(MAXIVMD3):
 
     def wait_stable_loop(self, wait_time: int) -> None:
         logging.getLogger("user_level_log").info("Waiting for loop to be stable...")
-        img_bef = self.get_camera_image()
+        img_bef = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
         timer = 0
         wait_int = 2
         while timer < wait_time:
             time.sleep(wait_int)
-            img_after = self.get_camera_image()
+            img_after = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
             diff = cv2.absdiff(img_bef, img_after)
             if diff.max() < 100:
                 logging.getLogger("user_level_log").info(
@@ -157,7 +151,9 @@ class BIOMAXMD3(MAXIVMD3):
         Sleeps until the camera is no longer blinded by the backlight.
         """
         logging.getLogger("HWR").info("waiting for backlight to settle down")
-        while self.blinded_by_the_lights(self.get_camera_image()):
+        while self.blinded_by_the_lights(
+            HWR.beamline.sample_view.get_snapshot(return_as_array=True)
+        ):
             time.sleep(poll_period)
             # until I feel your touch
         logging.getLogger("HWR").info("backlight seems to have settled")
@@ -179,7 +175,7 @@ class BIOMAXMD3(MAXIVMD3):
             tolerance=tolerance_mm * self.pixels_per_mm_x,
         )
         for i in range(patience):
-            img = self.get_camera_image()
+            img = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
             step = nav.next_step(img)
             logging.getLogger("HWR").debug(f"step {i}/{patience} - {step}")
             if step.finished():
@@ -198,25 +194,41 @@ class BIOMAXMD3(MAXIVMD3):
 
     def automatic_centring(self):
         self.wait_device_ready(10)
+
         # move MD3 to Centring phase if it's not
         if self.get_current_phase() != "Centring":
             logging.getLogger("user_level_log").info(
                 "Moving Diffractometer to Centring for automatic_centring"
             )
             self.set_phase("Centring", wait=True, timeout=200)
-        # make sure the back light factor is 1, zoom level is 1, before loop centering
+
+        # This loop centring algorithm expects specific conditions.
+        # In particular, it expects specific lighting conditions.
+        # Back light should be on with factor 1, front light should be off.
+        # Zoom level should be 1.
+
+        # Switch off front light:
+        self.front_light_switch.set_value(self.front_light_switch.VALUES.OUT)
+
+        # Switch on back light with factor 1:
+        self.back_light_switch.set_value(self.back_light_switch.VALUES.IN)
+        self.back_light.set_value(1)
+
+        # Set zoom level 1:
         self.zoom_motor_hwobj.set_value(self.zoom_motor_hwobj.VALUES.LEVEL1)
         self.wait_device_ready(20)
-        # back light is always in in centring phase
-        # self.back_light.move(1)
+
         self.omega_reference_motor.set_value(self.omega_reference_par["position"])
+
         self.wait_for_backlight()
         self.wait_device_ready(20)
+
         success = self.center_loop()
         if not success:
             logging.getLogger("user_level_log").error(
                 "Automatic loop centering failed!"
             )
+
         self.wait_stable_loop(60)
         centred_pos = self.get_center_pos()
         return centred_pos
