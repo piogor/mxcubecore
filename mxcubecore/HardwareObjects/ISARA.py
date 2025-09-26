@@ -351,7 +351,6 @@ class ISARA(SampleChanger):
             raise Exception(
                 "CATS power is not enabled. Please switch on arm power before transferring samples."
             )
-            return
 
         self._update_state()  # remove software flags like Loading.
         self.log.debug("load cmd .state is:  %s " % (self.state))
@@ -359,16 +358,19 @@ class ISARA(SampleChanger):
         sample = self._resolve_component(sample)
         self.assert_not_charging()
 
-        self._execute_task(SampleChangerState.Loading, wait, self._do_load, sample)
+        return self._execute_task(
+            SampleChangerState.Loading,
+            wait,
+            self._do_load,
+            sample,
+        )
 
     def _do_load(self, sample=None, shifts=None):
         """
         Loads a sample on the diffractometer. Performs a simple put operation if the diffractometer is empty, and
         a sample exchange (unmount of old + mount of new sample) if a sample is already mounted on the diffractometer.
-
-        :returns: None
-        :rtype: None
         """
+
         if not self._chnPowered.get_value():
             self._cmdPowerOn()
             gevent.sleep(2)
@@ -409,7 +411,7 @@ class ISARA(SampleChanger):
                 )
             else:
                 self.log.warning("chained load sample, sending to cats:  %s" % argin)
-                self._execute_server_task(self._cmdChainedLoad, argin)
+                return self._execute_server_task(self._cmdChainedLoad, argin)
         else:
             if self.cats_sample_on_diffr() == 1:
                 self.log.warning(
@@ -423,7 +425,9 @@ class ISARA(SampleChanger):
                 self._update_state()  # remove software flags like Loading.
             else:
                 self.log.warning("load sample, sending to cats:  %s" % argin)
-                self._execute_server_task(self._cmdLoad, argin)
+                return self._execute_server_task(self._cmdLoad, argin)
+
+        return False
 
     def _do_unload(self, sample_slot=None, shifts=None):
         """
