@@ -272,12 +272,6 @@ class ISARA(SampleChanger):
         if signal == SampleChanger.INFO_CHANGED_EVENT:
             self._update_cats_contents()
 
-    def is_isara(self):
-        return True
-
-    def is_cats(self):
-        return False
-
     def _init_sc_contents(self):
         """
         Initializes the sample changer content with default values.
