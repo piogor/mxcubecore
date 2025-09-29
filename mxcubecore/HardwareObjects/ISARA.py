@@ -322,22 +322,6 @@ class ISARA(SampleChanger):
 
     # ########################           TASKS           #########################
 
-    def _do_update_info(self):
-        """
-        Updates the sample changers status: mounted pucks, state, currently loaded sample
-
-        :returns: None
-        :rtype: None
-        """
-        self.log.info(
-            "doUpdateInfo should not be called for cats. only for update timer type of SC"
-        )
-        return
-
-        self._do_update_cats_contents()
-        self._do_update_state()
-        self._do_update_loaded_sample()
-
     def _do_change_mode(self, mode):
         """
         Changes the SC operation mode, not implemented for the CATS system
