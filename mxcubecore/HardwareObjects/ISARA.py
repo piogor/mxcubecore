@@ -300,32 +300,6 @@ class ISARA(SampleChanger):
         for n in range(1, NUMBER_OF_PUCKS + 1):
             self._add_component(UnipuckBasket(self, n))
 
-        # write the default basket information into permanent Basket objects
-        for basket_index in range(NUMBER_OF_PUCKS):
-            basket = self.get_components()[basket_index]
-            datamatrix = None
-            present = scanned = False
-            basket._set_info(present, datamatrix, scanned)
-
-        # create temporary list with default sample information and indices
-        sample_list = []
-        for basket_index in range(NUMBER_OF_PUCKS):
-            basket = self.get_components()[basket_index]
-            for sample_index in range(basket.get_number_of_samples()):
-                sample_list.append(
-                    ("", basket_index + 1, sample_index + 1, 1, Pin.STD_HOLDERLENGTH)
-                )
-
-        # write the default sample information into permanent Pin objects
-        for spl in sample_list:
-            sample = self.get_component_by_address(
-                Pin.get_sample_address(spl[1], spl[2])
-            )
-            datamatrix = None
-            present = scanned = loaded = _has_been_loaded = False
-            sample._set_info(present, datamatrix, scanned)
-            sample._set_loaded(loaded, _has_been_loaded)
-            sample._set_holder_length(spl[4])
         self._do_update_cats_contents()
         self.log.info("initializing contents done")
 
