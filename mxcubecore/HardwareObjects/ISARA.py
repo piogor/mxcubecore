@@ -322,15 +322,6 @@ class ISARA(SampleChanger):
 
     # ########################           TASKS           #########################
 
-    def _do_change_mode(self, mode):
-        """
-        Changes the SC operation mode, not implemented for the CATS system
-
-        :returns: None
-        :rtype: None
-        """
-        return
-
     def _directly_update_selected_component(self, basket_no, sample_no):
         basket = None
         sample = None
