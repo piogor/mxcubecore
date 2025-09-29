@@ -124,7 +124,6 @@ class ISARA(SampleChanger):
 
         # Default values
         self.cats_powered = False
-        self.cats_status = ""
         self.cats_running = False
         self.cats_state = DevState.UNKNOWN
         self.cats_lids_closed = False
@@ -222,7 +221,6 @@ class ISARA(SampleChanger):
         self.use_update_timer = False  # do not use update_timer for Cats
 
         self._chnState.connect_signal("update", self.cats_state_changed)
-        self._chnStatus.connect_signal("update", self.cats_status_changed)
         self._chnPathRunning.connect_signal("update", self.cats_pathrunning_changed)
         self._chnPowered.connect_signal("update", self.cats_powered_changed)
         self._chnPathSafe.connect_signal("update", self.cats_pathsafe_changed)
@@ -252,9 +250,6 @@ class ISARA(SampleChanger):
         """Create channels"""
         self._chnState = add_attribute_channel(
             self, self.tangoname, "State", ATTRIBUTE_POLLING
-        )
-        self._chnStatus = add_attribute_channel(
-            self, self.tangoname, "Status", ATTRIBUTE_POLLING
         )
         self._chnPowered = add_attribute_channel(
             self, self.tangoname, "Powered", ATTRIBUTE_POLLING
@@ -640,10 +635,6 @@ class ISARA(SampleChanger):
         self.cats_state = value
         self._update_state()
 
-    def cats_status_changed(self, value):
-        self.cats_status = value
-        self._update_state()
-
     def cats_pathrunning_changed(self, value):
         self.cats_running = value
         self._update_state()
@@ -768,7 +759,6 @@ class ISARA(SampleChanger):
         """
         self.cats_running = self._chnPathRunning.get_value()
         self.cats_powered = self._chnPowered.get_value()
-        self.cats_status = self._chnStatus.get_value()
         self.cats_state = self._chnState.get_value()
 
     def _update_state(self):
