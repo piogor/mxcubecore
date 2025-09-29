@@ -128,9 +128,6 @@ class ISARA(SampleChanger):
         self.cats_state = DevState.UNKNOWN
         self.cats_lids_closed = False
 
-        # declare channels to detect basket presence changes
-        self.basket_channels = None
-
         self.tangoname = DeviceProxy(self.get_property("tangoname"))
 
         try:
@@ -232,12 +229,7 @@ class ISARA(SampleChanger):
         self._update_state()
 
         # connect presence channels
-        if self.basket_channels is not None:  # old device server
-            for basket_index in range(NUMBER_OF_PUCKS):
-                channel = self.basket_channels[basket_index]
-                channel.connect_signal("update", self.cats_basket_presence_changed)
-        else:  # new device server with global CassettePresence attribute
-            self._chnBasketPresence.connect_signal("update", self.cats_baskets_changed)
+        self._chnBasketPresence.connect_signal("update", self.cats_baskets_changed)
 
         # Read other XML properties
         read_datamatrix = self.get_property("read_datamatrix")
@@ -629,18 +621,6 @@ class ISARA(SampleChanger):
     def cats_lids_closed_changed(self, value):
         self.cats_lids_closed = value
         self._update_state()
-
-    def cats_basket_presence_changed(self, value):
-        presence = [None] * NUMBER_OF_PUCKS
-        for basket_index in range(NUMBER_OF_PUCKS):
-            value = self.basket_channels[basket_index].get_value()
-            presence[basket_index] = value
-
-        if presence != self.basket_presence:
-            self.log.warning("Basket presence changed. Updating contents")
-            self.basket_presence = presence
-            self._update_cats_contents()
-            self._update_loaded_sample()
 
     def cats_baskets_changed(self, value):
         self.log.warning("Baskets changed. %s" % value)
