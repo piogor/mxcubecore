@@ -769,7 +769,7 @@ class ISARA(SampleChanger):
             if (
                 (old_sample is None)
                 or (new_sample is None)
-                or (old_sample.get_address() != new_loaded.get_address())
+                or (old_sample.get_address() != new_sample.get_address())
             ):
                 self._trigger_loaded_sample_changed_event(new_sample)
                 self._trigger_info_changed_event()
