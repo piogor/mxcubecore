@@ -117,8 +117,6 @@ class ISARA(SampleChanger):
         #  In the case of Isara we do not use an update_timer... update is done by signals from Tango channels
         #
 
-        self.read_datamatrix = False
-
         self.cats_loaded_lid = None
         self.cats_loaded_num = None
 
@@ -231,11 +229,6 @@ class ISARA(SampleChanger):
         # connect presence channels
         self._chnBasketPresence.connect_signal("update", self.cats_baskets_changed)
 
-        # Read other XML properties
-        read_datamatrix = self.get_property("read_datamatrix")
-        if read_datamatrix:
-            self.set_read_barcode(True)
-
         self.update_info()
 
     def _create_attr_channels(self):
@@ -310,15 +303,6 @@ class ISARA(SampleChanger):
 
     def is_path_running(self):
         return self._chnPathRunning.get_value()
-
-    def set_read_barcode(self, value):
-        """
-        Activates reading of barcode during load or chained load trajectory
-        Internally it will use put() or put_bcrd() in PyCats dev. server
-
-        :value:  boolean argument
-        """
-        self.read_datamatrix = value
 
     # ########################           TASKS           #########################
 
