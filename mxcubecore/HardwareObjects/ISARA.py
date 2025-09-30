@@ -28,6 +28,7 @@ from mxcubecore.HardwareObjects.abstract.AbstractSampleChanger import (
     SampleChanger,
     SampleChangerState,
 )
+from mxcubecore.HardwareObjects.abstract.sample_changer.Container import Basket, Pin
 from mxcubecore.HardwareObjects.abstract.sample_changer.Sample import Sample
 from mxcubecore.utils.tango import TangoAttributeReadError, add_attribute_channel
 
@@ -40,61 +41,6 @@ ATTRIBUTE_POLLING = 300
 NUMBER_OF_PUCKS = 29
 # number of samples per puck
 NUMBER_OF_SAMPLES = 16
-
-
-class Basket(Container):
-    __TYPE__ = "Puck"
-
-    def __init__(self, container, number, samples_num=10, name="Puck"):
-        super(Basket, self).__init__(
-            self.__TYPE__, container, Basket.get_basket_address(number), True
-        )
-
-        self.samples_num = samples_num
-
-        for i in range(samples_num):
-            slot = Pin(self, number, i + 1)
-            self._add_component(slot)
-
-    @staticmethod
-    def get_basket_address(basket_number):
-        return str(basket_number)
-
-    def get_number_of_samples(self):
-        return self.samples_num
-
-    def clear_info(self):
-        self.get_container()._trigger_info_changed_event()
-
-
-class UnipuckBasket(Basket):
-    def __init__(self, container, number, name="UniPuck"):
-        super(UnipuckBasket, self).__init__(
-            container, Basket.get_basket_address(number), NUMBER_OF_SAMPLES, True
-        )
-
-
-class Pin(Sample):
-    STD_HOLDERLENGTH = 22.0
-
-    def __init__(self, basket, basket_no, sample_no):
-        super(Pin, self).__init__(
-            basket, Pin.get_sample_address(basket_no, sample_no), False
-        )
-        self._set_holder_length(Pin.STD_HOLDERLENGTH)
-
-    def get_basket_no(self):
-        return self.get_container().get_index() + 1
-
-    def get_vial_no(self):
-        return self.get_index() + 1
-
-    @staticmethod
-    def get_sample_address(basket_number, sample_number):
-        if basket_number is not None and sample_number is not None:
-            return str(basket_number) + ":" + "%02d" % int(sample_number)
-        else:
-            return ""
 
 
 class ISARA(SampleChanger):
@@ -277,7 +223,7 @@ class ISARA(SampleChanger):
         self.basket_presence = [None] * NUMBER_OF_PUCKS
 
         for n in range(1, NUMBER_OF_PUCKS + 1):
-            self._add_component(UnipuckBasket(self, n))
+            self._add_component(Basket(self, n, NUMBER_OF_SAMPLES))
 
         self._do_update_cats_contents()
         self.log.info("initializing contents done")
