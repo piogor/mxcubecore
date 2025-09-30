@@ -456,7 +456,6 @@ class ISARA(SampleChanger):
 
             selected = self.get_selected_sample()
 
-            # self._execute_server_task(self._scan_samples, [component.get_index()+1,])
             lid, sample = self.basketsample_to_lidsample(
                 selected.get_basket_no(), selected.get_vial_no()
             )
@@ -837,8 +836,6 @@ class ISARA(SampleChanger):
                 % (self.has_loaded_sample(), self._chnSampleIsDetected.get_value())
             )
             _state = SampleChangerState.Unknown
-        # elif not lids_closed:
-        # _state = SampleChangerState.Charging
         elif dev_state == DevState.ON:
             _state = SampleChangerState.Ready
         else:

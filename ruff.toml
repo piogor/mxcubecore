@@ -516,7 +516,6 @@ convention = "google"
     "C901",
     "E501",
     "EM101",
-    "ERA001",
     "F821",
     "FBT002",
     "FBT003",
