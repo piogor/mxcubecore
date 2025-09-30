@@ -2,8 +2,6 @@ import logging
 import time
 import types
 
-import gevent
-
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 
