@@ -459,9 +459,6 @@ class ISARA(SampleChanger):
             self.log.warning("load/unload operation failed :  %s" % exception)
             self.emit("taskFailed", str(exception))
 
-    def clear_basket_info(self, basket):
-        pass
-
     # ###############################################################################
 
     def _do_abort(self):
@@ -473,9 +470,6 @@ class ISARA(SampleChanger):
         """
         self._cmdAbort()
         self._update_state()  # remove software flags like Loading.. reflects current hardware state
-
-    def _do_reset(self):
-        pass
 
     # ########################           CATS EVENTS           #########################
 
@@ -513,10 +507,6 @@ class ISARA(SampleChanger):
         time.sleep(1.0)
         self.emit("path_safeChanged", (value,))
         self.emit("isCollisionSafe", (value,))
-
-    def cats_lids_closed_changed(self, value):
-        self.cats_lids_closed = value
-        self._update_state()
 
     def cats_baskets_changed(self, value):
         self.log.warning("Baskets changed. %s" % value)
@@ -723,19 +713,6 @@ class ISARA(SampleChanger):
             while not self._is_device_ready():
                 gevent.sleep(0.01)
 
-    def _do_update_loaded_sample(self):
-        """
-        Reads the currently mounted sample basket and pin indices from the CATS Tango DS,
-        translates the lid/sample notation into the basket/sample notation and marks the
-        respective sample as loaded.
-
-        :returns: None
-        :rtype: None
-        """
-        cats_loaded_lid = self._chnPuckLoadedSample.get_value()
-        cats_loaded_num = self._chnNumLoadedSample.get_value()
-        self._update_loaded_sample(cats_loaded_num, cats_loaded_lid)
-
     def lidsample_to_basketsample(self, lid, num):
         return lid, num
 
@@ -745,9 +722,6 @@ class ISARA(SampleChanger):
     def get_current_tool(self):
         tool_str = self._chnCurrentTool.get_value()
         return tool_str
-
-    def get_cassette_type(self, basketno):
-        return 1  # UNIPUCK
 
     def _update_loaded_sample(self, sample_num=None, lid=None):
         if None in [sample_num, lid]:
