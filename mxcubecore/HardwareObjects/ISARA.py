@@ -200,9 +200,6 @@ class ISARA(SampleChanger):
         self._chnSampleIsDetected = add_attribute_channel(
             self, self.tangoname, "SampleDetectedOnGonio", ATTRIBUTE_POLLING
         )
-        self._chnCurrentTool = add_attribute_channel(
-            self, self.tangoname, "Tool", ATTRIBUTE_POLLING
-        )
         self._chnBasketPresence = add_attribute_channel(
             self, self.tangoname, "CassettePresence", ATTRIBUTE_POLLING
         )
@@ -718,10 +715,6 @@ class ISARA(SampleChanger):
 
     def basketsample_to_lidsample(self, basket, num):
         return basket, num
-
-    def get_current_tool(self):
-        tool_str = self._chnCurrentTool.get_value()
-        return tool_str
 
     def _update_loaded_sample(self, sample_num=None, lid=None):
         if None in [sample_num, lid]:
