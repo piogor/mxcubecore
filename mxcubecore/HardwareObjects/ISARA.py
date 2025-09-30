@@ -255,21 +255,18 @@ class ISARA(SampleChanger):
     def _directly_update_selected_component(self, basket_no, sample_no):
         basket = None
         sample = None
-        try:
-            if basket_no is not None and basket_no > 0 and basket_no <= NUMBER_OF_PUCKS:
-                basket = self.get_component_by_address(
-                    Basket.get_basket_address(basket_no)
+
+        if basket_no is not None and basket_no > 0 and basket_no <= NUMBER_OF_PUCKS:
+            basket = self.get_component_by_address(Basket.get_basket_address(basket_no))
+            if (
+                sample_no is not None
+                and sample_no > 0
+                and sample_no <= basket.get_number_of_samples()
+            ):
+                sample = self.get_component_by_address(
+                    Pin.get_sample_address(basket_no, sample_no)
                 )
-                if (
-                    sample_no is not None
-                    and sample_no > 0
-                    and sample_no <= basket.get_number_of_samples()
-                ):
-                    sample = self.get_component_by_address(
-                        Pin.get_sample_address(basket_no, sample_no)
-                    )
-        except Exception:
-            pass
+
         self._set_selected_component(basket)
         self._set_selected_sample(sample)
 

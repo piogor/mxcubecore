@@ -512,7 +512,6 @@ convention = "google"
 ]
 "mxcubecore/HardwareObjects/ISARA.py" = [
     "ARG002",
-    "BLE001",
     "E501",
     "EM101",
     "F821",
@@ -524,12 +523,10 @@ convention = "google"
     "N999",
     "PERF401",
     "PLR0912",
-    "PLR0915",
     "PLR5501",
     "RET504",
     "RET505",
     "RET506",
-    "S110",
     "SIM108",
     "SLF001",
     "TRY002",
