@@ -94,7 +94,7 @@ class BIOMAXPatches(HardwareObject):
         if HWR.beamline.sample_changer.is_path_running():
             timeout = 240
             HWR.beamline.sample_changer._wait_device_ready(timeout)
-            if HWR.beamline.sample_changer_maintenance.is_path_running():
+            if HWR.beamline.sample_changer.is_path_running():
                 raise RuntimeError(
                     "Cannot load sample, sample changer has been moving for over {} s. Please check the device".format(
                         timeout
