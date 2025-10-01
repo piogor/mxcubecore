@@ -16,7 +16,6 @@
 #
 
 import logging
-import typing
 
 import gevent
 
@@ -52,15 +51,6 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
         self._is_handling_md3_not_safe = False
 
-        self._add_tango_command("Abort")
-        self._add_tango_command("Back")
-        self._add_tango_command("ClearMemory")
-        self._add_tango_command("Dry")
-        # The actual Isara command name is `safe` on Isara1 and `recover` on Isara2.
-        # This discrepancy is abstracted in the Tango device server.
-        self._add_tango_command("Recover")
-        self._add_tango_command("Reset")
-
     def _create_attr_channels(self):
         super()._create_attr_channels()
 
@@ -84,29 +74,20 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         # To check for the soaking position
         add_attribute_channel(self, self.tangoname, "PositionName")
 
-    def _add_tango_command(
-        self,
-        command_name: str,
-        tango_command_name: typing.Optional[str] = None,
-    ) -> mxcubecore.CommandContainer.CommandObject:
-        """Add command for a Tango command.
+    def _create_tango_commands(self):
+        super()._create_tango_commands()
 
-        Args:
-            command_name: Name of the command to be created.
-            tango_command_name: Name of the Tango command to be used as source.
-                If this is ``None`` the ``command_name`` is used instead.
-
-        Returns:
-            The newly created command.
-        """
-        return self.add_command(
-            {
-                "type": "tango",
-                "name": command_name,
-                "tangoname": self.tangoname,
-            },
-            tango_command_name if tango_command_name else command_name,
-        )
+        #
+        # Set-up commands used on BioMAX only.
+        #
+        self._add_tango_command("Abort")
+        self._add_tango_command("Back")
+        self._add_tango_command("ClearMemory")
+        self._add_tango_command("Dry")
+        # The actual Isara command name is `safe` on Isara1 and `recover` on Isara2.
+        # This discrepancy is abstracted in the Tango device server.
+        self._add_tango_command("Recover")
+        self._add_tango_command("Reset")
 
     def _message_changed(self, message) -> None:
         HWR_LOGGER.debug('[SC] Message changed: "%s"', message)
