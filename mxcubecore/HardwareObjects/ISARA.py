@@ -16,6 +16,7 @@ Known sites using ISARA
 """
 
 import time
+from typing import Callable
 
 import gevent
 from tango import (
@@ -23,6 +24,7 @@ from tango import (
     DevState,
 )
 
+from mxcubecore.CommandContainer import CommandObject
 from mxcubecore.HardwareObjects.abstract.AbstractSampleChanger import (
     Container,
     SampleChanger,
@@ -34,6 +36,10 @@ from mxcubecore.utils.tango import TangoAttributeReadError, add_attribute_channe
 
 __author__ = "Mikel Eguiraun"
 __credits__ = ["The MXCuBE collaboration"]
+
+
+FailedCallback = Callable[[int, str], None]
+
 
 ATTRIBUTE_POLLING = 300
 
@@ -92,63 +98,7 @@ class ISARA(SampleChanger):
             self._set_state(SampleChangerState.Fault)
             return
 
-        # commands
-        self._cmdLoad = self.get_command_object("_cmdLoad")
-        if self._cmdLoad is None:
-            self._cmdLoad = self.add_command(
-                {"type": "tango", "name": "_cmdLoad", "tangoname": self.tangoname},
-                "put",
-            )
-
-        self._cmdUnload = self.get_command_object("_cmdUnload")
-        if self._cmdUnload is None:
-            self._cmdUnload = self.add_command(
-                {"type": "tango", "name": "_cmdUnload", "tangoname": self.tangoname},
-                "get",
-            )
-
-        self._cmdChainedLoad = self.get_command_object("_cmdChainedLoad")
-        if self._cmdChainedLoad is None:
-            self._cmdChainedLoad = self.add_command(
-                {
-                    "type": "tango",
-                    "name": "_cmdChainedLoad",
-                    "tangoname": self.tangoname,
-                },
-                "getput",
-            )
-
-        self._cmdAbort = self.get_command_object("_cmdAbort")
-        if self._cmdAbort is None:
-            self._cmdAbort = self.add_command(
-                {"type": "tango", "name": "_cmdAbort", "tangoname": self.tangoname},
-                "abort",
-            )
-
-        self._cmdPowerOn = self.get_command_object("_cmdPowerOn")
-        if self._cmdPowerOn is None:
-            self._cmdPowerOn = self.add_command(
-                {"type": "tango", "name": "_cmdPowerOn", "tangoname": self.tangoname},
-                "powerOn",
-            )
-
-        self._cmdScanSample = self.get_command_object("_cmdScanSample")
-        if self._cmdScanSample is None:
-            self._cmdScanSample = self.add_command(
-                {
-                    "type": "tango",
-                    "name": "_cmdScanSample",
-                    "tangoname": self.tangoname,
-                },
-                "barcode",
-            )
-
-        self.connect(self._cmdLoad, "commandFailed", self._on_command_fail)
-        self.connect(self._cmdUnload, "commandFailed", self._on_command_fail)
-        self.connect(self._cmdChainedLoad, "commandFailed", self._on_command_fail)
-        self.connect(self._cmdAbort, "commandFailed", self._on_command_fail)
-        self.connect(self._cmdPowerOn, "commandFailed", self._on_command_fail)
-        self.connect(self._cmdScanSample, "commandFailed", self._on_command_fail)
+        self._create_tango_commands()
 
         #
         # determine Cats geometry and prepare objects
@@ -203,6 +153,59 @@ class ISARA(SampleChanger):
         self._chnBasketPresence = add_attribute_channel(
             self, self.tangoname, "CassettePresence", ATTRIBUTE_POLLING
         )
+
+    def _create_tango_commands(self):
+        """Create tango command objects."""
+
+        self._cmdLoad = self._add_tango_command(
+            "Put", failed_callback=self._on_command_fail
+        )
+        self._cmdUnload = self._add_tango_command(
+            "Get", failed_callback=self._on_command_fail
+        )
+        self._cmdChainedLoad = self._add_tango_command(
+            "GetPut", failed_callback=self._on_command_fail
+        )
+        self._cmdAbort = self._add_tango_command(
+            "abort", failed_callback=self._on_command_fail
+        )
+        self._cmdPowerOn = self._add_tango_command(
+            "PowerOn", failed_callback=self._on_command_fail
+        )
+        self._cmdScanSample = self._add_tango_command(
+            "Barcode", failed_callback=self._on_command_fail
+        )
+
+    def _add_tango_command(
+        self,
+        command_name: str,
+        tango_command_name: str | None = None,
+        failed_callback: FailedCallback | None = None,
+    ) -> CommandObject:
+        """Add command object for a Tango command.
+
+        Args:
+            command_name: Name of the command to be created.
+            tango_command_name: Name of the Tango command to be used as source.
+                If this is ``None`` the ``command_name`` is used instead.
+            failed_callback: Option callback to invoke if running command fails.
+
+        Returns:
+            The newly created command.
+        """
+        command = self.add_command(
+            {
+                "type": "tango",
+                "name": command_name,
+                "tangoname": self.tangoname,
+            },
+            tango_command_name if tango_command_name else command_name,
+        )
+
+        if failed_callback is not None:
+            self.connect(command, "commandFailed", failed_callback)
+
+        return command
 
     def connect_notify(self, signal):
         if signal == SampleChanger.INFO_CHANGED_EVENT:
