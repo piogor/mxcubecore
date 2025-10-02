@@ -84,19 +84,6 @@ class BIOMAXPatches(HardwareObject):
                         timeout
                     )
                 )
-        if not self.sc_in_soak():
-            logging.getLogger("HWR").info(
-                "Sample changer not in SOAK position, moving there..."
-            )
-            try:
-                HWR.beamline.sample_changer_maintenance.send_command("soak")
-                time.sleep(0.25)
-                HWR.beamline.sample_changer._wait_device_ready(45)
-            except Exception as ex:
-                raise RuntimeError(
-                    "Cannot load sample, sample changer cannot go to SOAK position: %s"
-                    % str(ex)
-                )
 
         try:
             logging.getLogger("HWR").info(
@@ -191,15 +178,9 @@ class BIOMAXPatches(HardwareObject):
         return result
 
     def new_unload(self, *args, **kwargs):
-        logging.getLogger("HWR").info(
-            "Sample changer in SOAK position: %s" % self.sc_in_soak()
-        )
         self.before_load_sample()
         self.__unload(args[1])
         self.sc_recovery_after_timeout()
-
-    def sc_in_soak(self):
-        return HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK"
 
     def init(self, *args):
         self.__load = HWR.beamline.sample_changer.load

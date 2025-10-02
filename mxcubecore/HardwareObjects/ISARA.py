@@ -49,6 +49,8 @@ NUMBER_OF_PUCKS = 29
 NUMBER_OF_SAMPLES = 16
 # max number of seconds to wait for power to switch on
 POWER_ON_TIMEOUT = 30
+# max number of seconds to wait for robot to reach soak position
+GOTO_SOAK_TIMEOUT = 45
 
 
 class ISARA(SampleChanger):
@@ -155,6 +157,10 @@ class ISARA(SampleChanger):
         self._chnBasketPresence = add_attribute_channel(
             self, self.tangoname, "CassettePresence", ATTRIBUTE_POLLING
         )
+        # To check for the soaking position
+        self._position_name = add_attribute_channel(
+            self, self.tangoname, "PositionName"
+        )
 
     def _create_tango_commands(self):
         """Create tango command objects."""
@@ -177,6 +183,7 @@ class ISARA(SampleChanger):
         self._cmdScanSample = self._add_tango_command(
             "Barcode", failed_callback=self._on_command_fail
         )
+        self._add_tango_command("Soak", failed_callback=self._on_command_fail)
 
     def _add_tango_command(
         self,
@@ -251,6 +258,9 @@ class ISARA(SampleChanger):
 
     def is_path_running(self):
         return self._chnPathRunning.get_value()
+
+    def _is_in_soak_position(self):
+        return self._position_name.get_value() == "SOAK"
 
     # ########################           TASKS           #########################
 
@@ -351,6 +361,29 @@ class ISARA(SampleChanger):
         # wait until power is switched on
         self._wait_device_ready(POWER_ON_TIMEOUT)
 
+    def _maybe_move_to_soak(self):
+        """Move to 'SOAK' position, if needed."""
+        if self._is_in_soak_position():
+            # no need to move to SOAK position
+            return
+
+        # send robot to soak position
+        self.execute_command("Soak")
+        # wait for 'Soak' command to take effect
+        time.sleep(2.5)
+        # wait until robot reashes soak position
+        self._wait_device_ready(GOTO_SOAK_TIMEOUT)
+
+    def _prepare_sample_operation(self):
+        """Prepare robot arm to mount or unmount a sample.
+
+        If needed:
+          - power on robot arm
+          - move robot arm to soak position
+        """
+        self._maybe_power_on()
+        self._maybe_move_to_soak()
+
     def load(self, sample=None, wait=True):
         """
         Load a sample.
@@ -360,7 +393,8 @@ class ISARA(SampleChanger):
             Add initial verification about the Powered:
             (NOTE) In fact should be already as the power is considered in the state handling
         """
-        self._maybe_power_on()
+        self._prepare_sample_operation()
+
         self._update_state()  # remove software flags like Loading.
         self.log.debug("load cmd .state is:  %s " % (self.state))
 
@@ -429,7 +463,7 @@ class ISARA(SampleChanger):
         return False
 
     def unload(self, sample_slot=None, wait=True):
-        self._maybe_power_on()
+        self._prepare_sample_operation()
         super().unload(sample_slot, wait)
 
     def _do_unload(self, sample_slot=None, shifts=None):
