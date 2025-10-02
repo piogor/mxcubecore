@@ -356,7 +356,6 @@ class ISARA(SampleChanger):
         self.log.debug("load cmd .state is:  %s " % (self.state))
 
         sample = self._resolve_component(sample)
-        self.assert_not_charging()
 
         return self._execute_task(
             SampleChangerState.Loading,
