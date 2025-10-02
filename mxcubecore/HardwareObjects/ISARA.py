@@ -47,6 +47,8 @@ ATTRIBUTE_POLLING = 300
 NUMBER_OF_PUCKS = 29
 # number of samples per puck
 NUMBER_OF_SAMPLES = 16
+# max number of seconds to wait for power to switch on
+POWER_ON_TIMEOUT = 30
 
 
 class ISARA(SampleChanger):
@@ -338,6 +340,17 @@ class ISARA(SampleChanger):
                     argin = ["2", str(lid), str(sample), "0", "0"]
                     self._execute_server_task(self._cmdScanSample, argin)
 
+    def _maybe_power_on(self):
+        """Power on robot arm, if needed"""
+        if self.is_powered():
+            # no need to power on
+            return
+
+        # issue power on command
+        self.execute_command("PowerOn")
+        # wait until power is switched on
+        self._wait_device_ready(POWER_ON_TIMEOUT)
+
     def load(self, sample=None, wait=True):
         """
         Load a sample.
@@ -347,11 +360,7 @@ class ISARA(SampleChanger):
             Add initial verification about the Powered:
             (NOTE) In fact should be already as the power is considered in the state handling
         """
-        if not self._chnPowered.get_value():
-            raise Exception(
-                "CATS power is not enabled. Please switch on arm power before transferring samples."
-            )
-
+        self._maybe_power_on()
         self._update_state()  # remove software flags like Loading.
         self.log.debug("load cmd .state is:  %s " % (self.state))
 
@@ -369,15 +378,6 @@ class ISARA(SampleChanger):
         Loads a sample on the diffractometer. Performs a simple put operation if the diffractometer is empty, and
         a sample exchange (unmount of old + mount of new sample) if a sample is already mounted on the diffractometer.
         """
-
-        if not self._chnPowered.get_value():
-            self._cmdPowerOn()
-            gevent.sleep(2)
-            if not self._chnPowered.get_value():
-                raise Exception(
-                    "ISARA power cannot be enabled. Please check arm power before transferring samples."
-                )
-
         selected = self.get_selected_sample()
         if sample is not None:
             if sample != selected:
@@ -428,6 +428,10 @@ class ISARA(SampleChanger):
 
         return False
 
+    def unload(self, sample_slot=None, wait=True):
+        self._maybe_power_on()
+        super().unload(sample_slot, wait)
+
     def _do_unload(self, sample_slot=None, shifts=None):
         """
         Unloads a sample from the diffractometer.
@@ -435,11 +439,6 @@ class ISARA(SampleChanger):
         :returns: None
         :rtype: None
         """
-        if not self._chnPowered.get_value():
-            raise Exception(
-                "ISARA power is not enabled. Please switch on arm power before transferring samples."
-            )
-
         if not self.has_loaded_sample() or not self._chnSampleIsDetected.get_value():
             self.log.warning(
                 "Trying do unload sample, but it does not seem to be any on diffr"
