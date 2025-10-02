@@ -41,10 +41,10 @@ class BIOMAXPatches(HardwareObject):
                     "Sample pin is too long and there is a risk of collision! Please remove the sample manually and run empty_sample_mounted afterwards!"
                 )
 
-        self.curr_dtox_pos = HWR.beamline.detector.distance.get_value()
+        curr_dtox_pos = HWR.beamline.detector.distance.get_value()
         if (
             HWR.beamline.detector.distance is not None
-            and self.curr_dtox_pos < self.safe_position
+            and curr_dtox_pos < self.safe_position
         ):
             logging.getLogger("HWR").info(
                 "Moving detector to safe position before loading a sample."
@@ -185,7 +185,6 @@ class BIOMAXPatches(HardwareObject):
     def init(self, *args):
         self.__load = HWR.beamline.sample_changer.load
         self.__unload = HWR.beamline.sample_changer.unload
-        self.curr_dtox_pos = None
         self.safe_position = self.get_property("safe_position")
 
         HWR.beamline.sample_changer.load = types.MethodType(
