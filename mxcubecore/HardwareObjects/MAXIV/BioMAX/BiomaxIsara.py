@@ -71,9 +71,6 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             self._message_changed,
         )
 
-        # To check for the soaking position
-        add_attribute_channel(self, self.tangoname, "PositionName")
-
     def _create_tango_commands(self):
         super()._create_tango_commands()
 
