@@ -75,20 +75,6 @@ class BIOMAXPatches(HardwareObject):
                 "Detector already in safe position."
             )
 
-        if not HWR.beamline.sample_changer.is_powered():
-            try:
-                HWR.beamline.sample_changer_maintenance.send_command("PowerOn")
-                time.sleep(1)
-                HWR.beamline.sample_changer._wait_device_ready(30)
-                if not HWR.beamline.sample_changer.is_powered():
-                    raise RuntimeError(
-                        "Cannot power on sample changer. please make sure the hutch is searched"
-                    )
-            except Exception:
-                raise RuntimeError(
-                    "Cannot power on sample changer. please make sure the hutch is searched"
-                )
-
         if HWR.beamline.sample_changer.is_path_running():
             timeout = 240
             HWR.beamline.sample_changer._wait_device_ready(timeout)
