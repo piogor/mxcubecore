@@ -293,9 +293,7 @@ class ISARA(SampleChanger):
         Uses method ``_directly_update_selected_component()`` to actually
         search and select the corrected positions.
         """
-        self.log.info(
-            "selecting component %s / type=%s" % (str(component), type(component))
-        )
+        self.log.info("selecting component %s / type=%s", component, type(component))
 
         if isinstance(component, Sample):
             selected_basket_no = component.get_basket_no()
@@ -354,7 +352,7 @@ class ISARA(SampleChanger):
         self._prepare_sample_operation()
 
         self._update_state()  # remove software flags like Loading.
-        self.log.debug("load cmd .state is:  %s " % (self.state))
+        self.log.debug("load cmd .state is: %s ", self.state)
 
         sample = self._resolve_component(sample)
 
@@ -393,7 +391,7 @@ class ISARA(SampleChanger):
             str(lid),
             str(sample),
         ]
-        self.log.debug("doLoad argin:  %s / %s:%s" % (argin, basketno, sampleno))
+        self.log.debug("_do_load argin: %s / %s:%s", argin, basketno, sampleno)
 
         if self.has_loaded_sample():
             if selected == self.get_loaded_sample():
@@ -403,7 +401,7 @@ class ISARA(SampleChanger):
                     + " is already loaded"
                 )
             else:
-                self.log.warning("chained load sample, sending to cats:  %s" % argin)
+                self.log.warning("chained load sample, sending to cats: %s", argin)
                 return self._execute_server_task(self._cmdChainedLoad, argin)
         else:
             if self.cats_sample_on_diffr() == 1:
@@ -418,7 +416,7 @@ class ISARA(SampleChanger):
                 )
                 self._update_state()  # remove software flags like Loading.
             else:
-                self.log.warning("load sample, sending to cats:  %s" % argin)
+                self.log.warning("load sample, sending to cats: %s", argin)
                 return self._execute_server_task(self._cmdLoad, argin)
 
         return False
@@ -453,7 +451,7 @@ class ISARA(SampleChanger):
 
     def _on_task_failed(self, task, exception):
         if task in [SampleChangerState.Loading, SampleChangerState.Unloading]:
-            self.log.warning("load/unload operation failed :  %s" % exception)
+            self.log.exception("load/unload operation failed")
             self.emit("taskFailed", str(exception))
 
     # ###############################################################################
@@ -507,7 +505,7 @@ class ISARA(SampleChanger):
         self.emit("isCollisionSafe", (value,))
 
     def cats_baskets_changed(self, value):
-        self.log.warning("Baskets changed. %s" % value)
+        self.log.warning("Baskets changed. %s", value)
         for idx, val in enumerate(value):
             self.basket_presence[idx] = val
         self._update_cats_contents()
@@ -552,8 +550,10 @@ class ISARA(SampleChanger):
 
         waitsafe = kwargs.get("waitsafe", False)
         self.log.debug(
-            "executing method %s / task_id %s / waiting only for safe status is %s"
-            % (str(method), task_id, waitsafe)
+            "executing method %s / task_id %s / waiting only for safe status is %s",
+            method,
+            task_id,
+            waitsafe,
         )
 
         ret = None
@@ -662,8 +662,9 @@ class ISARA(SampleChanger):
             # registered but not on the gonio anymore.
             #
             self.log.warning(
-                "SAMPLE CHANGER Unknown 2 (hasLoaded: %s / detected: %s)"
-                % (self.has_loaded_sample(), self._chnSampleIsDetected.get_value())
+                "SAMPLE CHANGER Unknown 2 (hasLoaded: %s / detected: %s)",
+                self.has_loaded_sample(),
+                self._chnSampleIsDetected.get_value(),
             )
             _state = SampleChangerState.Unknown
         elif dev_state == DevState.ON:
@@ -730,9 +731,7 @@ class ISARA(SampleChanger):
         self.cats_loaded_lid = loadedSamplePuck
         self.cats_loaded_num = loadedSampleNum
 
-        self.log.info(
-            "Updating loaded sample %s:%s" % (loadedSamplePuck, loadedSampleNum)
-        )
+        self.log.info("Updating loaded sample %s:%s", loadedSamplePuck, loadedSampleNum)
 
         if -1 not in [loadedSamplePuck, loadedSampleNum]:
             basket, sample = self.lidsample_to_basketsample(
@@ -789,7 +788,7 @@ class ISARA(SampleChanger):
         self._update_cats_contents()
 
     def _update_cats_contents(self):
-        self.log.warning("Updating contents %s" % str(self.basket_presence))
+        self.log.warning("Updating contents %s", self.basket_presence)
         for basket_index in range(NUMBER_OF_PUCKS):
             # get saved presence information from object's internal bookkeeping
             basket = self.get_components()[basket_index]
