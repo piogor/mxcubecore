@@ -117,13 +117,6 @@ class ISARA(SampleChanger):
 
         self.use_update_timer = False  # do not use update_timer for Cats
 
-        self._chnState.connect_signal("update", self.cats_state_changed)
-        self._chnPathRunning.connect_signal("update", self.cats_pathrunning_changed)
-        self._chnPowered.connect_signal("update", self.cats_powered_changed)
-        self._chnPathSafe.connect_signal("update", self.cats_pathsafe_changed)
-        self._chnPuckLoadedSample.connect_signal("update", self.cats_loaded_lid_changed)
-        self._chnNumLoadedSample.connect_signal("update", self.cats_loaded_num_changed)
-
         #
         # load the initial values of attributes and
         # calculate initial state of the sample changer
@@ -166,6 +159,13 @@ class ISARA(SampleChanger):
         self._position_name = add_attribute_channel(
             self, self.tangoname, "PositionName"
         )
+
+        self._chnState.connect_signal("update", self.cats_state_changed)
+        self._chnPathRunning.connect_signal("update", self.cats_pathrunning_changed)
+        self._chnPowered.connect_signal("update", self.cats_powered_changed)
+        self._chnPathSafe.connect_signal("update", self.cats_pathsafe_changed)
+        self._chnPuckLoadedSample.connect_signal("update", self.cats_loaded_lid_changed)
+        self._chnNumLoadedSample.connect_signal("update", self.cats_loaded_num_changed)
 
     def _create_tango_commands(self):
         """Create tango command objects."""
