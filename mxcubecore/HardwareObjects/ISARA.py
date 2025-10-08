@@ -68,9 +68,11 @@ class ISARA(SampleChanger):
     def init(self):
         #
         # DO NOT CALL SampleChanger.init()
-        #  If SampleChanger.init() is called reception of signals at connection time is not done.
+        #  If SampleChanger.init() is called reception of signals at connection
+        #  time is not done.
         #
-        #  In the case of Isara we do not use an update_timer... update is done by signals from Tango channels
+        #  In the case of Isara we do not use an update_timer... update is done by
+        #  signals from Tango channels
         #
 
         self.cats_loaded_lid = None
@@ -122,7 +124,10 @@ class ISARA(SampleChanger):
         self._chnPuckLoadedSample.connect_signal("update", self.cats_loaded_lid_changed)
         self._chnNumLoadedSample.connect_signal("update", self.cats_loaded_num_changed)
 
-        # load the initial values of attributes and calculate initial state of the sample changer
+        #
+        # load the initial values of attributes and
+        # calculate initial state of the sample changer
+        #
         self._do_update_state()
         self._update_state()
 
@@ -283,12 +288,10 @@ class ISARA(SampleChanger):
         self._set_selected_sample(sample)
 
     def _do_select(self, component):
-        """
-        Selects a new component (basket or sample).
-        Uses method >_directly_update_selected_component< to actually search and select the corrected positions.
+        """Selects a new component (basket or sample).
 
-        :returns: None
-        :rtype: None
+        Uses method ``_directly_update_selected_component()`` to actually
+        search and select the corrected positions.
         """
         self.log.info(
             "selecting component %s / type=%s" % (str(component), type(component))
@@ -342,13 +345,11 @@ class ISARA(SampleChanger):
         self._maybe_move_to_soak()
 
     def load(self, sample=None, wait=True):
-        """
-        Load a sample.
-            overwrite original load() from AbstractSampleChanger to allow finer decision
-            on command to use (with or without barcode / or allow for wash in some cases)
-            Implement that logic in _do_load()
-            Add initial verification about the Powered:
-            (NOTE) In fact should be already as the power is considered in the state handling
+        """Load a sample.
+
+        Overwrite original load() from AbstractSampleChanger to allow finer decision
+        on command to use (with or without barcode / or allow for wash in some cases)
+        Implement that logic in _do_load()
         """
         self._prepare_sample_operation()
 
@@ -365,9 +366,11 @@ class ISARA(SampleChanger):
         )
 
     def _do_load(self, sample=None, shifts=None):
-        """
-        Loads a sample on the diffractometer. Performs a simple put operation if the diffractometer is empty, and
-        a sample exchange (unmount of old + mount of new sample) if a sample is already mounted on the diffractometer.
+        """Loads a sample on the diffractometer.
+
+        Performs a simple put operation if the diffractometer is empty, and
+        a sample exchange (unmount of old + mount of new sample) if a sample
+        is already mounted on the diffractometer.
         """
         selected = self.get_selected_sample()
         if sample is not None:
@@ -410,7 +413,8 @@ class ISARA(SampleChanger):
                 self._update_state()  # remove software flags like Loading.
             elif self.cats_sample_on_diffr() == -1:
                 self.log.warning(
-                    "trying to load sample, but there is a conflict on loaded sample info. aborting"
+                    "trying to load sample, but there is a conflict "
+                    "on loaded sample info. aborting"
                 )
                 self._update_state()  # remove software flags like Loading.
             else:
@@ -462,7 +466,8 @@ class ISARA(SampleChanger):
         :rtype: None
         """
         self._cmdAbort()
-        self._update_state()  # remove software flags like Loading.. reflects current hardware state
+        # remove software flags like Loading.. reflects current hardware state
+        self._update_state()
 
     # ########################           CATS EVENTS           #########################
 
@@ -557,8 +562,8 @@ class ISARA(SampleChanger):
                 gevent.sleep(0.1)
             return False
         else:
-            # introduced wait because it takes some time before the attribute PathRunning is set
-            # after launching a transfer
+            # introduced wait because it takes some time before the
+            # attribute PathRunning is set after launching a transfer
             time.sleep(6.0)
             while True:
                 if waitsafe:
@@ -608,12 +613,11 @@ class ISARA(SampleChanger):
         status = SampleChangerState.tostring(state)
         self._set_state(state, status)
 
-    def _read_state(self):
-        """
-        Read the state of the Tango DS and translate the state to the SampleChangerState Enum
+    def _read_state(self) -> SampleChangerState:
+        """Read Tango DS state and update HWO state.
 
-        :returns: Sample changer state
-        :rtype: AbstractSampleChanger.SampleChangerState
+        Read the state of the Tango DS and translate the state
+        to the SampleChangerState Enum.
         """
         _state = self._chnState.get_value()
         _powered = self._chnPowered.get_value()
@@ -652,8 +656,11 @@ class ISARA(SampleChanger):
         elif dev_state == DevState.UNKNOWN:
             _state = SampleChangerState.Unknown
         elif has_loaded ^ on_diff:
-            # go to Unknown state if a sample is detected on the gonio but not registered in the internal database
-            # or registered but not on the gonio anymore
+            #
+            # Go to Unknown state if a sample is detected on the gonio
+            # but not registered in the internal database or
+            # registered but not on the gonio anymore.
+            #
             self.log.warning(
                 "SAMPLE CHANGER Unknown 2 (hasLoaded: %s / detected: %s)"
                 % (self.has_loaded_sample(), self._chnSampleIsDetected.get_value())
@@ -741,8 +748,9 @@ class ISARA(SampleChanger):
         old_sample = self.get_loaded_sample()
 
         self.log.debug(
-            "ISARA: Sample has changed. Dealing with it - new_sample = %s / old_sample = %s"
-            % (new_sample, old_sample)
+            "ISARA: Sample has changed. New sample %s Old sample %s",
+            new_sample,
+            old_sample,
         )
 
         if old_sample != new_sample:
@@ -768,14 +776,11 @@ class ISARA(SampleChanger):
                 self._trigger_info_changed_event()
 
     def _do_update_cats_contents(self):
-        """
-        Updates the sample changer content. The state of the puck positions are
-        read from the respective channels in the CATS Tango DS.
-        The CATS sample sample does not have an detection of each individual sample, so all
-        samples are flagged as 'Present' if the respective puck is mounted.
+        """Updates the sample changer content.
 
-        :returns: None
-        :rtype: None
+        The state of the puck positions are read from the attribute of Isara Tango DS.
+        The Isara sample changer does not have a detection of each individual sample,
+        so all samples are flagged as 'Present' if the respective puck is mounted.
         """
         _cassette_presence = self._chnBasketPresence.get_value()
         for basket_index in range(NUMBER_OF_PUCKS):
