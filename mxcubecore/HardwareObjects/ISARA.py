@@ -307,49 +307,6 @@ class ISARA(SampleChanger):
             selected_sample_no = component[1]
         self._directly_update_selected_component(selected_basket_no, selected_sample_no)
 
-    def _do_scan(self, component, recursive):
-        """
-        Scans the barcode of a single sample, puck or recursively even the complete sample changer.
-
-        :returns: None
-        :rtype: None
-        """
-        selected_basket = self.get_selected_component()
-
-        if isinstance(component, Sample):
-            # scan a single sample
-            if (selected_basket is None) or (
-                selected_basket != component.get_container()
-            ):
-                self._do_select(component)
-
-            selected = self.get_selected_sample()
-
-            lid, sample = self.basketsample_to_lidsample(
-                selected.get_basket_no(), selected.get_vial_no()
-            )
-            argin = ["2", str(lid), str(sample), "0", "0"]
-            self._execute_server_task(self._cmdScanSample, argin)
-        elif isinstance(component, Container) and (
-            component.get_type() == Basket.__TYPE__
-        ):
-            # component is a basket
-            basket = component
-            if recursive:
-                pass
-            else:
-                if (selected_basket is None) or (selected_basket != basket):
-                    self._do_select(basket)
-
-                selected = self.get_selected_sample()
-
-                for sample_index in range(basket.get_number_of_samples()):
-                    basket = selected.get_basket_no()
-                    num = sample_index + 1
-                    lid, sample = self.basketsample_to_lidsample(basket, num)
-                    argin = ["2", str(lid), str(sample), "0", "0"]
-                    self._execute_server_task(self._cmdScanSample, argin)
-
     def _maybe_power_on(self):
         """Power on robot arm, if needed"""
         if self.is_powered():
