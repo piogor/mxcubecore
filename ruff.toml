@@ -519,7 +519,6 @@ convention = "google"
     "N806",
     "N999",
     "PERF401",
-    "PLR0912",
     "PLR5501",
     "RET504",
     "RET505",
