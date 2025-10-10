@@ -1,87 +1,62 @@
 import logging
-from dataclasses import dataclass
+from enum import Enum
+from pathlib import Path
 
-from tango import DeviceProxy
+from pandablocks.blocking import BlockingClient
+from pandablocks.commands import SetState
 
-TANGO_DEVICE = "B312A-A101232-CAB01/CTL/PANDA-01"
+PANDA_HOST = "b312a-a101232-cab01-ctl-panda-01"
+SCHEMA_DIRECTORY = "/data/staff/micromax/software/configs/pandabox_eh1/"
 
 
 log = logging.getLogger("HWR")
 
 
-@dataclass
-class SSXInjectConfig:
-    enable_eiger: bool = False
-    enable_custom_output: bool = False
-    custom_output_delay: float = 0.0
-    custom_output_pulse_width: float = 0.0
-    max_triggers: int = 0
+class Detectors(Enum):
+    """Supported detectors"""
+
+    Eiger = 0
+    Jungfrau = 1
 
 
-@dataclass
-class OSCConfig:
-    enable_eiger: bool = False
-    enable_jungfrau: bool = False
+# OSC schema per supported detector
+OSC_SCHEMA_FILE_NAMES = {
+    Detectors.Eiger: "osc_eiger_schema.txt",
+    Detectors.Jungfrau: "osc_jungfrau_schema.txt",
+}
 
 
-def _get_tango_dev():
-    return DeviceProxy(TANGO_DEVICE)
+def _read_schema_file(schema_file: Path) -> list[str]:
+    return schema_file.read_text().splitlines()
 
 
-def _load_schema(dev: DeviceProxy, schema_name: str):
-    # avoid reloading schema if it is already loaded,
-    # this way we don't reset attributes to default values,
-    # allowing users to tweak parameters outside MXCuBE
-    if dev.Schema != schema_name:
-        dev.Schema = schema_name
+def _upload_schema(schema_file: Path):
+    """Upload schema from the specified file"""
+
+    log.info(
+        "[PandABox] Loading schema from %s (%s)",
+        schema_file.absolute(),
+        # in case symlink is used, log the actual file as well
+        schema_file.resolve(),
+    )
+    schema_data = _read_schema_file(schema_file)
+    with BlockingClient(PANDA_HOST) as client:
+        client.send(SetState(schema_data))
 
 
-def load_osc_schema(conf: OSCConfig):
-    log.info("[PandABox] configuring 'osc' schema with %s", conf)
-
-    dev = _get_tango_dev()
-
-    _load_schema(dev, "osc")
-
-    dev.EnableEiger = conf.enable_eiger
-    dev.EnableJungfrau = conf.enable_jungfrau
+def _get_osc_schema_file_path(detector: Detectors) -> Path:
+    return Path(SCHEMA_DIRECTORY, OSC_SCHEMA_FILE_NAMES[detector])
 
 
-def load_ssx_inject_schema(conf: SSXInjectConfig):
-    log.info("[PandABox] configuring 'ssx_inject' schema with %s", conf)
+def load_osc_schema(detector: Detectors):
+    """Load schema for OSC data collections
 
-    dev = _get_tango_dev()
+    Load schema used for OSC data collection into PandAbox.
+    Loads different schemas, depending on specified detector.
 
-    _load_schema(dev, "ssx_inject")
-
-    dev.EnableEiger = conf.enable_eiger
-    dev.EnableCustomOutput = conf.enable_custom_output
-    dev.CustomOutputDelay = conf.custom_output_delay
-    dev.CustomOutputPulseWidth = conf.custom_output_pulse_width
-    dev.ClockRunning = True
-    dev.EnableCounterGate = True
-    dev.MaxJungfrauCounts = conf.max_triggers
-
-    # make sure measurement not running, before resetting counters,
-    # otherwise counters will have bogus values
-    dev.EnableMeasurement = False
-
-    #
-    # reset counters
-    #
-    dev.EnableShutterCount = False
-    dev.EnableShutterCount = True
-
-    dev.EnableJungfrauCount = False
-    dev.EnableJungfrauCount = True
-
-
-def start_measurement():
-    dev = _get_tango_dev()
-    dev.EnableMeasurement = True
-
-
-def stop_measurement():
-    dev = _get_tango_dev()
-    dev.EnableCounterGate = False
-    dev.EnableMeasurement = False
+    Args:
+        detector: detector to use
+    """
+    log.info("[PandABox] Configuring 'osc' schema, using detector: %s", detector.name)
+    schema_path = _get_osc_schema_file_path(detector)
+    _upload_schema(schema_path)
