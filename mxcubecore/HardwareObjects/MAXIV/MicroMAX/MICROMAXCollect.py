@@ -23,7 +23,10 @@ from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
     DataCollect,
     parse_unit_cell_params,
 )
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX import pandabox
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.pandabox import (
+    Detectors,
+    load_osc_schema,
+)
 from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 from mxcubecore.utils.units import um_to_mm
@@ -957,11 +960,12 @@ class MICROMAXCollect(DataCollect):
         return detector_model == "JUNGFRAU"
 
     def _configure_pandabox(self):
-        jungfrau_used = self.is_jungfrau()
-        cfg = pandabox.OSCConfig(
-            enable_jungfrau=jungfrau_used, enable_eiger=not jungfrau_used
-        )
-        pandabox.load_osc_schema(cfg)
+        if self.is_jungfrau():
+            detector = Detectors.Jungfrau
+        else:
+            detector = Detectors.Eiger
+
+        load_osc_schema(detector)
 
     def move_detector(self, value):
         """Move detector to the specified distance."""
