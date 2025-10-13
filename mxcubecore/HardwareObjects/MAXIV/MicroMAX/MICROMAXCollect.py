@@ -1092,9 +1092,14 @@ class MICROMAXCollect(DataCollect):
             # parameters in the acquisition config sent to the detector
             sample_info = self.current_dc_parameters["sample_reference"]
             space_group = sample_info.get("spacegroup").strip() or None
+
             if space_group is not None:
                 space_group_number = space_groups.get_number(space_group)
                 config["SpaceGroupNumber"] = space_group_number
+            else:
+                # overwrite potential old value
+                config["SpaceGroupNumber"] = None
+
             cell = sample_info.get("cell", ",,,,,")
             (
                 config["UnitCellA"],
