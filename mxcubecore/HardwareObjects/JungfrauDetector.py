@@ -169,16 +169,16 @@ class JungfrauDetector(AbstractDetector):
         pass
 
     def prepare_acquisition(self, config):
-        def maybe_set(attr: str, conf_name: str):
+        def set_optional(attr: str, conf_name: str, default_val):
             """
-            Optionally set tango device attribute from the config dictionary.
+            Set tango device attribute from an optional field in the config.
 
-            If config value is missing or is None, do nothing.
+            If config value is missing or is None, use specified default value.
             Otherwise, write config's value to the specified attribute.
             """
             val = config.get(conf_name)
             if val is None:
-                return
+                val = default_val
             setattr(dev, attr, val)
 
         # make sure that detector is in 'idle' mode,
@@ -201,13 +201,13 @@ class JungfrauDetector(AbstractDetector):
         dev.ntrigger = config["NbTriggers"]
         dev.images_per_file = config["ImagesPerFile"]
 
-        maybe_set("unit_cell__a", "UnitCellA")
-        maybe_set("unit_cell__b", "UnitCellB")
-        maybe_set("unit_cell__c", "UnitCellC")
-        maybe_set("unit_cell__alpha", "UnitCellAlpha")
-        maybe_set("unit_cell__beta", "UnitCellBeta")
-        maybe_set("unit_cell__gamma", "UnitCellGamma")
-        maybe_set("space_group_number", "SpaceGroupNumber")
+        set_optional("unit_cell__a", "UnitCellA", 0.0)
+        set_optional("unit_cell__b", "UnitCellB", 0.0)
+        set_optional("unit_cell__c", "UnitCellC", 0.0)
+        set_optional("unit_cell__alpha", "UnitCellAlpha", 0.0)
+        set_optional("unit_cell__beta", "UnitCellBeta", 0.0)
+        set_optional("unit_cell__gamma", "UnitCellGamma", 0.0)
+        set_optional("space_group_number", "SpaceGroupNumber", 1)
 
         exposure_time = sec_to_us(config["CountTime"])
         # image_time_us has to be multiple of frame_time_us
