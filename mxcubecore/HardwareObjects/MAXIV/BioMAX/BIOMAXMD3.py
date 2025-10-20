@@ -1,4 +1,3 @@
-import logging
 import os
 import time
 
@@ -29,7 +28,7 @@ class BIOMAXMD3(MAXIVMD3):
         return cpos
 
     def wait_stable_loop(self, wait_time: int) -> None:
-        logging.getLogger("user_level_log").info("Waiting for loop to be stable...")
+        self.user_log.info("Waiting for loop to be stable...")
         img_bef = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
         timer = 0
         wait_int = 2
@@ -38,13 +37,11 @@ class BIOMAXMD3(MAXIVMD3):
             img_after = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
             diff = cv2.absdiff(img_bef, img_after)
             if diff.max() < 100:
-                logging.getLogger("user_level_log").info(
-                    "No obvious drift, loop is relatively stable"
-                )
+                self.user_log.info("No obvious drift, loop is relatively stable")
                 return
             img_bef = img_after
             timer += wait_int
-        logging.getLogger("user_level_log").info(
+        self.user_log.info(
             "Loop is still drifting, have waited {}s, give up and continue with collection".format(
                 wait_time
             )
@@ -56,14 +53,14 @@ class BIOMAXMD3(MAXIVMD3):
         Descript. :
         """
         self.current_phase = current_phase
-        logging.getLogger("HWR").info("MD3 phase changed to %s" % current_phase)
+        self.log.info("MD3 phase changed to %s", current_phase)
         self.emit("phaseChanged", (current_phase,))
 
     def is_fast_shutter_open(self):
         return self.fast_shutter_channel.get_value()
 
     def state_changed(self, state):
-        logging.getLogger("HWR").debug("State changed %s" % str(state))
+        self.log.debug("State changed %s", state)
         self.current_state = state
         self.emit("minidiffStateChanged", (self.current_state))
 
@@ -74,15 +71,15 @@ class BIOMAXMD3(MAXIVMD3):
         self.emit("minidiffStateChanged", (state,))
 
     def open_fast_shutter(self):
-        logging.getLogger("HWR").info("Openning fast shutter")
+        self.log.info("Openning fast shutter")
         self.fast_shutter_channel.set_value(True)
 
     def close_fast_shutter(self):
-        logging.getLogger("HWR").info("Closing fast shutter")
+        self.log.info("Closing fast shutter")
         self.fast_shutter_channel.set_value(False)
 
     def move_fluo_in(self, wait=True):
-        logging.getLogger("HWR").info("Moving Fluo detector in")
+        self.log.info("Moving Fluo detector in")
         self.wait_device_ready(3)
         self.fluodet.actuatorIn()
         time.sleep(3)  # MD3 reports long before fluo is in position
@@ -93,7 +90,7 @@ class BIOMAXMD3(MAXIVMD3):
                     gevent.sleep(0.1)
 
     def move_fluo_out(self, wait=True):
-        logging.getLogger("HWR").info("Moving Fluo detector out")
+        self.log.info("Moving Fluo detector out")
         self.wait_device_ready(3)
         self.fluodet.actuatorOut()
         if wait:
@@ -147,13 +144,13 @@ class BIOMAXMD3(MAXIVMD3):
         """
         Sleeps until the camera is no longer blinded by the backlight.
         """
-        logging.getLogger("HWR").info("waiting for backlight to settle down")
+        self.log.info("waiting for backlight to settle down")
         while self.blinded_by_the_lights(
             HWR.beamline.sample_view.get_snapshot(return_as_array=True)
         ):
             time.sleep(poll_period)
             # until I feel your touch
-        logging.getLogger("HWR").info("backlight seems to have settled")
+        self.log.info("backlight seems to have settled")
 
     def center_loop(self, patience: int = 100, tolerance_mm: float = 0.05) -> bool:
         """
@@ -174,7 +171,7 @@ class BIOMAXMD3(MAXIVMD3):
         for i in range(patience):
             img = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
             step = nav.next_step(img)
-            logging.getLogger("HWR").debug(f"step {i}/{patience} - {step}")
+            self.log.debug("step %s/%s - %s", i, patience, step)
             if step.finished():
                 return True
             if step.rotate:
@@ -184,8 +181,10 @@ class BIOMAXMD3(MAXIVMD3):
                 self.move_to_beam(step.x_to_center, step.y_to_center)
                 self.wait_device_ready(10)
             gevent.sleep(0.2)
-        logging.getLogger("HWR").debug(
-            f"center_loop ran out of patience ({patience}) with tolerance {tolerance_mm} mm"
+        self.log.debug(
+            "center_loop ran out of patience (%s) with tolerance %s mm",
+            patience,
+            tolerance_mm,
         )
         return False
 
@@ -194,7 +193,7 @@ class BIOMAXMD3(MAXIVMD3):
 
         # move MD3 to Centring phase if it's not
         if self.get_current_phase() != "Centring":
-            logging.getLogger("user_level_log").info(
+            self.user_log.info(
                 "Moving Diffractometer to Centring for automatic_centring"
             )
             self.set_phase("Centring", wait=True, timeout=200)
@@ -222,9 +221,7 @@ class BIOMAXMD3(MAXIVMD3):
 
         success = self.center_loop()
         if not success:
-            logging.getLogger("user_level_log").error(
-                "Automatic loop centering failed!"
-            )
+            self.user_log.error("Automatic loop centering failed!")
 
         self.wait_stable_loop(60)
         centred_pos = self.get_center_pos()
@@ -234,7 +231,7 @@ class BIOMAXMD3(MAXIVMD3):
         dir_name = "/data/staff/ispybstorage/staff/jienan"
         timestr = time.strftime("%Y%m%d-%H%M%S")
         file_name = os.path.join(dir_name, "{}_{}.jpeg".format(timestr, suffix))
-        logging.getLogger("user_level_log").info(
+        self.user_log.info(
             "Taking snapshot {} {} pre-aligning loop".format(file_name, suffix)
         )
         self.camera_hwobj.save_snapshot(file_name)
