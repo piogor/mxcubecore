@@ -1,12 +1,8 @@
-import logging
-
 import gevent
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
 from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3
-
-log = logging.getLogger("HWR")
 
 MONITORING_INTERVAL = 0.1
 DEFAULT_TASK_TIMEOUT = 200
@@ -36,7 +32,7 @@ class MICROMAXMD3(MAXIVMD3):
         self.channel_dict["DirectBeamEnabled"].set_value(enabled)
 
     def state_changed(self, state):
-        logging.getLogger("HWR").debug("State changed %s" % str(state))
+        self.log.debug("State changed %s", state)
         self.current_state = state
         self.emit("valueChanged", (self.current_state))
 
@@ -51,20 +47,20 @@ class MICROMAXMD3(MAXIVMD3):
           in that case ``BeamstopPositionException`` is raised.
         """
 
-        log.info("waiting for Beamstop to reach 'BEAM' position")
+        self.log.info("waiting for Beamstop to reach 'BEAM' position")
 
         poll_attempts = int(DEFAULT_PHASE_TIMEOUT / CHECK_BEAMSTOP_INTERVAL)
         for _ in range(poll_attempts):
             beamstop_position = self.command_dict["getBeamstopPosition"]()
-            log.info(f"Beamstop position {beamstop_position}")
+            self.log.info("Beamstop position '%s'", beamstop_position)
 
             if beamstop_position == "BEAM":
-                log.info(f"Beamstop is now at '{beamstop_position}'")
+                self.log.info("Beamstop is now at '%s'", beamstop_position)
                 return
 
             gevent.sleep(CHECK_BEAMSTOP_INTERVAL)
 
-        log.error("giving up waiting for Beamstop to reach 'BEAM' position")
+        self.log.error("giving up waiting for Beamstop to reach 'BEAM' position")
         raise BeamstopPositionException(
             f"Beamstop not at 'BEAM' position, current position '{beamstop_position}'."
         )
@@ -94,8 +90,8 @@ class MICROMAXMD3(MAXIVMD3):
             table_pitch: ``1`` to use the centring table to do the pitch movements.
             fast_scan: ``1`` to use the fast raster scan if available (power PMAC).
         """
-        logging.getLogger("HWR").info("[MICROMAXMD3] MD3 raster oscillation requested")
-        msg = "[MICROMAXMD3] MD3 raster scan params:"
+        self.log.info("MD3 raster oscillation requested")
+        msg = "MD3 raster scan params:"
         msg += " start: %s, end: %s, exptime: %s, range: %s, nframes: %s" % (
             start,
             end,
@@ -103,7 +99,7 @@ class MICROMAXMD3(MAXIVMD3):
             end - start,
             nframes,
         )
-        logging.getLogger("HWR").info(msg)
+        self.log.info(msg)
 
         self.channel_dict["ScanStartAngle"].set_value(start)
         self.channel_dict["ScanExposureTime"].set_value(exptime)
@@ -121,24 +117,18 @@ class MICROMAXMD3(MAXIVMD3):
         )
 
         raster = self.command_dict["startRasterScan"]
-        logging.getLogger("HWR").info(
-            "[MICROMAXMD3] MD3 raster oscillation requested, params: %s"
-            % (raster_params)
-        )
-        logging.getLogger("HWR").info(
-            "[MICROMAXMD3] MD3 raster oscillation requested, waiting device ready"
-        )
+        self.log.info("MD3 raster oscillation requested, params: %s", raster_params)
+        self.log.info("MD3 raster oscillation requested, waiting device ready")
 
         self.wait_ready(200)
-        logging.getLogger("HWR").info(
-            "[MICROMAXMD3] MD3 raster oscillation requested, device ready."
-        )
+        self.log.info("MD3 raster oscillation requested, device ready.")
 
         try:
             task_id = raster(raster_params)
-        except Exception as ex:
-            logging.getLogger("HWR").error(f"[MAXIVMD3] MD3 oscillation excetion {ex}")
-        logging.getLogger("HWR").info("[MAXIVMD3] MD3 raster oscillation launched.")
+        except Exception:
+            self.log.exception("error running raster command")
+
+        self.log.info("MD3 raster oscillation launched.")
 
         if wait:
             task_info = self.waitTaskResult(
@@ -155,10 +145,7 @@ class MICROMAXMD3(MAXIVMD3):
             self.waitTaskIsRunning(task_id, timeout=DEFAULT_TASK_RUNNING_TIMEOUT)
             return
 
-        logging.getLogger("HWR").info(
-            "[MICROMAXMD3] MD3 raster oscillation finished, task result %s."
-            % str(task_info)
-        )
+        self.log.info("MD3 raster oscillation finished, task result %s.", task_info)
 
     def set_calculate_flux_phase(self):
         if self.head_type == GenericDiffractometer.HEAD_TYPE_MINIKAPPA:
@@ -201,11 +188,8 @@ class MICROMAXMD3(MAXIVMD3):
                 name = "{}{}Position".format(motor_name[0].upper(), motor_name[1:])
             self.channel_dict[name].set_value(pos_name)
             self.wait_device_ready(DEFAULT_PHASE_TIMEOUT)
-        except Exception as ex:
-            error_msg = "[MICROMAXMD3] Error while moving {} to {}, {}".format(
-                motor_name, pos_name, ex
-            )
-            logging.getLogger("HWR").error(error_msg)
+        except Exception:
+            self.log.exception("Error while moving %s %s", motor_name, pos_name)
             raise
 
     def move_to_beam(self, x, y, omega=None):  # noqa: ARG002
@@ -217,7 +201,7 @@ class MICROMAXMD3(MAXIVMD3):
         # and removed or updated accordingly.
         #
         ssx_mode = HWR.beamline.collect.ssx_mode
-        log.info(f"[MICROMAXMD3]/move_to_beam({x:.4f} {y:.4f}) ssx_mode={ssx_mode}")
+        self.log.info(f"move_to_beam({x:.4f} {y:.4f}) ssx_mode={ssx_mode}")
 
         if ssx_mode:
             horizontal_axis = self.phiz_motor_hwobj
@@ -240,7 +224,7 @@ class MICROMAXMD3(MAXIVMD3):
             horizontal_axis.set_value(x_move_abs)
             self.wait_ready(5)
         except Exception:
-            log.exception("MD3: could not move to beam.")
+            self.log.exception("could not move to beam.")
 
     def close_fast_shutter(self, timeout: float = 2.0) -> None:
         """Closes fast shutter.
@@ -255,4 +239,4 @@ class MICROMAXMD3(MAXIVMD3):
             super().close_fast_shutter(timeout)
             return
 
-        logging.getLogger("HWR").info("[MICROMAXMD3] fast shutter is already closed")
+        self.log.info("fast shutter is already closed")

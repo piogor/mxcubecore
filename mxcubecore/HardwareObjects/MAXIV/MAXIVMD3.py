@@ -1,11 +1,8 @@
-import logging
 import time
 from dataclasses import dataclass
 from typing import Callable
 
 import gevent
-
-log = logging.getLogger("HWR")
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.ExporterMotor import ExporterMotor
@@ -154,18 +151,14 @@ class MAXIVMD3(GenericDiffractometer):
                     self.cent_vertical_pseudo_motor, "update", self.centring_motor_moved
                 )
         except:
-            logging.getLogger("HWR").warning(
-                "Cannot initialize CentringTableVerticalPosition"
-            )
+            self.log.exception("Cannot initialize CentringTableVerticalPosition")
 
         try:
             self.fast_shutter_channel = self.add_channel(
                 {"type": "exporter", "name": "FastShutterIsOpen"}, "FastShutterIsOpen"
             )
         except:
-            logging.getLogger("HWR").exception(
-                "Cannot initialize diffractometer Fast Shutter"
-            )
+            self.log.exception("Cannot initialize diffractometer Fast Shutter")
 
         self._watch_cam_scale_changes()
 
@@ -173,7 +166,7 @@ class MAXIVMD3(GenericDiffractometer):
             use_sc = self.get_property("use_sc")
             self.set_use_sc(use_sc)
         except:
-            logging.getLogger("HWR").debug("Cannot set sc mode, use_sc: ", str(use_sc))
+            self.log.debug("Cannot set sc mode, use_sc: %s", use_sc)
 
         try:
             self.omega_reference_par = eval(self.get_property("omega_reference"))
@@ -189,8 +182,8 @@ class MAXIVMD3(GenericDiffractometer):
             self.omega_reference_focus = self.get_object_by_role(
                 self.omega_reference_par["focus_ref"]
             )
-        except Exception as ex:
-            logging.getLogger("HWR").warning("Omega axis is not defined. {}".format(ex))
+        except Exception:
+            self.log.exception("Omega axis is not defined.")
 
     def get_motors(self):
         motors = super().get_motors()
@@ -275,9 +268,7 @@ class MAXIVMD3(GenericDiffractometer):
     ## ------------------------------- ##
 
     def waitTaskResult(self, task_id=-1, timeout=DEFAULT_TASK_TIMEOUT):
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] Waiting task result, task_id %s" % str(task_id)
-        )
+        self.log.info("Waiting task result, task_id %s", task_id)
         if task_id < 0:
             self.wait_device_ready(timeout)
             info = self.get_last_task_info()
@@ -294,9 +285,7 @@ class MAXIVMD3(GenericDiffractometer):
             return self.get_task_info(task_id)
 
     def waitTaskIsRunning(self, task_id=-1, timeout=DEFAULT_TASK_RUNNING_TIMEOUT):
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] Waiting task is runnning, task_id %s" % str(task_id)
-        )
+        self.log.info("Waiting task is runnning, task_id %s", task_id)
         # removed the none task_id code
         with gevent.Timeout(timeout, Exception("Timeout waiting for task to start")):
             while not self.is_task_running(task_id):
@@ -313,9 +302,7 @@ class MAXIVMD3(GenericDiffractometer):
                 gevent.sleep(MONITORING_INTERVAL)
         task_info = self.get_task_info(task_id)
 
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] Task is runnning, task_id, %s" % str(task_info)
-        )
+        self.log.info("Task is runnning, task_id, %s", task_info)
         return task_info
 
     def is_task_running(self, task_id):
@@ -352,7 +339,7 @@ class MAXIVMD3(GenericDiffractometer):
 
     def current_phase_changed(self, current_phase):
         self.current_phase = current_phase
-        logging.getLogger("HWR").info("MD3 phase changed to %s" % current_phase)
+        self.log.info("MD3 phase changed to %s", current_phase)
         self.emit("phaseChanged", (current_phase,))
 
     def get_transfer_mode(self):
@@ -362,7 +349,7 @@ class MAXIVMD3(GenericDiffractometer):
         try:
             mode = self.channel_dict["TransferMode"].get_value()
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot get MD3 transfer mode %s " % ex)
+            self.log.exception("Cannot get MD3 transfer mode")
             raise Exception("Cannot get MD3 transfer mode %s " % ex)
         return mode
 
@@ -370,7 +357,7 @@ class MAXIVMD3(GenericDiffractometer):
         return self.fast_shutter_channel.get_value()
 
     def state_changed(self, state):
-        logging.getLogger("HWR").debug("State changed %s" % str(state))
+        self.log.debug("State changed %s", state)
         self.current_state = state
         self.emit("minidiffStateChanged", (self.current_state))
 
@@ -378,7 +365,7 @@ class MAXIVMD3(GenericDiffractometer):
         self.emit("minidiffStateChanged", (state,))
 
     def open_fast_shutter(self, timeout=2):
-        logging.getLogger("HWR").info("Opening fast shutter")
+        self.log.info("Opening fast shutter")
         self.fast_shutter_channel.set_value(True)
         with gevent.Timeout(
             timeout, RuntimeError("Timeout waiting for safety shutter to open")
@@ -392,7 +379,7 @@ class MAXIVMD3(GenericDiffractometer):
         Args:
             timeout: Timeout for the operation, in seconds.
         """
-        logging.getLogger("HWR").info("Closing fast shutter")
+        self.log.info("Closing fast shutter")
         self.fast_shutter_channel.set_value(False)
         with gevent.Timeout(
             timeout, RuntimeError("Timeout waiting for safety shutter to close")
@@ -401,7 +388,7 @@ class MAXIVMD3(GenericDiffractometer):
                 gevent.sleep(0.2)
 
     def move_fluo_in(self, wait=True):
-        logging.getLogger("HWR").info("Moving Fluo detector in")
+        self.log.info("Moving Fluo detector in")
         self.wait_device_ready(3)
         self.fluodet.actuatorIn()
         time.sleep(3)  # MD3 reports long before fluo is in position
@@ -412,7 +399,7 @@ class MAXIVMD3(GenericDiffractometer):
                     gevent.sleep(0.1)
 
     def move_fluo_out(self, wait=True):
-        logging.getLogger("HWR").info("Moving Fluo detector out")
+        self.log.info("Moving Fluo detector out")
         self.wait_device_ready(3)
         self.fluodet.actuatorOut()
         if wait:
@@ -427,10 +414,8 @@ class MAXIVMD3(GenericDiffractometer):
         try:
             self.channel_dict["ScintillatorPosition"].set_value(value)
             self.wait_device_ready(30)
-        except Exception as ex:
-            logging.getLogger("HWR").exception(
-                "Cannot set MD3 scintillator %s to %s " % (ex, value)
-            )
+        except Exception:
+            self.log.exception("Cannot set MD3 scintillator to %s ", value)
 
     def get_capillary_vertical_pos(self):
         """
@@ -438,10 +423,8 @@ class MAXIVMD3(GenericDiffractometer):
         """
         try:
             return self.channel_dict["CapillaryVerticalPosition"].get_value()
-        except Exception as ex:
-            logging.getLogger("HWR").error(
-                "Cannot get MD3 capillary vertcial %s " % (ex)
-            )
+        except Exception:
+            self.log.exception("Cannot get MD3 capillary vertcial")
 
     def get_sample_holder_length(self):
         """
@@ -449,8 +432,8 @@ class MAXIVMD3(GenericDiffractometer):
         """
         try:
             return self.channel_dict["SampleHolderLength"].get_value()
-        except Exception as ex:
-            logging.getLogger("HWR").error("Cannot get MD3 %s value" % (ex))
+        except Exception:
+            self.log.exception("Cannot get SampleHolderLength")
 
     def set_sample_holder_length(self, value):
         """
@@ -458,8 +441,8 @@ class MAXIVMD3(GenericDiffractometer):
         """
         try:
             return self.channel_dict["SampleHolderLength"].set_value(value)
-        except Exception as ex:
-            logging.getLogger("HWR").error("Cannot set MD3 %s to %s " % (ex, value))
+        except Exception:
+            self.log.exception("Cannot set SampleHolderLength to %s", value)
 
     ## ------------------------------- ##
     ##      SAMPLE CENTRING             ##
@@ -513,7 +496,7 @@ class MAXIVMD3(GenericDiffractometer):
         self.wait_device_ready(10)
         # move MD3 to Centring phase if it's not
         if self.get_current_phase() != "Centring":
-            logging.getLogger("user_level_log").info(
+            self.user_log.info(
                 "Moving Diffractometer to Centring for automatic_centring"
             )
             self.set_phase("Centring", wait=True, timeout=200)
@@ -648,7 +631,7 @@ class MAXIVMD3(GenericDiffractometer):
             or cent_vertical_to_move < motor_limits[0]
         ):
             msg = "Target position is beyond the centering motor limits"
-            logging.getLogger("HWR").error(msg)
+            self.log.error(msg)
             raise Exception(msg)
         self.wait_device_ready(5)
         self.cent_vertical_pseudo_motor.set_value(cent_vertical_to_move)
@@ -682,22 +665,18 @@ class MAXIVMD3(GenericDiffractometer):
         self.set_scan_number_of_frames(1)
         scan_params = "1\t%0.3f\t%0.3f\t%0.4f\t1" % (start, (end - start), exptime)
         scan = self.command_dict["startScanEx"]
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 oscillation requested, waiting device ready..., params "
-            + str(scan_params)
+        self.log.info(
+            "MD3 oscillation requested, waiting device ready..., params %s", scan_params
         )
         self.wait_ready(200)
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 oscillation requested, device ready."
-        )
+        self.log.info("MD3 oscillation requested, device ready.")
 
         try:
             task_id = scan(scan_params)
-        except Exception as ex:
-            logging.getLogger("HWR").error(f"[MAXIVMD3] MD3 oscillation excetion {ex}")
-        logging.getLogger("HWR").info(
-            f"[MAXIVMD3] MD3 oscillation launched, task id: {task_id}"
-        )
+        except Exception:
+            self.log.exception("MD3 oscillation excetion")
+
+        self.log.info("MD3 oscillation launched, task id: %s", task_id)
 
         if wait:
             task_info = self.waitTaskResult(
@@ -715,9 +694,7 @@ class MAXIVMD3(GenericDiffractometer):
             self.waitTaskIsRunning(task_id, timeout=DEFAULT_TASK_RUNNING_TIMEOUT)
             return
 
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 oscillation finished, task result %s." % str(task_info)
-        )
+        self.log.info("MD3 oscillation finished, task result %s.", task_info)
 
     def osc_scan_4d(self, start, end, exptime, helical_pos, wait=False):
         scan_params = "%0.3f\t%0.3f\t%0.4f\t" % (start, (end - start), exptime)
@@ -730,29 +707,26 @@ class MAXIVMD3(GenericDiffractometer):
         scan_params += "%0.3f\t" % helical_pos["2"]["sampx"]
         scan_params += "%0.3f\t" % helical_pos["2"]["sampy"]
 
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 helical oscillation requested, waiting device ready..., params "
-            + str(scan_params)
+        self.log.info(
+            "MD3 helical oscillation requested, waiting device ready..., params %s",
+            scan_params,
         )
         scan = self.command_dict["startScan4DEx"]
         time.sleep(0.1)
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 helical oscillation requested, device ready."
-        )
+        self.log.info("MD3 helical oscillation requested, device ready.")
 
         try:
             task_id = scan(scan_params)
-        except Exception as ex:
-            logging.getLogger("HWR").error(f"[MAXIVMD3] MD3 oscillation excetion {ex}")
-        logging.getLogger("HWR").info("[MAXIVMD3] MD3 Helical oscillation launched.")
+        except Exception:
+            self.log.exception("MD3 oscillation excetion")
+
+        self.log.info("MD3 Helical oscillation launched.")
 
         if wait:
             task_info = self.waitTaskResult(
                 task_id, timeout=DEFAULT_TASK_TIMEOUT + exptime
             )
-            logging.getLogger("HWR").info(
-                "[MAXIVMD3] MD3 helical task info {}".format(task_info)
-            )
+            self.log.info("MD3 helical task info %s", task_info)
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
                 raise RuntimeError(
@@ -764,10 +738,7 @@ class MAXIVMD3(GenericDiffractometer):
             self.waitTaskIsRunning(task_id, timeout=DEFAULT_TASK_RUNNING_TIMEOUT)
             return
 
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 helical oscillation finished, task result %s."
-            % str(task_info)
-        )
+        self.log.info("MD3 helical oscillation finished, task result %s.", task_info)
 
     def raster_scan(
         self,
@@ -787,8 +758,8 @@ class MAXIVMD3(GenericDiffractometer):
         Note: vertical_range and horizontal_range unit is mm, a test value could be 0.1,0.1
         example, raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)
         """
-        logging.getLogger("HWR").info("[MAXIVMD3] MD3 raster oscillation requested")
-        msg = "[MAXIVMD3] MD3 raster scan params:"
+        self.log.info("MD3 raster oscillation requested")
+        msg = "MD3 raster scan params:"
         msg += " start: %s, end: %s, exptime: %s, range: %s, nframes: %s" % (
             start,
             end,
@@ -796,7 +767,7 @@ class MAXIVMD3(GenericDiffractometer):
             end - start,
             nframes,
         )
-        logging.getLogger("HWR").info(msg)
+        self.log.info(msg)
 
         self.channel_dict["ScanStartAngle"].set_value(start)
         self.channel_dict["ScanExposureTime"].set_value(exptime)
@@ -812,23 +783,18 @@ class MAXIVMD3(GenericDiffractometer):
         )
 
         raster = self.command_dict["startRasterScan"]
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 raster oscillation requested, params: %s" % (raster_params)
-        )
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 raster oscillation requested, waiting device ready"
-        )
+        self.log.info("MD3 raster oscillation requested, params: %s", raster_params)
+        self.log.info("MD3 raster oscillation requested, waiting device ready")
 
         self.wait_device_ready(200)
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 raster oscillation requested, device ready."
-        )
+        self.log.info("MD3 raster oscillation requested, device ready.")
 
         try:
             task_id = raster(raster_params)
-        except Exception as ex:
-            logging.getLogger("HWR").error(f"[MAXIVMD3] MD3 oscillation excetion {ex}")
-        logging.getLogger("HWR").info("[MAXIVMD3] MD3 raster oscillation launched.")
+        except Exception:
+            self.log.exception("MD3 oscillation excetion")
+
+        self.log.info("MD3 raster oscillation launched.")
 
         if wait:
             task_info = self.waitTaskResult(
@@ -845,21 +811,17 @@ class MAXIVMD3(GenericDiffractometer):
             self.waitTaskIsRunning(task_id, timeout=DEFAULT_TASK_RUNNING_TIMEOUT)
             return
 
-        logging.getLogger("HWR").info(
-            "[MAXIVMD3] MD3 raster oscillation finished, task result %s."
-            % str(task_info)
-        )
+        self.log.info("MD3 raster oscillation finished, task result %s.", task_info)
 
     def set_phase(self, phase, wait=False, timeout=None):
         try:
             self.wait_ready(10)
-        except Exception as ex:
-            logging.getLogger("HWR").error(
-                "[MAXIVMD3] Cannot change phase to %s, timeout waiting for MD3 ready, %s"
-                % (phase, ex)
+        except Exception:
+            self.log.exception(
+                "Cannot change phase to %s, timeout waiting for MD3 ready", phase
             )
-            logging.getLogger("user_log").error(
-                "[MD3] Cannot change phase to %s, timeout waiting for MD3 ready" % phase
+            self.user_log.error(
+                "[MD3] Cannot change phase to %s, timeout waiting for MD3 ready", phase
             )
         else:
             task_id = self.command_dict["startSetPhase"](phase)
@@ -867,14 +829,14 @@ class MAXIVMD3(GenericDiffractometer):
             task_info = self.waitTaskResult(task_id)
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
-                logging.getLogger("user_level_log").error(
-                    "[MD3] Cannot change phase to %s; failed or aborted" % phase
+                self.user_log.error(
+                    "[MD3] Cannot change phase to %s; failed or aborted", phase
                 )
                 msg = (
                     "MD3 Set Phase failed or aborted, output: %s | exception: %s |result: %s"
                     % (task_output, task_exception, task_result)
                 )
-                logging.getLogger("HWR").error(msg)
+                self.log.error(msg)
                 raise RuntimeError(msg)
 
     def move_to_motors_positions(self, motor_positions, wait=False):
@@ -944,10 +906,7 @@ class MAXIVMD3(GenericDiffractometer):
             motor_positions.pop("kappa_phi", None)
 
         argin = ""
-        logging.getLogger("HWR").debug(
-            "MAXIVMD3: in move_sync_motors, wait: %s, motors: %s"
-            % (wait, motor_positions)
-        )
+        self.log.debug("move_sync_motors, wait: %s, motors: %s", wait, motor_positions)
         for motor, position in motor_positions.items():
             if isinstance(motor, str):
                 name = self.MOTOR_TO_EXPORTER_NAME[motor]
@@ -988,7 +947,7 @@ class MAXIVMD3(GenericDiffractometer):
         """
         Stops all the pending tasks, stops all the motors and closes all theirs control loop.
         """
-        log.warning("[MAXIVMD3]: aborting tasks")
+        self.log.warning("aborting tasks")
         self.command_dict["abort"]()
 
         #
@@ -1003,7 +962,7 @@ class MAXIVMD3(GenericDiffractometer):
         #
         time.sleep(WAIT_AFTER_ABORT)
 
-        log.warning("[MAXIVMD3]: all tasks aborted")
+        self.log.warning("all tasks aborted")
 
     def move_omega_relative(self, relative_angle):
         self.phi_motor_hwobj.set_value_relative(relative_angle, 10)
@@ -1085,7 +1044,7 @@ class MAXIVMD3(GenericDiffractometer):
         """
         self.wait_ready(10)
         self.command_dict["saveCentringPositions"]()
-        logging.getLogger("HWR").info("saving centered positions in MD3.")
+        self.log.info("saving centered positions in MD3.")
         self.last_centered_position = self.get_positions()
 
     def park_cryo_cooler(self, value=False, wait=True):
@@ -1097,12 +1056,12 @@ class MAXIVMD3(GenericDiffractometer):
             self.wait_ready(2)
 
     def move_rex_out(self, wait=True, timeout=3):
-        logging.getLogger("HWR").info("Moving REX out")
+        self.log.info("Moving REX out")
         self.wait_ready(3)
         self.rex.actuatorIn(wait=wait, timeout=timeout)
 
     def move_rex_in(self, wait=True, timeout=3):
-        logging.getLogger("HWR").info("Moving REX in")
+        self.log.info("Moving REX in")
         self.wait_ready(3)
         self.rex.actuatorOut(wait=wait, timeout=timeout)
 
