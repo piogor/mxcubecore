@@ -2,10 +2,6 @@ import logging
 
 from mxcubecore.HardwareObjects.abstract.AbstractActuator import AbstractActuator
 
-"""You may need to import monkey when you test standalone"""
-# from gevent import monkey
-# monkey.patch_all(thread=False)
-
 
 class BIOMAXAperture(AbstractActuator):
     """Aperture class to change the diameter and emitting messages."""

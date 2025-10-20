@@ -7,16 +7,12 @@ import gevent
 
 log = logging.getLogger("HWR")
 
-from gevent import monkey
-
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.ExporterMotor import ExporterMotor
 from mxcubecore.HardwareObjects.GenericDiffractometer import (
     DiffractometerState,
     GenericDiffractometer,
 )
-
-monkey.patch_all(thread=False)
 
 # time we wait after issuing MD3 abort() command, to let MD3 'settle down'
 WAIT_AFTER_ABORT = 5.0
