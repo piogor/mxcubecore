@@ -9,10 +9,6 @@ from mxcubecore.HardwareObjects import BeamInfo
 from mxcubecore.HardwareObjects.abstract import AbstractBeam
 from mxcubecore.utils.units import um_to_mm
 
-"""You may need to import monkey when you test standalone"""
-# from gevent import monkey
-# monkey.patch_all(thread=False)
-
 
 @unique
 class BeamShape(Enum):
