@@ -1,15 +1,12 @@
 import logging
 
 import gevent
-from gevent import monkey
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
 from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3
 
 log = logging.getLogger("HWR")
-
-monkey.patch_all(thread=False)
 
 MONITORING_INTERVAL = 0.1
 DEFAULT_TASK_TIMEOUT = 200
