@@ -9,10 +9,6 @@ import PyTango
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractFlux import AbstractFlux
 
-"""You may need to import monkey when you test standalone"""
-# from gevent import monkey
-# monkey.patch_all(thread=False)
-
 
 class BIOMAXFlux(AbstractFlux):
     def __init__(self, name):

@@ -33,7 +33,6 @@ import h5py
 import matplotlib.pyplot as plt
 import numpy as np
 import tango
-from gevent import monkey
 from scipy.ndimage.filters import gaussian_filter1d
 
 try:
@@ -46,8 +45,6 @@ from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractXRFSpectrum import AbstractXRFSpectrum
 from mxcubecore.TaskUtils import cleanup
-
-monkey.patch_all(thread=False)
 
 MAX_TRANSMISSION = 100
 

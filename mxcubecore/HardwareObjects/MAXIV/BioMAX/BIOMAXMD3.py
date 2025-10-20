@@ -5,13 +5,10 @@ import time
 import cv2
 import gevent
 import numpy as np
-from gevent import monkey
 from loopfinder.motion import CentringNavigator
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3
-
-monkey.patch_all(thread=False)
 
 
 class BIOMAXMD3(MAXIVMD3):
