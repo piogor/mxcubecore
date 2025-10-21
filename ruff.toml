@@ -967,7 +967,6 @@ convention = "google"
     "S307",
     "SIM105",
     "SLF001",
-    "T201",
     "TRY002",
     "TRY003",
 ]
