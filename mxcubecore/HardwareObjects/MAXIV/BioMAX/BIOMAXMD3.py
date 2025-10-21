@@ -47,21 +47,10 @@ class BIOMAXMD3(MAXIVMD3):
         )
         self.update_zoom_calibration()
 
-    def current_phase_changed(self, current_phase):
-        self.current_phase = current_phase
-        self.log.info("MD3 phase changed to %s", current_phase)
-        self.emit("phaseChanged", (current_phase,))
-
-    def is_fast_shutter_open(self):
-        return self.fast_shutter_channel.get_value()
-
     def state_changed(self, state):
         self.log.debug("State changed %s", state)
         self.current_state = state
         self.emit("minidiffStateChanged", (self.current_state))
-
-    def motor_state_changed(self, state):
-        self.emit("minidiffStateChanged", (state,))
 
     def open_fast_shutter(self):
         self.log.info("Openning fast shutter")
@@ -90,12 +79,6 @@ class BIOMAXMD3(MAXIVMD3):
             with gevent.Timeout(10, Exception("Timeout waiting for fluo detector Out")):
                 while self.fluodet.get_actuator_state(read=True) != "out":
                     gevent.sleep(0.1)
-
-    def start_3_click_centring(self):
-        self.start_centring_method(self.CENTRING_METHOD_MANUAL)
-
-    def start_auto_centring(self):
-        self.start_centring_method(self.CENTRING_METHOD_AUTO)
 
     def get_pixels_per_mm(self):
         """
