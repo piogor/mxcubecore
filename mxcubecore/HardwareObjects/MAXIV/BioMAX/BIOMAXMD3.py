@@ -1,4 +1,3 @@
-import os
 import time
 
 import cv2
@@ -226,12 +225,3 @@ class BIOMAXMD3(MAXIVMD3):
         self.wait_stable_loop(60)
         centred_pos = self.get_center_pos()
         return centred_pos
-
-    def take_snapshots_loop(self, suffix):
-        dir_name = "/data/staff/ispybstorage/staff/jienan"
-        timestr = time.strftime("%Y%m%d-%H%M%S")
-        file_name = os.path.join(dir_name, "{}_{}.jpeg".format(timestr, suffix))
-        self.user_log.info(
-            "Taking snapshot {} {} pre-aligning loop".format(file_name, suffix)
-        )
-        self.camera_hwobj.save_snapshot(file_name)
