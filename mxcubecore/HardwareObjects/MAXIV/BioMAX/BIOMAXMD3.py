@@ -48,9 +48,6 @@ class BIOMAXMD3(MAXIVMD3):
         self.update_zoom_calibration()
 
     def current_phase_changed(self, current_phase):
-        """
-        Descript. :
-        """
         self.current_phase = current_phase
         self.log.info("MD3 phase changed to %s", current_phase)
         self.emit("phaseChanged", (current_phase,))
@@ -64,9 +61,6 @@ class BIOMAXMD3(MAXIVMD3):
         self.emit("minidiffStateChanged", (self.current_state))
 
     def motor_state_changed(self, state):
-        """
-        Descript. :
-        """
         self.emit("minidiffStateChanged", (state,))
 
     def open_fast_shutter(self):
