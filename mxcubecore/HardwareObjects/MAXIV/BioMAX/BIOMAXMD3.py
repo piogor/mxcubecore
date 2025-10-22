@@ -23,7 +23,10 @@ class BIOMAXMD3(MAXIVMD3):
         self.head_type = self.channel_dict["HeadType"].get_value()
 
     def get_center_pos(self):
-        """Returns the current motor positions except for zoom level. Used for loop centering"""
+        """Get the current motor positions except for zoom level.
+
+        Used for loop centering.
+        """
         cpos = self.get_positions()
         cpos.pop("zoom", None)
         return cpos
@@ -43,9 +46,9 @@ class BIOMAXMD3(MAXIVMD3):
             img_bef = img_after
             timer += wait_int
         self.user_log.info(
-            "Loop is still drifting, have waited {}s, give up and continue with collection".format(
-                wait_time
-            )
+            "Loop is still drifting, have waited %ss, "
+            "give up and continue with collection",
+            wait_time,
         )
         self.update_zoom_calibration()
 
@@ -106,9 +109,12 @@ class BIOMAXMD3(MAXIVMD3):
         self.emit("pixelsPerMmChanged", ((self.pixels_per_mm_x, self.pixels_per_mm_y)))
 
     def blinded_by_the_lights(self, img: np.ndarray, threshold=1000) -> bool:
-        """
-        returns True if img is overexposed, which happens right after the backlight comes on.
-        Default threshold is callibrated based on backlight level 1.
+        """Check if image is overexposed.
+
+        Returns True if img is overexposed, which happens right after
+        the backlight comes on.
+
+        Default threshold is calibrated based on backlight level 1.
         tested on 12 normally exposed images, and 13 overexposed images.
         maximum white_count for normally exposed images was 111
         minimum for overexposed was 718495
