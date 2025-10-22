@@ -106,7 +106,6 @@ class MAXIVMD3(GenericDiffractometer):
         self.back_light = self.get_object_by_role("backlight")
         self.back_light_switch = self.get_object_by_role("backlightswitch")
         self.front_light_switch = self.get_object_by_role("frontlightswitch")
-        self.fluodet = self.get_object_by_role("fluodet")
         self.rex = self.get_object_by_role("rex")
 
         try:
@@ -386,26 +385,6 @@ class MAXIVMD3(GenericDiffractometer):
         ):
             while self.is_fast_shutter_open():
                 gevent.sleep(0.2)
-
-    def move_fluo_in(self, wait=True):
-        self.log.info("Moving Fluo detector in")
-        self.wait_device_ready(3)
-        self.fluodet.actuatorIn()
-        time.sleep(3)  # MD3 reports long before fluo is in position
-        # the next lines are irrelevant, leaving there for future use
-        if wait:
-            with gevent.Timeout(10, Exception("Timeout waiting for fluo detector In")):
-                while self.fluodet.get_actuator_state(read=True) != "in":
-                    gevent.sleep(0.1)
-
-    def move_fluo_out(self, wait=True):
-        self.log.info("Moving Fluo detector out")
-        self.wait_device_ready(3)
-        self.fluodet.actuatorOut()
-        if wait:
-            with gevent.Timeout(10, Exception("Timeout waiting for fluo detector Out")):
-                while self.fluodet.get_actuator_state(read=True) != "out":
-                    gevent.sleep(0.1)
 
     def set_scintillator_pos(self, value):
         """
