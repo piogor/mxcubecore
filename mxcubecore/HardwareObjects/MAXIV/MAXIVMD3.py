@@ -96,11 +96,13 @@ class MAXIVMD3(GenericDiffractometer):
     def centring_hwobj(self):
         if self._centring is None:
             #
-            # Due to circular dependency between CentringMath and MD3 hardware objects,
-            # we need to load reference to CentringMath object lazily on first usage.
+            # Due to circular dependency between CentringMath and MD3 hardware
+            # objects, we need to load reference to CentringMath object lazily
+            # on first usage.
             #
-            # MD3 must be created before CentringMath, as it loads references to its motors,
-            # thus CentringMath object does not exist when executing MAXIVMD3.init() method.
+            # MD3 must be created before CentringMath, as it loads references to
+            # its motors, thus CentringMath object does not exist when executing
+            # MAXIVMD3.init() method.
             #
             self._centring = HWR.beamline.get_object_by_role("centring")
 
@@ -236,8 +238,8 @@ class MAXIVMD3(GenericDiffractometer):
         ```bookmark_position()``` method.
 
         Raises:
-            NoPositionBookmarkedException: if no position have been previously bookmarked
-
+            NoPositionBookmarkedException: if no position have been
+                                           previously bookmarked
         """
         if self._position_bookmark is None:
             raise NoPositionBookmarkedError
@@ -745,11 +747,15 @@ class MAXIVMD3(GenericDiffractometer):
         invert_direction=1,
         wait=False,
     ):
-        """
+        """Perform a raster scan.
+
         raster_scan: snake scan by default
         start, end, exptime are the parameters per line
-        Note: vertical_range and horizontal_range unit is mm, a test value could be 0.1,0.1
-        example, raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)
+
+        Note: vertical_range and horizontal_range unit is mm,
+        a test value could be 0.1, 0.1 for example
+
+          ``raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)``
         """
         self.log.info("MD3 raster oscillation requested")
         msg = "MD3 raster scan params:"
@@ -859,7 +865,8 @@ class MAXIVMD3(GenericDiffractometer):
                 Given in seconds.
         Raises:
             Timeout: if the move operation does not finish within the timeout.
-            TimeoutError: if the MD3 command does not finish within it's internal timeout.
+            TimeoutError: if the MD3 command does not finish
+                          within it's internal timeout.
         """
         self.move_sync_motors(motor_positions, wait=True, timeout=timeout)
 
@@ -882,7 +889,8 @@ class MAXIVMD3(GenericDiffractometer):
 
         Raises:
             Timeout: if the move operation does not finish within the timeout.
-            TimeoutError: if the MD3 command does not finish within its internal timeout.
+            TimeoutError: if the MD3 command does not finish
+                          within its internal timeout.
         """
         motor_positions.pop("zoom", None)
         motor_positions.pop("focus", None)
@@ -930,8 +938,9 @@ class MAXIVMD3(GenericDiffractometer):
         return pos
 
     def abort(self):
-        """
-        Stops all the pending tasks, stops all the motors and closes all theirs control loop.
+        """Abort all the pending tasks.
+
+        Stops all the motors and closes all theirs control loops.
         """
         self.log.warning("aborting tasks")
         self.command_dict["abort"]()

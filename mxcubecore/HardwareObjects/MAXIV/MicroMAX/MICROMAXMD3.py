@@ -79,11 +79,15 @@ class MICROMAXMD3(MAXIVMD3):
         table_pitch=1,
         fast_scan=1,
     ):
-        """
-           raster_scan: snake scan by default
-           start, end, exptime are the parameters per line
-           Note: vertical_range and horizontal_range unit is mm, a test value could be 0.1,0.1
-           example, raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)
+        """Perform a raster scan.
+
+        raster_scan: snake scan by default
+        start, end, exptime are the parameters per line
+
+        Note: vertical_range and horizontal_range unit is mm,
+        a test value could be ``0.1, 0.1`` for example::
+
+            raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)
 
         Args:
             invert_direction: ``1`` to enable passes in the reverse direction.

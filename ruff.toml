@@ -748,7 +748,6 @@ convention = "google"
     "EM102",
 ]
 "mxcubecore/HardwareObjects/MAXIV/BioMAX/BIOMAXMD3.py" = [
-    "E501",
     "FBT002",
     "N814",
     "N999",
@@ -940,7 +939,6 @@ convention = "google"
     "B007",
     "B904",
     "C901",
-    "E501",
     "E722",
     "EM101",
     "ERA001",
@@ -1060,7 +1058,6 @@ convention = "google"
     "N999",
 ]
 "mxcubecore/HardwareObjects/MAXIV/MicroMAX/MICROMAXMD3.py" = [
-    "E501",
     "E722",
     "EM102",
     "FBT001",
