@@ -21,6 +21,19 @@ ARRAY_SEPARATOR = ""
 # 0x001F
 
 
+class MD3TaskFailed(Exception):
+    RASTER_SCAN = "Raster scan"
+    OSCILLATION_SCAN = "Oscillation"
+    HELICAL_SCAN = "Helical Oscillation"
+    SET_PHASE = "Set Phase"
+
+    def __init__(self, task_name: str, output: str, exception: str, result: str):
+        super().__init__(
+            f"MD3 {task_name} failed or aborted, output: {output} | "
+            f"exception: {exception} | result: {result}"
+        )
+
+
 @dataclass
 class _PositionBookmark:
     """Used to record a hard-coded set of MD3 motor positions.
@@ -664,9 +677,11 @@ class MAXIVMD3(GenericDiffractometer):
             task_output, task_exception, task_result = task_info[4:7]
 
             if int(task_result) <= 0:  # either failed or aborted
-                raise RuntimeError(
-                    "MD3 Oscillation failed or aborted, output: %s | exception: %s |result: %s"
-                    % (task_output, task_exception, task_result)
+                raise MD3TaskFailed(
+                    MD3TaskFailed.OSCILLATION_SCAN,
+                    task_output,
+                    task_exception,
+                    task_result,
                 )
         else:
             # we only wait until task actually started
@@ -708,9 +723,8 @@ class MAXIVMD3(GenericDiffractometer):
             self.log.info("MD3 helical task info %s", task_info)
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
-                raise RuntimeError(
-                    "MD3 Helical Oscillation failed or aborted, output: %s | exception: %s |result: %s"
-                    % (task_output, task_exception, task_result)
+                raise MD3TaskFailed(
+                    MD3TaskFailed.HELICAL_SCAN, task_output, task_exception, task_result
                 )
         else:
             # we only wait until task actually started
@@ -781,9 +795,8 @@ class MAXIVMD3(GenericDiffractometer):
             )
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
-                raise RuntimeError(
-                    "MD3 Raster Oscillation failed or aborted, output: %s | exception: %s |result: %s"
-                    % (task_output, task_exception, task_result)
+                raise MD3TaskFailed(
+                    MD3TaskFailed.RASTER_SCAN, task_output, task_exception, task_result
                 )
         else:
             # we only wait until task actually started
@@ -808,15 +821,9 @@ class MAXIVMD3(GenericDiffractometer):
             task_info = self.waitTaskResult(task_id)
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
-                self.user_log.error(
-                    "[MD3] Cannot change phase to %s; failed or aborted", phase
+                raise MD3TaskFailed(
+                    MD3TaskFailed.SET_PHASE, task_output, task_exception, task_result
                 )
-                msg = (
-                    "MD3 Set Phase failed or aborted, output: %s | exception: %s |result: %s"
-                    % (task_output, task_exception, task_result)
-                )
-                self.log.error(msg)
-                raise RuntimeError(msg)
 
     def move_to_motors_positions(self, motor_positions, wait=False):
         motor_positions.pop("zoom", None)
