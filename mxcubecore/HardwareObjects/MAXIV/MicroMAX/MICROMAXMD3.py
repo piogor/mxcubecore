@@ -4,7 +4,7 @@ import gevent
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
-from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3
+from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3, MD3TaskFailed
 
 log = logging.getLogger("HWR")
 
@@ -146,9 +146,8 @@ class MICROMAXMD3(MAXIVMD3):
             )
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
-                raise RuntimeError(
-                    "MD3 Raster Oscillation failed or aborted, output: %s | exception: %s |result: %s"
-                    % (task_output, task_exception, task_result)
+                raise MD3TaskFailed(
+                    MD3TaskFailed.RASTER_SCAN, task_output, task_exception, task_result
                 )
         else:
             # we only wait until task actually started
