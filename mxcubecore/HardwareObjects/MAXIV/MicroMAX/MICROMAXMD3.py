@@ -17,9 +17,6 @@ class BeamstopPositionException(Exception):
 
 
 class MICROMAXMD3(MAXIVMD3):
-    def __init__(self, name):
-        super().__init__(name)
-
     def init(self):
         super().init()
 
