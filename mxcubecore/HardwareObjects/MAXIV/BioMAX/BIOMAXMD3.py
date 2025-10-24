@@ -10,9 +10,6 @@ from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3
 
 
 class BIOMAXMD3(MAXIVMD3):
-    def __init__(self, name):
-        super().__init__(name)
-
     def init(self):
         super().init()
 
