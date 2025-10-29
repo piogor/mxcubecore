@@ -156,10 +156,14 @@ class BIOMAXMD3(MAXIVMD3):
             if step.finished():
                 return True
             if step.rotate:
+                self.wait_device_ready(10)
                 self.phi_motor_hwobj.set_value_relative(step.rotate)
+                self.wait_device_not_ready(10)
                 self.wait_device_ready(10)
             if step.x_to_center or step.y_to_center:
+                self.wait_device_ready(10)
                 self.move_to_beam(step.x_to_center, step.y_to_center)
+                self.wait_device_not_ready(10)
                 self.wait_device_ready(10)
             gevent.sleep(0.2)
         self.log.debug(
