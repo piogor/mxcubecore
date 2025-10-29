@@ -1,6 +1,3 @@
-from enum import Enum
-
-from mxcubecore.HardwareObjects.abstract.AbstractNState import BaseValueEnum
 from mxcubecore.HardwareObjects.ExporterNState import ExporterNState
 
 
@@ -17,7 +14,6 @@ class MD3Zoom(ExporterNState):
 
         limits = (0, level - 2)
         self.set_limits(limits)
-        self._initialise_values()
 
     def set_limits(self, limits=(None, None)):
         """Overrriden from AbstractActuator"""
@@ -38,12 +34,3 @@ class MD3Zoom(ExporterNState):
             value = self.VALUES(value)
 
         super().set_value(value, timeout)
-
-    def _initialise_values(self):
-        """Initialise the ValueEnum"""
-        low, high = self.get_limits()
-        values = {"LEVEL%s" % str(v): v for v in range(low + 1, high + 2)}
-        self.VALUES = Enum(
-            "ValueEnum",
-            dict(values, **{item.name: item.value for item in BaseValueEnum}),
-        )
