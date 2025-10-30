@@ -189,6 +189,7 @@ class ISARA(SampleChanger):
             "Barcode", failed_callback=self._on_command_fail
         )
         self._add_tango_command("Soak", failed_callback=self._on_command_fail)
+        self._add_tango_command("Reset", failed_callback=self._on_command_fail)
 
     def _add_tango_command(
         self,
