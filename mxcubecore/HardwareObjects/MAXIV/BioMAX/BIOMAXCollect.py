@@ -1226,10 +1226,14 @@ class BIOMAXCollect(DataCollect):
             filename,
             overlap,
         )
-        self._run_ssh_command(
-            self._HPC_FE_HOST,
-            f"{CORRECT_OMEGA_SCRIPT} -f {filename} -o {-overlap}",
-        )
+        command: list[str] = [
+            CORRECT_OMEGA_SCRIPT,
+            "-f",
+            filename,
+            "-o",
+            f"{-overlap}",
+        ]
+        self._run_ssh_command(self._HPC_FE_HOST, command)
 
     def wait_for_xray_center_result(self, shape_id):
         # is there an issue if one re-runs the collection?
