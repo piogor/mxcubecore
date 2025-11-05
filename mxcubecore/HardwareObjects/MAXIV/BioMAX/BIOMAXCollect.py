@@ -17,7 +17,7 @@ from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 
 CORRECT_OMEGA_SCRIPT = (
-    "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega_2024.py"
+    "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega.sh"
 )
 
 hwr_log = logging.getLogger("HWR")
@@ -210,9 +210,9 @@ class BIOMAXCollect(DataCollect):
             # todo, self.move_to_centered_position() should go inside take_crystal_snapshots,
             # which makes sure it move motors to the correct positions and move back
             # if there is a phase change
-            user_log.debug("Collection: going to take snapshots...")
+            hwr_log.debug("Collection: going to take snapshots...")
             self.take_crystal_snapshots()
-            user_log.debug("Collection: snapshots taken")
+            hwr_log.debug("Collection: snapshots taken")
             # to fix permission issues
             snapshots_files = []
 
@@ -418,11 +418,11 @@ class BIOMAXCollect(DataCollect):
 
             self.char = True
 
-            for trigger_num in range(1, ntriggers + 1):
-                triggers_to_collect.append(
-                    (osc_start, trigger_num, nframes_per_trigger, osc_range)
-                )
-                osc_start += osc_range * nframes_per_trigger - overlap
+            start_angles = [osc_start + i * overlap for i in range(ntriggers)]
+            triggers_to_collect = [
+                (s, n, nframes_per_trigger, osc_range)
+                for n, s in enumerate(start_angles)
+            ]
 
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
             hwr_log.info(
@@ -867,7 +867,7 @@ class BIOMAXCollect(DataCollect):
         try:
             self.create_directories(xds_directory, auto_directory)
         except os.error:
-            logging.exception("Could not create processing file directory")
+            hwr_log.exception("Could not create processing file directory")
             return
         if xds_directory:
             self.current_dc_parameters["xds_dir"] = xds_directory
@@ -951,7 +951,7 @@ class BIOMAXCollect(DataCollect):
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         (
             osc_start,
-            trigger_num,
+            _,
             nframes_per_trigger,
             osc_range,
         ) = self.triggers_to_collect[0]
@@ -1157,7 +1157,7 @@ class BIOMAXCollect(DataCollect):
         fname1 = "/mxn/groups/biomax/wmxsoft/auto_load_img_cc/to_display"
         time.sleep(self.display["delay"] + 3)
         frequency = 5
-        step = int(math.ceil(frequency / self.display["exp"]))
+        step = math.ceil(frequency / self.display["exp"])
         if step == 1:
             frequency = self.display["exp"]
         for i in range(1, self.display["nimages"] + 1, step):
@@ -1231,7 +1231,7 @@ class BIOMAXCollect(DataCollect):
             "-f",
             filename,
             "-o",
-            f"{-overlap}",
+            f"{overlap}",
         ]
         self._run_ssh_command(self._HPC_FE_HOST, command)
 
