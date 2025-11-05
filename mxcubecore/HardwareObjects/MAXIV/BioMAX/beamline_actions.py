@@ -10,14 +10,17 @@ DET_SAFE_POSITION = 900  # mm
 #### TODO
 # - If not in PLATE mode do not display plate related actions
 
+hwr_log = logging.getLogger("HWR")
+user_log = logging.getLogger("user_level_log")
+
 
 class TestMacro:
     def __call__(self, *args, **kw):
         try:
-            cmd = self.getCommandObject("testMacro")
+            cmd = self.get_command_object("testMacro")
             cmd(wait=True)
-        except Exception:
-            logging.getLogger("HWR").error("Cannot testMacro")
+        except Exception as ex:
+            hwr_log.exception("Cannot testMacro")
 
 
 class BeamtimeEnd:
@@ -26,14 +29,11 @@ class BeamtimeEnd:
         TBD
         """
         try:
-            prepare_open_hutch = PrepareOpenHutch()
-            prepare_open_hutch()
-            cmd = self.getCommandObject("beamtime_end")
+            PrepareOpenHutch().__call__()
+            cmd = self.get_command_object("beamtime_end")
             cmd(wait=True)
         except Exception as ex:
-            logging.getLogger("HWR").exception(
-                "Cannot end beamtime. Error was {}".format(ex)
-            )
+            hwr_log.exception("Cannot end beamtime. Error was {}".format(ex))
 
 
 class BeamtimeStart:
@@ -42,12 +42,10 @@ class BeamtimeStart:
         TBD: sardana macro not yet available in MicroMAX
         """
         try:
-            cmd = self.getCommandObject("beamtime_start")
+            cmd = self.get_command_object("beamtime_start")
             cmd(wait=True)
         except Exception as ex:
-            logging.getLogger("HWR").error(
-                "Cannot start beamtime. Error was {}".format(ex)
-            )
+            hwr_log.error("Cannot start beamtime. Error was {}".format(ex))
 
 
 class OpenBeamlineShutters:
@@ -56,12 +54,60 @@ class OpenBeamlineShutters:
         TBD: sardana macro not yet available in MicroMAX
         """
         try:
-            cmd = self.getCommandObject("open_beamline_shutters")
+            cmd = self.get_command_object("open_beamline_shutters")
             cmd(wait=True)
         except Exception as ex:
-            logging.getLogger("HWR").error(
-                "Cannot start beamtime. Error was {}".format(ex)
-            )
+            hwr_log.exception("Cannot open beamline shutters.")
+
+
+class CloseSafetyShutter:
+    def __call__(self, *args, **kw):
+        """
+        Close safety shutter
+        """
+        try:
+            hwr_log.info("Closing safety shutter")
+            if HWR.beamline.safety_shutter.is_open:
+                HWR.beamline.safety_shutter.close()
+        except Exception as ex:
+            hwr_log.exception("Could not close safety shutter")
+
+
+class OpenSafetyShutter:
+    def __call__(self, *args, **kw):
+        """
+        Open safety shutter
+        """
+        try:
+            hwr_log.info("Opening safety shutter")
+            if HWR.beamline.safety_shutter.is_closed:
+                HWR.beamline.safety_shutter.open()
+        except Exception as ex:
+            hwr_log.exception("Could not open safety shutter")
+
+
+class CloseDetectorCover:
+    def __call__(self, *args, **kw):
+        """
+        Close detector cover
+        """
+        try:
+            hwr_log.info("Closing the detector cover")
+            HWR.beamline.detector.cover.close()
+        except Exception as ex:
+            hwr_log.exception("Could not close the detector cover.")
+
+
+class OpenDetectorCover:
+    def __call__(self, *args, **kw):
+        """
+        Open detector cover
+        """
+        try:
+            hwr_log.info("Opening the detector cover")
+            HWR.beamline.detector.cover.open()
+        except Exception as ex:
+            hwr_log.exception("Could not open the detector cover.")
 
 
 class PrepareOpenHutch:
@@ -73,65 +119,59 @@ class PrepareOpenHutch:
 
     def __call__(self, *args, **kw):
         try:
-            logging.getLogger("HWR").info(
-                "Preparing experimental hutch for door openning."
-            )
-            if (
-                HWR.beamline.safety_shutter is not None
-                and HWR.beamline.safety_shutter.getShutterState() == "opened"
-            ):
-                logging.getLogger("HWR").info("Closing safety shutter...")
-                HWR.beamline.safety_shutter.closeShutter()
-                while HWR.beamline.safety_shutter.getShutterState() == "opened":
+            hwr_log.info("Preparing experimental hutch for door openning.")
+            if HWR.beamline.safety_shutter.is_open:
+                hwr_log.info("Closing safety shutter...")
+                HWR.beamline.safety_shutter.close()
+                while HWR.beamline.safety_shutter.is_open:
                     gevent.sleep(0.1)
 
-            logging.getLogger("HWR").info("Closing detector cover...")
-            HWR.beamline.collect.close_detector_cover()
+            hwr_log.info("Closing detector cover...")
+            close_det_cover = CloseDetectorCover().__call__()
 
-            if HWR.beamline.detector is not None:
-                logging.getLogger("HWR").info("Moving detector to safe area...")
-                try:
-                    HWR.beamline.detector.distance.set_value(DET_SAFE_POSITION)
-                except Exception:
-                    logging.getLogger("HWR").warning(
-                        "Could not move detector to safe position"
-                    )
+            hwr_log.info(f"Moving detector to safe distance {DET_SAFE_POSITION} ...")
+            try:
+                HWR.beamline.detector.detector_distance.set_value(DET_SAFE_POSITION)
+            except Exception:
+                hwr_log.warning("Could not move detector to safe position")
         except Exception as ex:
-            logging.getLogger("HWR").exception(
-                "Could not PrepareOpenHutch. Error was {}".format(ex)
-            )
+            hwr_log.exception("Could not PrepareOpenHutch.")
+            user_log.critical("Failed to run PrepareOpenHutch")
 
         if HWR.beamline.sample_changer.is_powered():
             # if unmount_sample and HWR.beamline.sample_changer.get_loaded_sample() is not None:
             if HWR.beamline.sample_changer.get_loaded_sample() is not None:
-                logging.getLogger("HWR").info("Unloading mounted sample.")
+                hwr_log.info("Unloading mounted sample.")
                 HWR.beamline.sample_changer.unload(None, wait=True)
 
             if HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK":
-                logging.getLogger("HWR").info(
-                    "Sample Changer was in SOAK, going to DRY"
-                )
+                hwr_log.info("Sample Changer was in SOAK, going to DRY")
                 HWR.beamline.sample_changer_maintenance.send_command("dry")
 
             gevent.sleep(1)
             HWR.beamline.sample_changer._wait_device_ready(300)
-            if HWR.beamline.sample_changer.isPowered():
-                logging.getLogger("HWR").info("Sample Changer to HOME")
+            if HWR.beamline.sample_changer.is_powered():
+                hwr_log.info("Sample Changer to HOME")
                 HWR.beamline.sample_changer_maintenance.send_command("home")
                 gevent.sleep(1)
                 HWR.beamline.sample_changer._wait_device_ready(30)
 
-                logging.getLogger("HWR").info("Sample Changer CLOSING LID")
-                HWR.beamline.sample_changer_maintenance.send_command("closelid1")
+                hwr_log.info("Sample Changer CLOSING LID")
+                HWR.beamline.sample_changer_maintenance.send_command("closeLid")
                 gevent.sleep(1)
                 HWR.beamline.sample_changer._wait_device_ready(10)
-
-                logging.getLogger("HWR").info("Sample Changer POWER OFF")
-                HWR.beamline.sample_changer_maintenance.send_command("powerOff")
         else:
-            logging.getLogger("HWR").warning(
-                "Cannot prepare Hutch openning, Isara is powered off"
-            )
+            hwr_log.warning("Cannot prepare Hutch openning, Isara is powered off")
+
+
+class SaveCentredPosition:
+    """Save the current centered position of the beamline."""
+
+    def __call__(self, *args, **kw):
+        hwr_log.info("Saving centered position.")
+
+        hwr_log.info("Saving centered position...")
+        HWR.beamline.diffractometer.save_centered_position()
 
 
 class PrepareForNewSample:
@@ -141,31 +181,28 @@ class PrepareForNewSample:
     """
 
     def __call__(self, *args, **kw):
-        logging.getLogger("HWR").info("Preparing beamline for a new sample.")
+        hwr_log.info("Preparing beamline for a new sample.")
 
-        HWR.beamline.collect.close_detector_cover()
-        logging.getLogger("HWR").info("Setting diffractometer in Transfer phase...")
-        HWR.beamline.diffractometer.set_phase("Transfer", wait=False)
+        CloseDetectorCover().__call__()
 
-        if (
-            HWR.beamline.safety_shutter is not None
-            and self.safety_shutter.getShutterState() == "opened"
-        ):
-            logging.getLogger("HWR").info("Closing safety shutter...")
-            HWR.beamline.safety_shutter.closeShutter()
-            while HWR.beamline.safety_shutter.getShutterState() == "opened":
-                gevent.sleep(0.1)
+        hwr_log.info("Setting diffractometer in Transfer phase...")
+        HWR.beamline.diffractometer.set_phase_transfer()
 
-        if HWR.beamline.detector.distance is not None:
-            logging.getLogger("HWR").info("Moving detector to safe area...")
-            HWR.beamline.detector.distance.set_value(DET_SAFE_POSITION)
+        if HWR.beamline.safety_shutter.is_open:
+            hwr_log.info("Closing safety shutter...")
+            HWR.beamline.safety_shutter.close()
+            while HWR.beamline.safety_shutter.is_open:
+                gevent.sleep(0.3)
+
+        hwr_log.info("Moving detector to safe area...")
+        HWR.beamline.detector.detector_distance.set_value(DET_SAFE_POSITION)
 
 
 class CalculateFlux:
     """Calculate Flux."""
 
     def __call__(self, *args, **kw):
-        logging.getLogger("HWR").info("Calculating Flux!")
+        hwr_log.info("Calculating Flux!")
         HWR.beamline.flux.calculate_flux()
 
 
@@ -175,10 +212,10 @@ class CheckBeam:
         Check beam stability
         """
         try:
-            cmd = self.getCommandObject("checkbeam")
+            cmd = HWR.beamline.beamline_actions.get_command_object("checkbeam")
             cmd(wait=True)
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot check beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot check beam.")
 
 
 class FocusBeam20:
@@ -187,10 +224,10 @@ class FocusBeam20:
         Focus beam to 20x20
         """
         try:
-            cmd = self.getCommandObject("focus_beam")
-            cmd("20", wait=True)
+            cmd = HWR.beamline.beamline_actions.get_command_object("focus_beam")
+            cmd("20")
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot focus beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot focus beam.")
 
 
 class FocusBeam50:
@@ -199,10 +236,10 @@ class FocusBeam50:
         Focus beam to 50x50
         """
         try:
-            cmd = self.getCommandObject("focus_beam")
-            cmd("50", wait=True)
+            cmd = HWR.beamline.beamline_actions.get_command_object("focus_beam")
+            cmd("50")
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot focus beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot focus beam.")
 
 
 class FocusBeam100:
@@ -211,10 +248,10 @@ class FocusBeam100:
         Focus beam to 100x100
         """
         try:
-            cmd = self.getCommandObject("focus_beam")
-            cmd("100", wait=True)
+            cmd = HWR.beamline.beamline_actions.get_command_object("focus_beam")
+            cmd("100")
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot focus beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot focus beam.")
 
 
 class AbortMD3:
@@ -224,14 +261,13 @@ class AbortMD3:
         """
         try:
             HWR.beamline.diffractometer.abort()
+            gevent.sleep(0.5)
             omega = HWR.beamline.diffractometer.phi_motor_hwobj
             current_state = omega.get_state()
-            logging.getLogger("HWR").info(
-                "Current MD3 omega state is %s" % current_state
-            )
+            hwr_log.info(f"Current MD3 omega state is {current_state}")
             omega.updateMotorState(current_state)
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot focus beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot focus beam. Error was {}".format(ex))
 
 
 class Anneal(AnnotatedCommand):
@@ -250,11 +286,9 @@ class Anneal(AnnotatedCommand):
             if data.exp_time >= 1:
                 gevent.sleep(data.exp_time - 0.8)
             HWR.beamline.diffractometer.move_rex_in(wait=True)
-            logging.getLogger("HWR").info("Annealing is done!")
+            hwr_log.info("Annealing is done!")
         except Exception as ex:
-            logging.getLogger("HWR").error(
-                "Cannot anneal the sample. Error was {}".format(ex)
-            )
+            hwr_log.exception("Cannot anneal the sample.")
 
 
 class AlignBeam:
@@ -262,7 +296,7 @@ class AlignBeam:
         try:
             HWR.beamline.beam_alignment_hwobj.execute_beam_alignment()
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot align beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot align beam.")
 
 
 class AlignAperture:
@@ -270,9 +304,7 @@ class AlignAperture:
         try:
             HWR.beamline.beam_alignment_hwobj.execute_aperture_alignment()
         except Exception as ex:
-            logging.getLogger("HWR").error(
-                "Cannot align aperture. Error was {}".format(ex)
-            )
+            hwr_log.exception("Cannot align aperture.")
 
 
 class EmptyMount:
@@ -282,42 +314,36 @@ class EmptyMount:
                 "[SC][Empty mount] Cannot clear sample,"
                 " there is a sample detected on the goniometer!"
             )
-            logging.getLogger("HWR").error(exception)
+            hwr_log.error(exception)
             raise exception
         if HWR.beamline.sample_changer.is_powered():
             if HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK":
-                logging.getLogger("HWR").debug(
-                    "[SC][Empty mount] Running command 'Abort'..."
-                )
+                hwr_log.debug("[SC][Empty mount] Running command 'Abort'...")
                 HWR.beamline.sample_changer.execute_command("Abort")
                 gevent.sleep(2)
                 # We should not wait for the device to be ready here,
                 # as it will never be ready,
                 # because there is no sample on the diffractometer.
-                logging.getLogger("HWR").debug(
-                    "[SC][Empty mount] Running command 'ClearMemory'..."
-                )
+                hwr_log.debug("[SC][Empty mount] Running command 'ClearMemory'...")
                 HWR.beamline.sample_changer.execute_command("ClearMemory")
                 gevent.sleep(1)
-                logging.getLogger("HWR").debug(
-                    "[SC][Empty mount] Running command 'Reset'..."
-                )
+                hwr_log.debug("[SC][Empty mount] Running command 'Reset'...")
                 HWR.beamline.sample_changer.execute_command("Reset")
                 HWR.beamline.sample_changer._wait_device_ready(10)
                 HWR.beamline.diffractometer.last_centered_position = None
             else:
                 if HWR.beamline.sample_changer._wait_device_ready(1):
-                    logging.getLogger("HWR").error(
+                    hwr_log.error(
                         "[SC][Empty mount] Doesn't look like an empty mount,"
                         " please contact support!"
                     )
                 else:
-                    logging.getLogger("HWR").error(
+                    hwr_log.error(
                         "[SC][Empty mount] Sample Changer is drying,"
                         " please wait and try later."
                     )
         else:
-            logging.getLogger("HWR").error(
+            hwr_log.error(
                 "[SC][Empty mount] Sample Changer power is off, please switch it on."
             )
 
@@ -329,7 +355,7 @@ class MovePlate(AnnotatedCommand):
     def move_plate(self, row: str, col: int, drop: int) -> None:
         logging.getLogger("user_level_log").info(f"Move Plate {row} {col} {drop}")
         try:
-            logging.getLogger("HWR").info(
+            hwr_log.info(
                 "Move Plate to position row: {}, col:{}, drop {}".format(row, col, drop)
             )
             row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
@@ -338,9 +364,7 @@ class MovePlate(AnnotatedCommand):
                     row.upper()
                 )
             except Exception as ex:
-                logging.getLogger("HWR").error(
-                    "could find the row value {} in the row_list".format(row)
-                )
+                hwr_log.error("could find the row value {} in the row_list".format(row))
                 raise Exception("please make sure the Row value is within A-H")
             params = "{}\t{}\t{}".format(row_index, int(col) - 1, int(drop) - 1)
             HWR.beamline.diffractometer.command_dict["startMovePlateToShelf"](params)
@@ -352,10 +376,10 @@ class MovePlate(AnnotatedCommand):
                 int(current_pos[0])
             ]
             current_col = int(current_pos[1]) + 1
-            logging.getLogger("HWR").info(
+            hwr_log.info(
                 "Current plate position row: {}, col:{}".format(
                     current_row, current_col
                 )
             )
         except Exception as ex:
-            logging.getLogger("HWR").error("Cannot move plate. Error was {}".format(ex))
+            hwr_log.exception("Cannot move plate.")
