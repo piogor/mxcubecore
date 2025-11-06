@@ -19,7 +19,7 @@ class TestMacro:
         try:
             cmd = self.get_command_object("testMacro")
             cmd(wait=True)
-        except Exception as ex:
+        except Exception:
             hwr_log.exception("Cannot testMacro")
 
 
@@ -32,8 +32,8 @@ class BeamtimeEnd:
             PrepareOpenHutch().__call__()
             cmd = self.get_command_object("beamtime_end")
             cmd(wait=True)
-        except Exception as ex:
-            hwr_log.exception("Cannot end beamtime. Error was {}".format(ex))
+        except Exception:
+            hwr_log.exception("Cannot end beamtime.")
 
 
 class BeamtimeStart:
@@ -44,8 +44,8 @@ class BeamtimeStart:
         try:
             cmd = self.get_command_object("beamtime_start")
             cmd(wait=True)
-        except Exception as ex:
-            hwr_log.error("Cannot start beamtime. Error was {}".format(ex))
+        except Exception:
+            hwr_log.exception("Cannot start beamtime.")
 
 
 class OpenBeamlineShutters:
@@ -56,7 +56,7 @@ class OpenBeamlineShutters:
         try:
             cmd = self.get_command_object("open_beamline_shutters")
             cmd(wait=True)
-        except Exception as ex:
+        except Exception:
             hwr_log.exception("Cannot open beamline shutters.")
 
 
@@ -69,7 +69,7 @@ class CloseSafetyShutter:
             hwr_log.info("Closing safety shutter")
             if HWR.beamline.safety_shutter.is_open:
                 HWR.beamline.safety_shutter.close()
-        except Exception as ex:
+        except Exception:
             hwr_log.exception("Could not close safety shutter")
 
 
@@ -82,7 +82,7 @@ class OpenSafetyShutter:
             hwr_log.info("Opening safety shutter")
             if HWR.beamline.safety_shutter.is_closed:
                 HWR.beamline.safety_shutter.open()
-        except Exception as ex:
+        except Exception:
             hwr_log.exception("Could not open safety shutter")
 
 
@@ -94,7 +94,7 @@ class CloseDetectorCover:
         try:
             hwr_log.info("Closing the detector cover")
             HWR.beamline.detector.cover.close()
-        except Exception as ex:
+        except Exception:
             hwr_log.exception("Could not close the detector cover.")
 
 
@@ -106,7 +106,7 @@ class OpenDetectorCover:
         try:
             hwr_log.info("Opening the detector cover")
             HWR.beamline.detector.cover.open()
-        except Exception as ex:
+        except Exception:
             hwr_log.exception("Could not open the detector cover.")
 
 
@@ -168,8 +168,6 @@ class SaveCentredPosition:
     """Save the current centered position of the beamline."""
 
     def __call__(self, *args, **kw):
-        hwr_log.info("Saving centered position.")
-
         hwr_log.info("Saving centered position...")
         HWR.beamline.diffractometer.save_centered_position()
 
