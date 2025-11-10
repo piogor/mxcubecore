@@ -76,7 +76,6 @@ class MICROMAXMD3(MAXIVMD3):
         exptime,
         vertical_range,
         horizontal_range,
-        nlines,
         columns,
         invert_direction=1,
         wait=False,
