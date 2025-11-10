@@ -431,13 +431,6 @@ class MICROMAXCollect(DataCollect):
                 osc_start += osc_range * nframes_per_trigger - overlap
             self.char = True
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
-            msg = "osc_start %s, nframes %s, osc_range %s num_lines %s" % (
-                osc_start,
-                nframes,
-                osc_range,
-                self.get_mesh_num_lines(),
-            )
-            self.log.info(msg)
             triggers_to_collect.append(
                 (osc_start, self.get_mesh_num_lines(), nframes, osc_range)
             )
