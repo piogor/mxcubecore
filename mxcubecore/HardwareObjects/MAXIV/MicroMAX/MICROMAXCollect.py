@@ -598,7 +598,6 @@ class MICROMAXCollect(DataCollect):
                 exptime,
                 range_y,  # vertical_range in mm,
                 range_x,  # horizontal_range in mm,
-                self.get_mesh_num_lines(),
                 self.get_mesh_total_nb_frames(),  # is in fact nframes per line
                 invert_direction=1,
                 wait=wait,
