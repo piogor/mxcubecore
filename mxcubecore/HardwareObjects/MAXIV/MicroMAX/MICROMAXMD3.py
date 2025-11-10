@@ -77,7 +77,7 @@ class MICROMAXMD3(MAXIVMD3):
         vertical_range,
         horizontal_range,
         nlines,
-        nframes,
+        columns,
         invert_direction=1,
         wait=False,
         table_pitch=1,
@@ -100,12 +100,11 @@ class MICROMAXMD3(MAXIVMD3):
         """
         self.log.info("MD3 raster oscillation requested")
         msg = "MD3 raster scan params:"
-        msg += " start: %s, end: %s, exptime: %s, range: %s, nframes: %s" % (
+        msg += " start: %s, end: %s, exptime: %s, range: %s" % (
             start,
             end,
             exptime,
             end - start,
-            nframes,
         )
         self.log.info(msg)
 
@@ -117,7 +116,7 @@ class MICROMAXMD3(MAXIVMD3):
         raster_params = "%0.5f\t%0.5f\t%i\t%i\t%i\t%i\t%i" % (
             vertical_range,
             horizontal_range,
-            nlines,
+            columns,
             1,
             invert_direction,
             table_pitch,
@@ -140,7 +139,7 @@ class MICROMAXMD3(MAXIVMD3):
 
         if wait:
             task_info = self.waitTaskResult(
-                task_id, timeout=DEFAULT_TASK_TIMEOUT + exptime * nlines
+                task_id, timeout=DEFAULT_TASK_TIMEOUT + exptime * columns
             )
             task_output, task_exception, task_result = task_info[4:7]
             if int(task_result) <= 0:  # either failed or aborted
