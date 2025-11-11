@@ -1,5 +1,4 @@
 import time
-from dataclasses import dataclass
 from typing import Callable
 
 import gevent
@@ -32,38 +31,6 @@ class MD3TaskFailed(Exception):
             f"MD3 {task_name} failed or aborted, output: {output} | "
             f"exception: {exception} | result: {result}"
         )
-
-
-@dataclass
-class _PositionBookmark:
-    """Used to record a hard-coded set of MD3 motor positions.
-
-    Used internally by save & restore bookmark feature.
-    """
-
-    phix: float
-    phiy: float
-    phiz: float
-    sample_x: float
-    sample_y: float
-
-    def as_motors_dict(self) -> dict[str, float]:
-        """Motor positions in a ```move_sync_motors()``` compatible format.
-
-        This bookmark in a format that can be used as an argument to
-        ```MAXIVMD3.move_sync_motors()``` method.
-        """
-        return {
-            "phix": self.phix,
-            "phiy": self.phiy,
-            "phiz": self.phiz,
-            "sampx": self.sample_x,
-            "sampy": self.sample_y,
-        }
-
-
-class NoPositionBookmarkedError(Exception):
-    pass
 
 
 class MAXIVMD3(GenericDiffractometer):
@@ -209,42 +176,6 @@ class MAXIVMD3(GenericDiffractometer):
         motors["focus"] = self.focus_motor_hwobj
 
         return motors
-
-    def bookmark_position(self):
-        """Bookmark current MD3 motor positions.
-
-        Remember current positions of following motors:
-
-          - AlignmentX
-          - AlignmentY
-          - AlignmentZ
-          - CentringX
-          - CentringY
-
-        The bookmark can be recalled via ```goto_bookmarked_position()``` method.
-        """
-        self._position_bookmark = _PositionBookmark(
-            self.phix_motor_hwobj.get_value(),  # AlignmentX
-            self.phiy_motor_hwobj.get_value(),  # AlignmentY
-            self.phiz_motor_hwobj.get_value(),  # AlignmentZ
-            self.sample_x_motor_hwobj.get_value(),  # CentringX
-            self.sample_y_motor_hwobj.get_value(),  # CentringY
-        )
-
-    def goto_bookmarked_position(self):
-        """Move MD3 motors to previously bookmarked position.
-
-        Move MD3 motors to positions previously bookmarked with
-        ```bookmark_position()``` method.
-
-        Raises:
-            NoPositionBookmarkedException: if no position have been
-                                           previously bookmarked
-        """
-        if self._position_bookmark is None:
-            raise NoPositionBookmarkedError
-
-        self.move_sync_motors(self._position_bookmark.as_motors_dict())
 
     def _emit_pixels_per_mm_changed(self):
         self.emit("pixelsPerMmChanged", (self.pixels_per_mm_x, self.pixels_per_mm_y))
