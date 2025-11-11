@@ -62,6 +62,13 @@ class MICROMAXMD3(MAXIVMD3):
             f"Beamstop not at 'BEAM' position, current position '{beamstop_position}'."
         )
 
+    def goto_centered_position(self):
+        """Move MD3 to centered position"""
+        self.wait_ready(10)
+
+        self.command_dict["setCentringTablePosition"]("centred")
+        self.command_dict["setAlignmentTablePosition"]("aligned")
+
     def raster_scan(
         self,
         start,

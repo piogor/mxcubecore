@@ -2,7 +2,6 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
-from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import NoPositionBookmarkedError
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline import SampleDelivery
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions import (
     MeasureFlux,
@@ -158,7 +157,7 @@ def test_save_md3_position():
         bl_action = SaveMD3Position()
         bl_action()
 
-    hwr.beamline.diffractometer.bookmark_position.assert_called_once()
+    hwr.beamline.diffractometer.save_centered_position.assert_called_once()
 
 
 def test_move_to_md3_saved_position_ok():
@@ -169,25 +168,4 @@ def test_move_to_md3_saved_position_ok():
         bl_action = MoveToMD3SavedPosition()
         bl_action()
 
-    hwr.beamline.diffractometer.goto_bookmarked_position.assert_called_once()
-
-
-def test_move_to_md3_saved_position_no_bookmark():
-    """Test running MoveToMD3SavedPosition when no bookmark exist."""
-
-    hwr = Mock()
-    hwr.beamline.diffractometer.goto_bookmarked_position.side_effect = (
-        NoPositionBookmarkedError
-    )
-
-    log = Mock()
-
-    with (
-        patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.HWR", hwr),
-        patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.log", log),
-    ):
-        bl_action = MoveToMD3SavedPosition()
-        bl_action()
-
-    hwr.beamline.diffractometer.goto_bookmarked_position.assert_called_once()
-    log.warning.assert_called_once_with("No MD3 position saved.")
+    hwr.beamline.diffractometer.goto_centered_position.assert_called_once()
