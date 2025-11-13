@@ -777,16 +777,10 @@ class MICROMAXCollect(DataCollect):
 
     def take_crystal_snapshots(self):
         if self.number_of_snapshots > 0:
-            # snapshot_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-            # save the image to the data collection directory for the moment
-            snapshot_directory = os.path.join(
-                self.current_dc_parameters["fileinfo"]["directory"], "snapshot"
-            )
-            if not os.path.exists(snapshot_directory):
-                try:
-                    self.create_directories(snapshot_directory)
-                except Exception:
-                    self.log.exception("Collection: Error creating snapshot directory")
+            snapshot_dirs = [
+                Path(self.current_dc_parameters["fileinfo"]["archive_directory"]),
+                Path(self.current_dc_parameters["fileinfo"]["directory"], "snapshot"),
+            ]
 
             self.user_log.info(
                 "Collection: Taking %d sample snapshot(s)" % self.number_of_snapshots
@@ -798,20 +792,26 @@ class MICROMAXCollect(DataCollect):
             # we want to take snapshots at centered position
             self.move_to_centered_position()
 
+            prefix = self.current_dc_parameters["fileinfo"]["prefix"]
+            run_number = self.current_dc_parameters["fileinfo"]["run_number"]
+
             for snapshot_index in range(self.number_of_snapshots):
                 snapshot_filename = os.path.join(
-                    snapshot_directory,
+                    snapshot_dirs[0],
                     "%s_%s_%s.snapshot.jpeg"
                     % (
-                        self.current_dc_parameters["fileinfo"]["prefix"],
-                        self.current_dc_parameters["fileinfo"]["run_number"],
+                        prefix,
+                        run_number,
                         (snapshot_index + 1),
                     ),
                 )
                 self.current_dc_parameters[
                     "xtalSnapshotFullPath%i" % (snapshot_index + 1)
                 ] = snapshot_filename
-                take_crystal_snapshot(snapshot_filename)
+
+                take_crystal_snapshot(
+                    snapshot_dirs, prefix, run_number, snapshot_index + 1
+                )
                 time.sleep(1)  # needed, otherwise will get the same images
                 if self.number_of_snapshots > 1:
                     self.diffractometer_hwobj.move_omega_relative(90)
