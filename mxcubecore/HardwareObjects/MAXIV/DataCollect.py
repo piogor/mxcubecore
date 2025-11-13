@@ -32,6 +32,8 @@ from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
 SAFETY_SHUTTER_TIMEOUT = 5.0
 # max time we wait for detector cover to open or close, in seconds
 DETECTOR_COVER_TIMEOUT = 10.0
+# max time to wait for MD3 to reach ready state
+MD3_READY_TIMEOUT = 10
 
 
 @dataclasses.dataclass
@@ -589,3 +591,14 @@ class DataCollect(AbstractCollect, HardwareObject):
                 exc.stdout,
             )
             raise
+
+    def move_to_centered_position(self) -> None:
+        """Extends move-to-centered operation with required MD3 waits"""
+
+        # wait until MD3 is ready for new commands
+        self.diffractometer_hwobj.wait_ready(MD3_READY_TIMEOUT)
+
+        super().move_to_centered_position()
+
+        # wait until MD3 is done with move commands
+        self.diffractometer_hwobj.wait_ready(MD3_READY_TIMEOUT)
