@@ -27,6 +27,7 @@ from mxcubecore.HardwareObjects.MAXIV.MicroMAX.pandabox import (
     Detectors,
     load_osc_schema,
 )
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.snapshots import take_crystal_snapshot
 from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 from mxcubecore.utils.units import um_to_mm
@@ -803,8 +804,7 @@ class MICROMAXCollect(DataCollect):
                 self.current_dc_parameters[
                     "xtalSnapshotFullPath%i" % (snapshot_index + 1)
                 ] = snapshot_filename
-                # self._do_take_snapshot(snapshot_filename)
-                self._take_crystal_snapshot(snapshot_filename)
+                take_crystal_snapshot(snapshot_filename)
                 time.sleep(1)  # needed, otherwise will get the same images
                 if self.number_of_snapshots > 1:
                     self.diffractometer_hwobj.move_omega_relative(90)
@@ -848,11 +848,6 @@ class MICROMAXCollect(DataCollect):
     def get_beam_shape(self):
         if self.beam_info_hwobj is not None:
             return self.beam_info_hwobj.get_beam_shape()
-
-    @task
-    def _take_crystal_snapshot(self, filename):
-        # take image from server
-        HWR.beamline.sample_view.camera.take_snapshot(filename)
 
     def set_detector_roi(self, value):
         """Set the detector ROI mode."""
