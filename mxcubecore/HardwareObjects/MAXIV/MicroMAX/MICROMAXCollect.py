@@ -10,6 +10,7 @@ import math
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any
 
 import gevent
@@ -30,6 +31,13 @@ from mxcubecore.HardwareObjects.MAXIV.MicroMAX.snapshots import take_crystal_sna
 from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 from mxcubecore.utils.units import um_to_mm
+
+#
+# The filename use by Albula running in 'auto-load' mode.
+# We use this file name to display 'live' diffraction images
+# of currently running data collection.
+#
+IMAGE_AUTOLOAD_FILE = "/mxn/groups/sw/mxsw/albula_autoload/to_display_micromax"
 
 
 class MICROMAXCollect(DataCollect):
@@ -489,7 +497,7 @@ class MICROMAXCollect(DataCollect):
                 osc_range,
             ) in self.triggers_to_collect:
                 osc_end = osc_start + osc_range * nframes_per_trigger
-                # self.display_task = gevent.spawn(self._update_image_to_display)
+                gevent.spawn(self._update_image_to_display)
                 self.progress_task = gevent.spawn(self._update_task_progress)
 
                 # Actual MD3 oscillation launched here
@@ -1261,7 +1269,6 @@ class MICROMAXCollect(DataCollect):
             self.detector_hwobj.pedestal()
 
     def _update_image_to_display(self):
-        fname1 = "/mxn/groups/sw/mxsw/albula_autoload/to_display"
         time.sleep(self.display["delay"] + 3)
         frequency = 5
         step = int(math.ceil(frequency / self.display["exp"]))
@@ -1269,9 +1276,12 @@ class MICROMAXCollect(DataCollect):
             frequency = self.display["exp"]
         for i in range(1, self.display["nimages"] + 1, step):
             try:
-                os.system("echo %s, %s > %s" % (self.display["file_name1"], i, fname1))
+                Path(IMAGE_AUTOLOAD_FILE).write_text(
+                    f"{self.display['file_name1']}, {i}\n"
+                )
             except Exception:
-                pass
+                self.log.exception("error updating %s file", IMAGE_AUTOLOAD_FILE)
+
             if self.stop_display:
                 break
             time.sleep(frequency)
