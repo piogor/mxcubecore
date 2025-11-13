@@ -789,7 +789,9 @@ class MICROMAXCollect(DataCollect):
             if self.diffractometer_hwobj.get_current_phase() != "Centring":
                 self.user_log.info("Moving Diffractometer to CentringPhase")
                 self.diffractometer_hwobj.set_phase("Centring")
-                self.move_to_centered_position()
+
+            # we want to take snapshots at centered position
+            self.move_to_centered_position()
 
             for snapshot_index in range(self.number_of_snapshots):
                 snapshot_filename = os.path.join(
