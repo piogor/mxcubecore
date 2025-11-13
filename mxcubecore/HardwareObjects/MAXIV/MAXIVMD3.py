@@ -415,6 +415,8 @@ class MAXIVMD3(GenericDiffractometer):
                     self.phi_motor_hwobj.set_value_relative(90)
         self.omega_reference_add_constraint()
         cpos = self.centring_hwobj.centeredPosition(return_by_name=False)
+        # so the default position during phase change is not too off
+        self.save_centered_position()
         return cpos
 
     def automatic_centring(self):
