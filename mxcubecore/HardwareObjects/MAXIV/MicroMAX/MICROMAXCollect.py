@@ -400,9 +400,7 @@ class MICROMAXCollect(DataCollect):
         self.flux_before_collect = 0  # self.get_instant_flux()
         self.estimated_flux_before_collect = 0  # self.get_estimated_flux()
 
-        self.diffractometer_hwobj.wait_ready(20)
         self.move_to_centered_position()
-        self.diffractometer_hwobj.wait_ready(20)
 
         self.log.info(
             "Updating data collection in LIMS with data: %s"
