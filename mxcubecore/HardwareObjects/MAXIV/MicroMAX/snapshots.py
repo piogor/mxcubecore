@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import cv2
 import numpy as np
 
@@ -61,14 +63,33 @@ def _add_overlay(img):
     cv2.circle(img, (x, y), radius, (255, 0, 255), 2)
 
 
+def _write_snapshot_jpegs(
+    image, snapshot_dirs: list[Path], file_prefix, run_number, snapshot_index
+):
+    """Write snapshot image as jpeg files to disk.
+
+    Write provided `image` as jpeg file into all specified `snapshot_dirs`.
+    """
+    filename = f"{file_prefix}_{run_number}_{snapshot_index}.snapshot.jpeg"
+
+    for snapshot_dir in snapshot_dirs:
+        snapshot_dir.mkdir(parents=True, exist_ok=True)
+        cv2.imwrite(Path(snapshot_dir, filename), image)
+
+
 @task
-def take_crystal_snapshot(snapshot_filename: str):
+def take_crystal_snapshot(
+    snapshot_dirs: list[Path], file_prefix, run_number, snapshot_index
+):
     """Take crystal snapshot and write it to disk.
 
+    Supports writing same crystal snapshot into multiple directories.
+
     Args:
-        snapshot_filename: full file path where to write snapshot image
+        snapshot_dirs: directories where to write snapshot jpegs
+        file_prefix: jpeg filename prefix
+        run_number: data-collection run number
     """
     img = _load_image()
     _add_overlay(img)
-
-    cv2.imwrite(snapshot_filename, img)
+    _write_snapshot_jpegs(img, snapshot_dirs, file_prefix, run_number, snapshot_index)
