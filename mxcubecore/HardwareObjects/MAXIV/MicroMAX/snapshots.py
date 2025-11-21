@@ -10,6 +10,10 @@ BEAM_CENTER_SIZE = 10
 BEAM_CENTER_COLOR = (255, 255, 0)
 BEAM_CENTER_THICKNESS = 2
 
+SCALE_BAR_COLOR = (255, 255, 0)
+SCALE_BAR_THICKNESS = 4
+SCALE_BAR_MARGIN_PX = 10
+
 
 def _load_image():
     # get image as numpy array
@@ -24,8 +28,13 @@ def _load_image():
 def _add_overlay(img):
     """Poor man's overlay implementation.
 
-    Hard-coded routines to add image center crosshair and
-    beam-size circle to an image.
+    Hard-coded routines to add image overlays.
+
+    Adds overlays for:
+
+      - image center crosshair
+      - beam-size circle
+      - scale bar
     """
     diffractometer = HWR.beamline.diffractometer
 
@@ -61,6 +70,51 @@ def _add_overlay(img):
     beam_size_x, beam_size_y = HWR.beamline.beam.get_beam_size()
     radius = int(beam_size_x * px / 2.0)
     cv2.circle(img, (x, y), radius, (255, 0, 255), 2)
+
+    #
+    # draw scale bar
+    #
+    scale_bar_x_length_px = int(px * 50 / 1000)
+    scale_bar_y_length_px = int(py * 50 / 1000)
+    img_height, img_width, _ = img.shape
+
+    cv2.putText(
+        img,
+        "50um",
+        (SCALE_BAR_MARGIN_PX + 10, img_height - SCALE_BAR_MARGIN_PX - 10),
+        cv2.FONT_HERSHEY_SIMPLEX,
+        1,
+        SCALE_BAR_COLOR,
+        2,
+    )
+
+    # horizontal line
+    horizontal_scale_start = SCALE_BAR_MARGIN_PX, img_height - SCALE_BAR_MARGIN_PX
+    horizontal_scale_end = (
+        SCALE_BAR_MARGIN_PX + scale_bar_x_length_px,
+        img_height - SCALE_BAR_MARGIN_PX,
+    )
+    cv2.line(
+        img,
+        horizontal_scale_start,
+        horizontal_scale_end,
+        SCALE_BAR_COLOR,
+        SCALE_BAR_THICKNESS,
+    )
+
+    # vertical line
+    vertical_scale_start = (
+        SCALE_BAR_MARGIN_PX,
+        img_height - SCALE_BAR_MARGIN_PX - scale_bar_y_length_px,
+    )
+    vertical_scale_end = horizontal_scale_start
+    cv2.line(
+        img,
+        vertical_scale_start,
+        vertical_scale_end,
+        SCALE_BAR_COLOR,
+        SCALE_BAR_THICKNESS,
+    )
 
 
 def _write_snapshot_jpegs(
