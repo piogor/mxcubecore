@@ -1,3 +1,5 @@
+import time
+
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.ISARA import ATTRIBUTE_POLLING, ISARA
 from mxcubecore.utils.tango import add_attribute_channel
@@ -15,6 +17,11 @@ MD3_READY_TIMEOUT = 200
 # Error message shown to the user on 'empty mount' errors
 #
 EMPTY_MOUNT_USER_MSG = "No sample detected at requested position"
+
+#
+# Number of seconds to wait for the tool to cool down
+#
+WAIT_IN_SOAK_TIME = 30
 
 
 def _is_empty_mount_message(message: str) -> bool:
@@ -55,6 +62,31 @@ class Isara(ISARA):
         # tell the user about the 'empty mount' situation
         self.user_log.error(EMPTY_MOUNT_USER_MSG)
         self.user_log.critical(EMPTY_MOUNT_USER_MSG)
+
+    def _maybe_move_to_soak(self):
+        """Isara2 specific 'move to soak' routine.
+
+        Extends 'move to soak' before mounting routine with Isara2
+        specific behaviour.
+
+        Compared to Isara1, Isara2 does not automatically wait in SOAK,
+        until the tool is cooled. Implement this waiting here instead.
+        """
+        was_in_soak = self._is_in_soak_position()
+        super()._maybe_move_to_soak()
+
+        if not was_in_soak:
+            #
+            # If we needed to move SOAK position,
+            # assume that the tool is warm.
+            # Keep the tool in SOAK for a while,
+            # to make sure it had time to cool down.
+            #
+            self.log.info(
+                "Waiting %s seconds in SOAK to cool down the tool", WAIT_IN_SOAK_TIME
+            )
+            time.sleep(WAIT_IN_SOAK_TIME)
+            self.log.info("Done with tool cooling, proceeding")
 
     def _prepare_sample_operation(self):
         # First we check if the diffractometer is in the ready State.
