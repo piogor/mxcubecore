@@ -43,10 +43,8 @@ class SciCatPlugin:
     def start_scan(self, proposalId, parameters):
         directory = parameters["fileinfo"]["directory"]
         filename = parameters["fileinfo"]["template"]
-        num_files = int(
-            math.ceil(
-                parameters["oscillation_sequence"][0]["number_of_images"] / 100.0,
-            ),
+        num_files = math.ceil(
+            parameters["oscillation_sequence"][0]["number_of_images"] / 1000,
         )
         sample_id = parameters["blSampleId"]
 
