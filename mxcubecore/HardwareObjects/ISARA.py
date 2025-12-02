@@ -53,6 +53,25 @@ POWER_ON_TIMEOUT = 30
 GOTO_SOAK_TIMEOUT = 45
 
 
+def _sample_puck_pin(sample) -> tuple[int, int]:
+    """Unpack sample response from tango device.
+
+    When reading Sample attributes from tango device, we get:
+
+      [puck_number, pin_number] - if sample is mounted
+      [] - if no sample is mounted
+
+    Convert this to a tuple (puck_number, pin_number). Where we
+    use (-1, -1) to represent 'no sample' value.
+    """
+    if len(sample) == 0:
+        # no sample mounted
+        return -1, -1
+
+    puck, pin = sample
+    return puck, pin
+
+
 class ISARA(SampleChanger):
     """
 
@@ -143,12 +162,6 @@ class ISARA(SampleChanger):
         self._chnPathSafe = add_attribute_channel(
             self, self.tangoname, "PathSafe", ATTRIBUTE_POLLING
         )
-        self._chnNumLoadedSample = add_attribute_channel(
-            self, self.tangoname, "SampleNumberOnDiff", ATTRIBUTE_POLLING
-        )
-        self._chnPuckLoadedSample = add_attribute_channel(
-            self, self.tangoname, "PuckNumberOnDiff", ATTRIBUTE_POLLING
-        )
         self._chnSampleIsDetected = add_attribute_channel(
             self, self.tangoname, "SampleDetectedOnGonio", ATTRIBUTE_POLLING
         )
@@ -160,12 +173,18 @@ class ISARA(SampleChanger):
             self, self.tangoname, "PositionName"
         )
 
+        self._sample_on_diff = add_attribute_channel(
+            self,
+            self.tangoname,
+            "SampleOnDiff",
+            ATTRIBUTE_POLLING,
+            self._sample_on_diff_changed,
+        )
+
         self._chnState.connect_signal("update", self.cats_state_changed)
         self._chnPathRunning.connect_signal("update", self.cats_pathrunning_changed)
         self._chnPowered.connect_signal("update", self.cats_powered_changed)
         self._chnPathSafe.connect_signal("update", self.cats_pathsafe_changed)
-        self._chnPuckLoadedSample.connect_signal("update", self.cats_loaded_lid_changed)
-        self._chnNumLoadedSample.connect_signal("update", self.cats_loaded_num_changed)
 
     def _create_tango_commands(self):
         """Create tango command objects."""
@@ -441,9 +460,7 @@ class ISARA(SampleChanger):
         if sample_slot is not None:
             self._do_select(sample_slot)
 
-        loaded_lid = self._chnPuckLoadedSample.get_value()
-
-        if loaded_lid == -1:
+        if self._get_sample_on_diff() == (-1, -1):
             self.log.warning("unload sample, no sample mounted detected")
             return
 
@@ -512,15 +529,13 @@ class ISARA(SampleChanger):
         self._update_cats_contents()
         self._update_loaded_sample()
 
-    def cats_loaded_lid_changed(self, value):
-        cats_loaded_lid = value
-        cats_loaded_num = self._chnNumLoadedSample.get_value()
-        self._update_loaded_sample(cats_loaded_num, cats_loaded_lid)
+    def _get_sample_on_diff(self) -> tuple[int, int]:
+        sample = self._sample_on_diff.get_value()
+        return _sample_puck_pin(sample)
 
-    def cats_loaded_num_changed(self, value):
-        cats_loaded_lid = self._chnPuckLoadedSample.get_value()
-        cats_loaded_num = value
-        self._update_loaded_sample(cats_loaded_num, cats_loaded_lid)
+    def _sample_on_diff_changed(self, sample):
+        puck, pin = _sample_puck_pin(sample)
+        self._update_loaded_sample(pin, puck)
 
     def cats_sample_on_diffr(self):
         detected = self._chnSampleIsDetected.get_value()
@@ -723,8 +738,7 @@ class ISARA(SampleChanger):
 
     def _update_loaded_sample(self, sample_num=None, lid=None):
         if None in [sample_num, lid]:
-            loadedSampleNum = self._chnNumLoadedSample.get_value()
-            loadedSamplePuck = self._chnPuckLoadedSample.get_value()
+            loadedSamplePuck, loadedSampleNum = self._get_sample_on_diff()
         else:
             loadedSampleNum = sample_num
             loadedSamplePuck = lid

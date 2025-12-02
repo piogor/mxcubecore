@@ -514,7 +514,6 @@ convention = "google"
     "FBT003",
     "FIX004",
     "N806",
-    "N999",
     "PERF401",
     "PLR5501",
     "RET504",
@@ -523,7 +522,6 @@ convention = "google"
     "SIM108",
     "SLF001",
     "TRY002",
-    "TRY003",
 ]
 "mxcubecore/HardwareObjects/ISARAMaint.py" = [
     "B904",
