@@ -1,4 +1,6 @@
 import logging
+import math
+from dataclasses import dataclass
 
 from tango import DeviceProxy
 
@@ -125,3 +127,76 @@ class EmptyMount:
         isara.execute_command("Reset")
 
         log.info("Recovery sequence completed.")
+
+
+#
+# Chip alignment beamline actions.
+#
+# Allows to align a chip orthogonal to the beam,
+# by visually adjusting focus for each side of
+# the chip.
+#
+
+
+@dataclass
+class _ChipMotorPosition:
+    """MD3 motor position used for chip alignment."""
+
+    phiz: float
+    focus: float
+
+
+def _get_chip_motor_pos():
+    """Read motor position relevant for chip alignment."""
+
+    diff = HWR.beamline.diffractometer
+
+    phiz = diff.phiz_motor_hwobj.get_value()
+    focus = diff.focus_motor_hwobj.get_value()
+
+    return _ChipMotorPosition(phiz, focus)
+
+
+def _calc_omega_diff(start: _ChipMotorPosition, finish: _ChipMotorPosition) -> float:
+    return math.atan2(start.focus - finish.focus, start.phiz - finish.phiz) * (
+        180.0 / math.pi
+    )
+
+
+class StartChipAlignment:
+    """Start the Chip alignment procedure."""
+
+    Position = None
+
+    def __call__(self):
+        # save current motor positions
+        StartChipAlignment.Position = _get_chip_motor_pos()
+        log.info("Chip alignment start position recorded.")
+
+
+class FinishChipAlignment:
+    """Finish the Chip alignment procedure.
+
+    This beamline action requires that 'start alignment' action have been run.
+    """
+
+    def __call__(self):
+        if StartChipAlignment.Position is None:
+            log.warning("No alignment start position available.")
+            return
+
+        diff = HWR.beamline.diffractometer
+
+        # calculate how much omega angle need change, to align the chip
+        omega_diff = _calc_omega_diff(
+            StartChipAlignment.Position, _get_chip_motor_pos()
+        )
+
+        # rotate the chip along the omega axis
+        curr_omega = diff.phi_motor_hwobj.get_value()
+        diff.phi_motor_hwobj.set_value(curr_omega - omega_diff)
+
+        log.info("Adjusted Omega angle with %d degrees.", omega_diff)
+
+        # reset 'start' position, so it's not re-used by mistake
+        StartChipAlignment.Position = None
