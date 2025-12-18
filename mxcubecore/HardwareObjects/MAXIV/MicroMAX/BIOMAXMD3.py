@@ -1,8 +1,9 @@
 import time
-from dataclasses import dataclass
 from typing import Callable
 
 import gevent
+import numpy as np
+from loopfinder.motion import CentringNavigator
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.ExporterMotor import ExporterMotor
@@ -32,38 +33,6 @@ class MD3TaskFailed(Exception):
             f"MD3 {task_name} failed or aborted, output: {output} | "
             f"exception: {exception} | result: {result}"
         )
-
-
-@dataclass
-class _PositionBookmark:
-    """Used to record a hard-coded set of MD3 motor positions.
-
-    Used internally by save & restore bookmark feature.
-    """
-
-    phix: float
-    phiy: float
-    phiz: float
-    sample_x: float
-    sample_y: float
-
-    def as_motors_dict(self) -> dict[str, float]:
-        """Motor positions in a ```move_sync_motors()``` compatible format.
-
-        This bookmark in a format that can be used as an argument to
-        ```MAXIVMD3.move_sync_motors()``` method.
-        """
-        return {
-            "phix": self.phix,
-            "phiy": self.phiy,
-            "phiz": self.phiz,
-            "sampx": self.sample_x,
-            "sampy": self.sample_y,
-        }
-
-
-class NoPositionBookmarkedError(Exception):
-    pass
 
 
 class MAXIVMD3(GenericDiffractometer):
@@ -96,11 +65,13 @@ class MAXIVMD3(GenericDiffractometer):
     def centring_hwobj(self):
         if self._centring is None:
             #
-            # Due to circular dependency between CentringMath and MD3 hardware objects,
-            # we need to load reference to CentringMath object lazily on first usage.
+            # Due to circular dependency between CentringMath and MD3 hardware
+            # objects, we need to load reference to CentringMath object lazily
+            # on first usage.
             #
-            # MD3 must be created before CentringMath, as it loads references to its motors,
-            # thus CentringMath object does not exist when executing MAXIVMD3.init() method.
+            # MD3 must be created before CentringMath, as it loads references to
+            # its motors, thus CentringMath object does not exist when executing
+            # MAXIVMD3.init() method.
             #
             self._centring = HWR.beamline.get_object_by_role("centring")
 
@@ -207,42 +178,6 @@ class MAXIVMD3(GenericDiffractometer):
         motors["focus"] = self.focus_motor_hwobj
 
         return motors
-
-    def bookmark_position(self):
-        """Bookmark current MD3 motor positions.
-
-        Remember current positions of following motors:
-
-          - AlignmentX
-          - AlignmentY
-          - AlignmentZ
-          - CentringX
-          - CentringY
-
-        The bookmark can be recalled via ```goto_bookmarked_position()``` method.
-        """
-        self._position_bookmark = _PositionBookmark(
-            self.phix_motor_hwobj.get_value(),  # AlignmentX
-            self.phiy_motor_hwobj.get_value(),  # AlignmentY
-            self.phiz_motor_hwobj.get_value(),  # AlignmentZ
-            self.sample_x_motor_hwobj.get_value(),  # CentringX
-            self.sample_y_motor_hwobj.get_value(),  # CentringY
-        )
-
-    def goto_bookmarked_position(self):
-        """Move MD3 motors to previously bookmarked position.
-
-        Move MD3 motors to positions previously bookmarked with
-        ```bookmark_position()``` method.
-
-        Raises:
-            NoPositionBookmarkedException: if no position have been previously bookmarked
-
-        """
-        if self._position_bookmark is None:
-            raise NoPositionBookmarkedError
-
-        self.move_sync_motors(self._position_bookmark.as_motors_dict())
 
     def _emit_pixels_per_mm_changed(self):
         self.emit("pixelsPerMmChanged", (self.pixels_per_mm_x, self.pixels_per_mm_y))
@@ -486,93 +421,146 @@ class MAXIVMD3(GenericDiffractometer):
         self.save_centered_position()
         return cpos
 
-    def automatic_centring(self):
-        self.wait_device_ready(10)
+    def wait_for_stable_backlight(
+        self, interval=0.1, timeout=10, tolerance=1.0
+    ) -> bool:
+        """
+        Wait until probe_signal() returns roughly the same value (within
+        tolerance) 3 times in a row with `interval` seconds in between.
+        returns false if the timeout ran out before the light could settle.
+        """
+        streak = []
+        time_start = time.time()
+        while time.time() < time_start + timeout:
+            brightness = np.array(HWR.beamline.sample_view.take_snapshot()).mean()
+            streak.append(brightness)
+            self.log.debug("backlight streak: %s", streak)
+            if len(streak) > 1 and abs(streak[-1] - streak[-2]) > tolerance:
+                streak = []  # broke the streak
+            if len(streak) >= 3:
+                return True
+            time.sleep(interval)
+        self.log.warning(
+            "waiting for stable light timed out! The streak was %s", streak
+        )
+        return False
+
+    def centring_navigator(self, tolerance_mm: float) -> CentringNavigator:
+        """Returns the approperiate centring navigator for this beamline"""
+        raise NotImplementedError("needs to be implemented for each beamline")
+
+    def center_loop(self, patience: int = 100, tolerance_mm: float = 0.05) -> bool:
+        """
+        Uses Loopfinder to iteratively find the loop tip.
+        Tuned to special lighting conditions. see self.automatic_centring().
+        Parameters:
+            patience: how many steps it will take before giving up
+            tolerance_mm: acceptable distance from center.
+                higher => faster centering, lower precision
+        Returns:
+            True on success, False if it ran out of patience.
+        """
+
+        nav = self.centring_navigator(tolerance_mm)
+        self.log.info(
+            "navigator tolerance: %s, target: %s", nav.tolerance, nav.target_coordinates
+        )
+        for i in range(patience):
+            self.wait_device_ready(20)
+            img = np.array(HWR.beamline.sample_view.take_snapshot())
+            step = nav.next_step(img)
+            self.log.info(f"step {i}/{patience} - {step}")
+            if step.finished():
+                return True
+            if step.rotate:
+                self.phi_motor_hwobj.set_value_relative(step.rotate)
+                self.wait_device_ready(20)
+            if step.x_to_center and step.y_to_center:
+                target_pos = self.get_centred_point_from_coord(
+                    step.x_to_center, step.y_to_center, return_by_names=True
+                )
+                inside_cryo = -4.0 < target_pos["sampy"] < 4.0
+                if not inside_cryo:
+                    self.log.error(
+                        """
+                        Hi, The loopfinder navigator wants to move the sample to a
+                        position outside the cryo beam, which I guess would not be
+                        ideal for your sample. This would only happen if something is
+                        very wrong, Like if there is no pin at all, or the pin is
+                        freakishly long. Please check if something is physically wrong.
+                        If not, the loopfinder might have mistakenly found an edge in
+                        the background and thinks it's the loop. Is the zoom level or
+                        backlight in an unexpected state? If the environment variable
+                        LOOPFINDER_DIAGNOSTICS_PATH is set, you can check if you have a
+                        background edge by looking at the latest diagnostic images
+                        there. If you have a background edge, find out if the background
+                        has changed for some reason, and if that change was intended,
+                        either adjust the backlight or whatever is causing the edge,
+                        or adjust the min_sharpness threshold on the
+                        CentringNavigator's segmentor.
+                        Godspeed.
+
+                         / Isak L
+                        """
+                    )
+                    return False
+
+                self.move_to_beam(step.x_to_center, step.y_to_center)
+                self.wait_device_ready(20)
+        self.log.debug(
+            f"center_loop ran out of patience ({patience}). Maybe increase tolerance?"
+        )
+        return False
+
+    def get_center_pos(self) -> dict:
+        """
+        Returns the current motor positions except for zoom level.
+        Used for loop centering
+        """
+        cpos = self.get_positions()
+        cpos.pop("zoom", None)
+        return cpos
+
+    def automatic_centring(self) -> dict:
+        """
+        Performs automatic loop centering and sets up all the prerequisites
+        for the centering to work. Returns a 3d point on the centered position.
+        """
+        self.wait_device_ready(20)
+
         # move MD3 to Centring phase if it's not
         if self.get_current_phase() != "Centring":
             self.user_log.info(
                 "Moving Diffractometer to Centring for automatic_centring"
             )
             self.set_phase("Centring", wait=True, timeout=200)
-        # wait shortly to make sure the camera exposure time is set for the right phase
-        time.sleep(1)
-        centred_pos = self.do_automatic_centring(2)
-        self.zoom_motor_hwobj.move_to_position("Zoom 4")
-        self.wait_device_ready(3)
-        return centred_pos
 
-    def do_automatic_centring(self, cycle=3):
-        """Automatic centring procedure. Rotates n times and executes
-        centring algorithm. Optimal scan position is detected.
-        """
-        time_out = 3
-        # check if loop is there at the beginning
-        i = 0
-        while -1 in self.find_loop():
-            self.phi_motor_hwobj.set_value_relative(90)
-            self.wait_ready(time_out)
-            i += 1
-            if i > 4:
-                self.emit_progress_message("No loop detected, aborting")
-                return
+        # This loop centring algorithm expects specific conditions.
+        # In particular, it expects specific lighting conditions.
+        # Back light should be on with factor 1, front light should be off.
+        # Zoom level should be 1.
 
-        for k in range(cycle):
-            self.emit_progress_message("Doing automatic centring")
-            surface_score_list = []
-            self.centring_hwobj.initCentringProcedure()
-            for a in range(3):
-                x, y, score = self.find_loop()
-                if x < 0 or y < 0:
-                    for i in range(1, 6):
-                        self.phi_motor_hwobj.set_value_relative(15)
-                        self.wait_ready(time_out)
-                        x, y, score = self.find_loop()
-                        surface_score_list.append(score)
-                        if -1 in (x, y):
-                            continue
-                        if y >= 0:
-                            if x < self.image_width / 2:
-                                x = 0
-                                self.centring_hwobj.appendCentringDataPoint(
-                                    {
-                                        "X": (x - self.beam_position[0])
-                                        / self.pixels_per_mm_x,
-                                        "Y": (y - self.beam_position[1])
-                                        / self.pixels_per_mm_y,
-                                    }
-                                )
-                                break
-                            else:
-                                x = self.image_width
-                                self.centring_hwobj.appendCentringDataPoint(
-                                    {
-                                        "X": (x - self.beam_position[0])
-                                        / self.pixels_per_mm_x,
-                                        "Y": (y - self.beam_position[1])
-                                        / self.pixels_per_mm_y,
-                                    }
-                                )
-                                break
-                    if -1 in (x, y):
-                        raise RuntimeError("Could not centre sample automatically.")
-                    self.phi_motor_hwobj.set_value_relative(-i * 15)
-                    self.wait_ready(time_out)
-                else:
-                    self.centring_hwobj.appendCentringDataPoint(
-                        {
-                            "X": (x - self.beam_position[0]) / self.pixels_per_mm_x,
-                            "Y": (y - self.beam_position[1]) / self.pixels_per_mm_y,
-                        }
-                    )
-                self.phi_motor_hwobj.set_value_relative(90)
-                self.wait_ready(time_out)
+        # Switch off front light:
+        self.front_light_switch.set_value(self.front_light_switch.VALUES.OUT)
 
-            self.omega_reference_add_constraint()
-            centred_pos = self.centring_hwobj.centeredPosition(return_by_name=False)
-            if k < 2:
-                self.move_to_centred_position(centred_pos)
-                self.wait_ready(time_out)
-        return centred_pos
+        # Switch on back light with factor 1:
+        self.back_light_switch.set_value(self.back_light_switch.VALUES.IN)
+        self.back_light.set_value(1)
+
+        # Set zoom level 1:
+        self.zoom_motor_hwobj.set_value(self.zoom_motor_hwobj.VALUES.LEVEL1)
+        self.wait_device_ready(20)
+
+        self.omega_reference_motor.set_value(self.omega_reference_par["position"])
+
+        self.wait_for_stable_backlight()
+        self.wait_device_ready(20)
+
+        success = self.center_loop()
+        if not success:
+            self.user_log.error("Automatic loop centering failed!")
+
+        return self.get_center_pos()
 
     def omega_reference_add_constraint(self):
         if self.omega_reference_par is None or self.beam_position is None:
@@ -747,11 +735,15 @@ class MAXIVMD3(GenericDiffractometer):
         invert_direction=1,
         wait=False,
     ):
-        """
+        """Perform a raster scan.
+
         raster_scan: snake scan by default
         start, end, exptime are the parameters per line
-        Note: vertical_range and horizontal_range unit is mm, a test value could be 0.1,0.1
-        example, raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)
+
+        Note: vertical_range and horizontal_range unit is mm,
+        a test value could be 0.1, 0.1 for example
+
+          ``raster_scan(20, 22, 5, 0.1, 0.1, 10, 10)``
         """
         self.log.info("MD3 raster oscillation requested")
         msg = "MD3 raster scan params:"
@@ -861,7 +853,8 @@ class MAXIVMD3(GenericDiffractometer):
                 Given in seconds.
         Raises:
             Timeout: if the move operation does not finish within the timeout.
-            TimeoutError: if the MD3 command does not finish within it's internal timeout.
+            TimeoutError: if the MD3 command does not finish
+                          within it's internal timeout.
         """
         self.move_sync_motors(motor_positions, wait=True, timeout=timeout)
 
@@ -884,7 +877,8 @@ class MAXIVMD3(GenericDiffractometer):
 
         Raises:
             Timeout: if the move operation does not finish within the timeout.
-            TimeoutError: if the MD3 command does not finish within its internal timeout.
+            TimeoutError: if the MD3 command does not finish
+                          within its internal timeout.
         """
         motor_positions.pop("zoom", None)
         motor_positions.pop("focus", None)
@@ -904,9 +898,10 @@ class MAXIVMD3(GenericDiffractometer):
         if not argin:
             return
         self.wait_ready(2000)
-        self.command_dict["startSimultaneousMoveMotors"](argin)
+        task_id = self.command_dict["startSimultaneousMoveMotors"](argin)
         if wait:
-            self.wait_ready(timeout)
+            self.log.debug("move_sync_motors, waiting for task %s", task_id)
+            self.waitTaskResult(task_id, timeout=timeout)
 
     def get_centred_point_from_coord(self, x, y, return_by_names=None):
         self.centring_hwobj.initCentringProcedure()
@@ -932,8 +927,9 @@ class MAXIVMD3(GenericDiffractometer):
         return pos
 
     def abort(self):
-        """
-        Stops all the pending tasks, stops all the motors and closes all theirs control loop.
+        """Abort all the pending tasks.
+
+        Stops all the motors and closes all theirs control loops.
         """
         self.log.warning("aborting tasks")
         self.command_dict["abort"]()
@@ -963,7 +959,7 @@ class MAXIVMD3(GenericDiffractometer):
             DiffractometerState.Ready
         )
 
-    def get_positions(self):
+    def get_positions(self) -> dict:
         return {
             "phi": float(self.phi_motor_hwobj.get_value()),
             "focus": float(self.focus_motor_hwobj.get_value()),
