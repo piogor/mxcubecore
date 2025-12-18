@@ -477,9 +477,9 @@ class MAXIVMD3(GenericDiffractometer):
                 self.wait_device_ready(20)
             if step.x_to_center and step.y_to_center:
                 target_pos = self.get_centred_point_from_coord(
-                    step.x_to_center, step.y_to_center
+                    step.x_to_center, step.y_to_center, return_by_names=True
                 )
-                inside_cryo = -4.0 < target_pos["Y"] < 4.0
+                inside_cryo = -4.0 < target_pos["sampy"] < 4.0
                 if not inside_cryo:
                     self.log.error(
                         """
