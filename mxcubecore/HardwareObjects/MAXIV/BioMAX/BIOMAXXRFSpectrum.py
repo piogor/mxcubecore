@@ -115,6 +115,8 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
         self.xspress3.nFramesPerTrigger = 1
         # saving attributes
         self.xspress3.WriteHdf5 = True
+        # overwrite frames
+        self.xspress3.DestinationFileOverwritable = True
         # save the image at the user directory
         self.xspress3.DestinationFileName = self.spectrum_info_dict["filename"]
 
