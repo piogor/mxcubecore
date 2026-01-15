@@ -64,6 +64,8 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
         self.transmission_hwobj = None
         self.safety_shutter_hwobj = None
 
+        self._overwrite_spectra = False
+
         self.chan_spectrum_status = None
         self.chan_spectrum_consts = None
         self.cmd_spectrum_start = None
@@ -72,6 +74,8 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
 
     def init(self):
         super().init()
+
+        self._overwrite_spectra = self.get_property("overwrite_spectra", False)
 
         self.ready_event = gevent.event.Event()
 
@@ -116,7 +120,8 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
         # saving attributes
         self.xspress3.WriteHdf5 = True
         # overwrite frames
-        self.xspress3.DestinationFileOverwritable = True
+        if self._overwrite_spectra:
+            self.xspress3.DestinationFileOverwritable = True
         # save the image at the user directory
         self.xspress3.DestinationFileName = self.spectrum_info_dict["filename"]
 
@@ -396,7 +401,7 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
             filename = self.spectrum_info_dict["scanFileFullPath"]
             logging.getLogger("HWR").info("Reading data from {}".format(filename))
 
-            with gevent.Timeout(15, Exception("Timeout waiting for file")):
+            with gevent.Timeout(35, Exception("Timeout waiting for file")):
                 while not os.path.exists(filename):
                     gevent.sleep(1.0)
                     # we're just tickling the filesystem
