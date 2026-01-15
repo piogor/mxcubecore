@@ -83,7 +83,10 @@ class MachInfo(AbstractMachineInfo):
 
     @catch_errors
     def get_current(self) -> str:
-        current = A_to_mA(self.mach_curr.Current)
+        if hasattr(self.mach_curr, "current"):
+            current = A_to_mA(self.mach_curr.current)
+        else:
+            current = A_to_mA(self.mach_curr.R3Current)
         return f"{current:.2f} mA"
 
     @catch_errors
@@ -96,7 +99,10 @@ class MachInfo(AbstractMachineInfo):
 
     @catch_errors
     def get_lifetime(self) -> str:
-        lifetime = self.mach_curr.Lifetime
+        if hasattr(self.mach_curr, "lifetime"):
+            lifetime = self.mach_curr.lifetime
+        else:
+            lifetime = self.mach_curr.R3Lifetime
         if math.isnan(lifetime):
             return "n/a"
 
