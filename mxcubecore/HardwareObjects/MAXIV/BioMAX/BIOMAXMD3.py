@@ -20,7 +20,7 @@ class BIOMAXMD3(MAXIVMD3):
         self.plate_row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
         self.head_type = self.channel_dict["HeadType"].get_value()
 
-    def wait_stable_loop(self, wait_time: int) -> None:
+    def wait_stable_loop(self, wait_time: int = 10) -> None:
         self.user_log.info("Waiting for loop to be stable...")
         img_bef = HWR.beamline.sample_view.get_snapshot(return_as_array=True)
         timer = 0
