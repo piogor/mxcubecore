@@ -1,3 +1,4 @@
+import ast
 import time
 from typing import Callable
 
@@ -152,7 +153,9 @@ class MAXIVMD3(GenericDiffractometer):
             self.log.debug("Cannot set sc mode, use_sc: %s", use_sc)
 
         try:
-            self.omega_reference_par = eval(self.get_property("omega_reference"))
+            self.omega_reference_par = self.get_property("omega_reference")
+            if isinstance(self.omega_reference_par, str):
+                self.omega_reference_par = ast.literal_eval(self.omega_reference_par)
             self.omega_reference_motor = self.get_object_by_role(
                 self.omega_reference_par["motor_name"]
             )
