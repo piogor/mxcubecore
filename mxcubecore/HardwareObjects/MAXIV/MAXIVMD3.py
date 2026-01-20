@@ -52,8 +52,6 @@ class MAXIVMD3(GenericDiffractometer):
         "zoom": "Zoom",
     }
 
-    AUTOMATIC_CENTRING_IMAGES = 6
-
     def __init__(self, name):
         GenericDiffractometer.__init__(self, name=name)
         # Compatibility line
@@ -477,6 +475,9 @@ class MAXIVMD3(GenericDiffractometer):
                 return True
             if step.rotate:
                 self.phi_motor_hwobj.set_value_relative(step.rotate)
+                self.move_sync_motors(
+                    {"phi": self.phi_motor_hwobj.get_value() + step.rotate}
+                )
                 self.wait_device_ready(20)
             if step.x_to_center and step.y_to_center:
                 target_pos = self.get_centred_point_from_coord(
@@ -507,8 +508,10 @@ class MAXIVMD3(GenericDiffractometer):
                         """
                     )
                     return False
-
-                self.move_to_beam(step.x_to_center, step.y_to_center)
+                relevant_motorpos = {
+                    k: target_pos[k] for k in ["sampx", "sampy", "phiy"]
+                }
+                self.move_sync_motors(relevant_motorpos, wait=True)
                 self.wait_device_ready(20)
         self.log.debug(
             f"center_loop ran out of patience ({patience}). Maybe increase tolerance?"
