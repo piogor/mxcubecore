@@ -1,3 +1,4 @@
+import ast
 import time
 
 import cv2
@@ -18,7 +19,7 @@ class BIOMAXMD3(MAXIVMD3):
 
         self.zoom_centre = self.get_property("zoom_centre")
         if isinstance(self.zoom_centre, str):
-            self.zoom_centre = eval(self.zoom_centre)
+            self.zoom_centre = ast.literal_eval(self.zoom_centre)
         self.plate_row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
         self.head_type = self.channel_dict["HeadType"].get_value()
 
