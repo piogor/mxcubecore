@@ -19,6 +19,7 @@ Example of ``emulate`` configuration::
 """
 
 import mxcubecore.HardwareObjects.Beamline
+from mxcubecore.BaseHardwareObjects import HardwareObject
 
 
 class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
@@ -26,3 +27,7 @@ class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
         """Check if some feature should be emulated."""
         emulate = self.get_property("emulate", {})
         return emulate.get(feature, False)
+
+    @property
+    def tango_keystore(self) -> HardwareObject | None:
+        return self.get_object_by_role("tango_keystore")
