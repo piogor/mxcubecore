@@ -64,6 +64,18 @@ class ExporterMotor(AbstractMotor):
         self.motor_state_chan = None
         self.use_state = None
 
+    def __repr__(self):
+        """sane repr for debugging purposes
+
+        "ExporterMotor(omega: -90.0, limits: (-360.0, 360.0), state=ready)"
+        """
+        return (
+            f"ExporterMotor({self.actuator_name!r}: {self._nominal_value!r}, "
+            f"limits: {self._nominal_limits!r}, "
+            f"state={self._state!r}"
+            f")"
+        )
+
     def init(self):
         """Initialise the motor"""
         super().init()
