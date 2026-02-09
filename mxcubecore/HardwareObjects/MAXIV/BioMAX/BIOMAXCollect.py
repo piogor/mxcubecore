@@ -158,7 +158,7 @@ class BIOMAXCollect(DataCollect):
 
     # ---------------------------------------------------------
     # refactor do_collect
-    def do_collect(self, owner):
+    def do_collect(self, owner):  # noqa: PLR0915
         """
         Actual collect sequence
         """
@@ -201,6 +201,7 @@ class BIOMAXCollect(DataCollect):
             ):
                 # No centring point defined
                 # create point based on the current position
+                self.log.warning("do_collect(): Creating centring point")
                 current_diffractometer_position = self.diffractometer_hwobj.get_value()
                 for motor in self.current_dc_parameters["motors"].keys():
                     self.current_dc_parameters["motors"][motor] = (
@@ -386,9 +387,8 @@ class BIOMAXCollect(DataCollect):
         if float(self.flux_before_collect) < 1:
             user_log.error("Collection: Flux is 0, please check the beam!!")
 
-        self.diffractometer_hwobj.wait_device_ready(5)
-        self.move_to_centered_position()
-        self.diffractometer_hwobj.wait_device_ready(5)
+        self.move_to_centered_position()  # bkm1
+        self.fix_mesh_start()
 
         hwr_log.info(
             "Collection: Updating data collection in LIMS with data: %s"
@@ -397,6 +397,27 @@ class BIOMAXCollect(DataCollect):
         self.update_data_collection_in_lims()
 
     # -------------------------------------------------------------------------------
+
+    def fix_mesh_start(self):
+        dcp = self.current_dc_parameters
+        shape = HWR.beamline.sample_view.get_shape(dcp["shape"])
+        if shape.label.lower() == "grid":
+            return
+        md3 = self.diffractometer_hwobj
+        self.log.warning("Fixing centered_position for mesh scan")
+        self.log.warning(f"Shape: {shape.as_dict()}")
+        num_cols = shape.num_cols
+        num_rows = shape.num_rows
+        cell_width = shape.cell_width / 1000
+        cell_height = shape.cell_height / 1000
+        horiz_shift = num_cols * cell_width / 2
+        vert_shift = num_rows * cell_height / 2
+        hmot = md3.cent_vertical_pseudo_motor
+        vmot = md3.phiy_motor_hwobj
+        hmot.set_value(hmot.get_value() - horiz_shift)
+        vmot.set_value(vmot.get_value() - vert_shift)
+        gevent.sleep(5.0)
+        md3.save_centered_position()
 
     def prepare_triggers_to_collect(self):
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
