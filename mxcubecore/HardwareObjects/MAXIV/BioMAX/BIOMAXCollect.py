@@ -418,11 +418,11 @@ class BIOMAXCollect(DataCollect):
 
             self.char = True
 
-            start_angles = [osc_start + i * overlap for i in range(ntriggers)]
-            triggers_to_collect = [
-                (s, n, nframes_per_trigger, osc_range)
-                for n, s in enumerate(start_angles)
-            ]
+            for trigger_num in range(1, ntriggers + 1):
+                triggers_to_collect.append(
+                    (osc_start, trigger_num, nframes_per_trigger, osc_range)
+                )
+                osc_start += osc_range * nframes_per_trigger - overlap
 
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
             triggers_to_collect.append(
@@ -1227,7 +1227,7 @@ class BIOMAXCollect(DataCollect):
             "-f",
             filename,
             "-o",
-            f"{overlap}",
+            f"{-overlap}",
         ]
         self._run_ssh_command(self._HPC_FE_HOST, command)
 
