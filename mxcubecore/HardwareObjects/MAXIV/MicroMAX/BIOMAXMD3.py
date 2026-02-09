@@ -816,6 +816,10 @@ class MAXIVMD3(GenericDiffractometer):
                 "[MD3] Cannot change phase to %s, timeout waiting for MD3 ready", phase
             )
         else:
+            if self.is_head_minikappa() and self.is_in_data_collection():
+                self.log.info("MD3: Saving centered position")
+                self.save_centered_position()
+
             task_id = self.command_dict["startSetPhase"](phase)
 
             task_info = self.waitTaskResult(task_id)
