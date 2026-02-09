@@ -143,29 +143,23 @@ class Energy(AbstractEnergy):
         current_en = self.get_current_energy()
         pos = math.fabs(current_en - energy)
         if pos < 0.001:
-            logging.getLogger("user_level_log").debug(
-                "Energy: already at %g, not moving", energy
-            )
-        else:
-            logging.getLogger("user_level_log").info(
-                "Energy: moving energy to %g", energy
-            )
-            # self.energy_motor.move(energy * 1000)
-            self.energy_motor.set_value(energy * 1000)
-            self.energy_motor.wait_end_of_move(800)
-            if check_beam_end:
-                try:
-                    self.check_beam()
-                except RuntimeError as ex:
-                    logging.getLogger("user_level_log").error(
-                        "Check beam error: %s" % ex
-                    )
-                    logging.getLogger("HWR").error("Check beam error: %s" % ex)
-                except Exception as ex:
-                    logging.getLogger("HWR").warning("Check beam exception: %s" % ex)
-                    logging.getLogger("user_level_log").error(
-                        "Check beam exception: %s" % ex
-                    )
+            self.log.info(f"Energy: already at {energy:.4f} keV, not moving")
+            return
+
+        self.log.info(f"Energy: moving energy to {energy:.4f} keV")
+        self.energy_motor.set_value(energy * 1000)
+        self.energy_motor.wait_end_of_move(800)
+        if check_beam_end:
+            try:
+                self.check_beam()
+            except RuntimeError as ex:
+                logging.getLogger("user_level_log").error("Check beam error: %s" % ex)
+                logging.getLogger("HWR").error("Check beam error: %s" % ex)
+            except Exception as ex:
+                logging.getLogger("HWR").warning("Check beam exception: %s" % ex)
+                logging.getLogger("user_level_log").error(
+                    "Check beam exception: %s" % ex
+                )
 
     def sync_move(self, position, timeout=None):
         """
