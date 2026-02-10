@@ -904,6 +904,13 @@ class MAXIVMD3(GenericDiffractometer):
                 name = self.MOTOR_TO_EXPORTER_NAME[motor]
             else:
                 name = motor.actuator_name
+
+            # GPHL workflow may set some motors to None
+            # until they sort this out we need this fix
+            if position is None:
+                self.log.warning("Motor %s position is None", name)
+                continue
+
             argin += "%s=%0.3f;" % (name, position)
         if not argin:
             return
