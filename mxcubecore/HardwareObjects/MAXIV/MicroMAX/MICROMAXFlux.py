@@ -71,10 +71,16 @@ class MICROMAXFlux(AbstractFlux):
 
     def init(self):
         self.detector_hwobj = HWR.beamline.detector
+        """
         self.opt_diode["ch1"] = tango.DeviceProxy("expchan/albaem_ctrl_02/2")
         self.opt_diode["ch2"] = tango.DeviceProxy("expchan/albaem_ctrl_02/3")
         self.opt_diode["ch3"] = tango.DeviceProxy("expchan/albaem_ctrl_02/4")
         self.opt_diode["ch4"] = tango.DeviceProxy("expchan/albaem_ctrl_02/5")
+        """
+        self.dm3_xbpm = tango.DeviceProxy("b312a-o06/dia/xbpm-01")
+        self.dm4_xbpm = tango.DeviceProxy("b312a-e01/dia/xbpm-01")
+        self.bcu_xbpm2 = tango.DeviceProxy("b312a-e04/dia/xbpm-02")
+        self.bcu_xbpm1 = tango.DeviceProxy("b312a-e04/dia/xbpm-01")
         self.diode["jungfrau"] = tango.DeviceProxy("expchan/albaem_ctrl_04/3")
         self.det_mot["jungfrau"] = tango.DeviceProxy("b312a-e06/dia/tabled-01-zo")
         self.diode["eiger"] = tango.DeviceProxy("expchan/albaem_ctrl_04/2")
@@ -123,6 +129,9 @@ class MICROMAXFlux(AbstractFlux):
         print("Current on the detector photodiode is {}".format(current))
         return flux
 
+
+    # we don't need this method, would be better to have a generic one
+    """
     def check_beam_opt(self):
         energy_ev = HWR.beamline.energy.get_current_energy() * 1000.0
         msg = ""
@@ -147,3 +156,24 @@ class MICROMAXFlux(AbstractFlux):
         print(final_msg)
         print("Estimated flux is {:.2e} ph/s".format(flux))
         return final_msg, flux
+    """
+
+    def estimate_flux(self, device="BCU_XBPM1"):
+        energy_ev = HWR.beamline.energy.get_current_energy() * 1000.0
+        msg = ""
+        total = 0.0
+
+        if device == "DM3_XBPM":
+            xbpm = self.dm3_xbpm
+        elif device == "DM4_XBPM":
+            return "",0
+            xbpm = self.dm4_xbpm
+        elif device == "BCU_XBPM1":
+            xbpm = self.bcu_xbpm1
+        elif device == "BCU_XBPM2":
+            xbpm = self.bcu_xbpm2
+        else:
+            raise Exception(f"Unrecognized device name {device}")
+        total = xbpm.S
+        flux = total * ( -0.534515 * energy_ev * energy_ev * energy_ev * energy_ev - 43197.6 * energy_ev * energy_ev * energy_ev + 5.13449e+09 * energy_ev * energy_ev - 4.39169e+13 * energy_ev + 1.14591e+17)
+        return flux

@@ -225,9 +225,7 @@ class MICROMAXCollect(DataCollect):
             # todo, self.move_to_centered_position() should go inside take_crystal_snapshots,
             # which makes sure it move motors to the correct positions and move back
             # if there is a phase change
-            self.user_log.debug("Collection: going to take snapshots...")
             self.take_crystal_snapshots()
-            self.user_log.debug("Collection: snapshots taken")
 
             snapshots_files = []
             for key, value in self.current_dc_parameters.items():
@@ -309,7 +307,7 @@ class MICROMAXCollect(DataCollect):
 
         elif "energy" in self.current_dc_parameters:
             energy = self.current_dc_parameters["energy"]
-            self.user_log.info("Collection: Setting energy to %.3f", energy)
+            self.user_log.info("Collection: Setting energy to %.4f keV", energy)
 
             try:
                 self.set_energy(energy)
@@ -404,8 +402,8 @@ class MICROMAXCollect(DataCollect):
 
         # Currently there are no flux readings at MicroMAX.
         # So these values are always 0.
-        self.flux_before_collect = 0  # self.get_instant_flux()
-        self.estimated_flux_before_collect = 0  # self.get_estimated_flux()
+        self.flux_before_collect = self.get_instant_flux()
+        self.estimated_flux_before_collect =  self.get_estimated_flux()
 
         self.move_to_centered_position()
 
@@ -1223,7 +1221,9 @@ class MICROMAXCollect(DataCollect):
         """
         try:
             self.close_detector_cover()
+            self.log.info("xxxxxxxxxxxxxxxxx will set to calculate flux phase")
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
+            self.log.info("xxxxxxxxxxxxxxxxxxxxxxxxxx md3 is set to calcualte flux phase")
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
             flux = self.flux.calc_flux()
