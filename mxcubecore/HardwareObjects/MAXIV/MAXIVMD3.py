@@ -314,7 +314,7 @@ class MAXIVMD3(GenericDiffractometer):
 
     def open_fast_shutter(self, timeout=2):
         self.log.info("Opening fast shutter")
-        self.fast_shutter_channel.set_value(True)
+        self.fast_shutter_channel.set_value(1)
         with gevent.Timeout(
             timeout, RuntimeError("Timeout waiting for safety shutter to open")
         ):
@@ -328,7 +328,7 @@ class MAXIVMD3(GenericDiffractometer):
             timeout: Timeout for the operation, in seconds.
         """
         self.log.info("Closing fast shutter")
-        self.fast_shutter_channel.set_value(False)
+        self.fast_shutter_channel.set_value(0)
         with gevent.Timeout(
             timeout, RuntimeError("Timeout waiting for safety shutter to close")
         ):
@@ -828,6 +828,10 @@ class MAXIVMD3(GenericDiffractometer):
                 raise MD3TaskFailed(
                     MD3TaskFailed.SET_PHASE, task_output, task_exception, task_result
                 )
+
+            if self.is_head_minikappa() and phase == "Transfer":
+                self.log.info("MD3: Saving centered position after reaching \"Transfer\"")
+                self.save_centered_position()
 
     def move_to_motors_positions(self, motor_positions, wait=False):
         motor_positions.pop("zoom", None)
