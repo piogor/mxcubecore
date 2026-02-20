@@ -77,7 +77,7 @@ class MICROMAXCollect(DataCollect):
         self.number_of_snapshots = 0
 
         self.flux_before_collect = None
-        self.estimated_flux_before_collect = None
+        self.estimated_flux_before_collect = 0
         self.flux_after_collect = None
         self.estimated_flux_after_collect = None
 
@@ -400,10 +400,10 @@ class MICROMAXCollect(DataCollect):
         self.diffractometer_hwobj.set_phase("DataCollection")
         self.diffractometer_hwobj.check_beamstop_is_at_beam_position()
 
-        # Currently there are no flux readings at MicroMAX.
-        # So these values are always 0.
-        self.flux_before_collect = self.get_instant_flux()
-        self.estimated_flux_before_collect =  self.get_estimated_flux()
+        if HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
+            self.log.warning("Reading flux")
+            self.flux_before_collect = self.get_instant_flux()
+            self.estimated_flux_before_collect = self.get_estimated_flux()
 
         self.move_to_centered_position()
 
@@ -1219,6 +1219,9 @@ class MICROMAXCollect(DataCollect):
 
         This method assumes that the MD3 is already in data collection phase.
         """
+        if not HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
+            self.log.warning("Reading flux is disable in the keystore")
+            return
         try:
             self.close_detector_cover()
             self.log.info("xxxxxxxxxxxxxxxxx will set to calculate flux phase")
