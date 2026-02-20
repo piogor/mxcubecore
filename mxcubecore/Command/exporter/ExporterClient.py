@@ -187,7 +187,7 @@ class ExporterClient(StandardClient):
         try:
             process_return = self.__process_return(ret)
         except Exception:
-            logging.getLogger("HWR").exception("")
+            pass
         return process_return
 
     def read_property_as_string_array(self, prop):

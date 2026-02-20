@@ -95,7 +95,7 @@ class CheckBeam:
                 full_flux = flux * 100.0 / transmission
                 log.info(
                     f"Current transmission: {transmission:.2f}%, "
-                    f"estimated full flux at sample position: {full_flux:.2e} ph/s"
+                    f"estimated full flux at BCU: {full_flux:.2e} ph/s"
                 )
 
 
