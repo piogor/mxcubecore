@@ -1280,7 +1280,10 @@ class MICROMAXCollect(DataCollect):
         if manual_mode and not (
             self.diffractometer_hwobj.head_type == GenericDiffractometer.HEAD_TYPE_PLATE
         ):
-            self.diffractometer_hwobj.set_phase("Transfer")
+            self.diffractometer_hwobj.set_phase("Transfer", wait = True)
+            if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
+                self.diffractometer_hwobj.phi_motor_hwobj.set_value(45)
+                self.diffractometer_hwobj.wait_ready(10)
             self.move_detector_to_safe_position()
 
         self.close_safety_shutter()
