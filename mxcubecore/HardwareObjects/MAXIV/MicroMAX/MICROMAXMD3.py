@@ -179,7 +179,13 @@ class MICROMAXMD3(MAXIVMD3):
         ori_phase = self.current_phase
         if self.current_phase != "DataCollection":
             self.set_phase("DataCollection", wait=True, timeout=200)
-        self.motor_hwobj_dict["phiz"].set_value(2)
+
+        if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
+            self.motor_hwobj_dict["phiy"].set_value(-20)
+            self.wait_ready(10)
+        else:
+            self.motor_hwobj_dict["phiz"].set_value(2)
+        self.wait_ready(10)
         self.set_organ_pos("beamstopZ", -10)
         self.wait_ready(10)
         return ori_motors, ori_phase
