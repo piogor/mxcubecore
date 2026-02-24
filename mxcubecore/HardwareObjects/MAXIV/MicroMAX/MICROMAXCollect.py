@@ -1230,6 +1230,9 @@ class MICROMAXCollect(DataCollect):
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
             flux = self.flux.calc_flux()
+            self.close_fast_shutter()
+            self.diffractometer_hwobj.set_direct_beam_enabled(False)
+            self.check_beamstop()
         except Exception as ex:
             self.log.error(
                 "[COLLECT] Cannot get the current flux value. Error was {}".format(ex)
@@ -1364,3 +1367,20 @@ class MICROMAXCollect(DataCollect):
 
     def set_interleave(self, in_interleave):
         self.in_interleave = in_interleave
+
+    def check_beamstop(self):
+        """
+        assuming sample is already moved out of beam
+        """
+        try:
+            flux = 0
+            self.diffractometer_hwobj.set_organ_pos("beamstop", "BEAM")
+            self.diffractometer_hwobj.check_beamstop_is_at_beam_position()
+            self.open_fast_shutter()
+            flux = self.flux.calc_flux()
+        finally:
+            self.close_fast_shutter()
+            if flux > 1e9:
+                error_msg = f"Contact support: Direct beam detected behind beamstop"
+                self.user_log.error(error_msg)
+                raise Exception(error_msg)
