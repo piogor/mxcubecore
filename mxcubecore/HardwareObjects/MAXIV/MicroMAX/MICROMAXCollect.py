@@ -292,6 +292,8 @@ class MICROMAXCollect(DataCollect):
             % self.current_dc_parameters
         )
 
+        self.diffractometer_hwobj.check_omega_limit()
+
         self.stop_display = False
 
         if "wavelength" in self.current_dc_parameters:

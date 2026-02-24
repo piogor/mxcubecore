@@ -807,6 +807,7 @@ class MAXIVMD3(GenericDiffractometer):
 
     def set_phase(self, phase, wait=False, timeout=None):
         try:
+            self.check_omega_limit()
             self.wait_ready(10)
         except Exception:
             self.log.exception(
@@ -1108,3 +1109,16 @@ class MAXIVMD3(GenericDiffractometer):
 
     def is_in_beam_location(self) -> bool:
         return self.current_phase == "BeamLocation"
+
+    def check_motor_limit_range(self, motor_name, range_limit):
+        limits = self.command_dict["getMotorLimits"](motor_name)
+        if abs(limits[1] - limits[0]) > range_limit:
+            msg = f"The current limits of Motor {motor_name} is beyond {range_limit}, please check motor setting in MD3"
+            self.user_log.error(msg)
+            raise Exception(msg)
+
+    def check_omega_limit(self):
+        omega_limit = HWR.beamline.tango_keystore.get_value("md3_omega_limit") or 5
+        self.log.info(f"xxxxxxxxxxxxxxxxxxxxxxxxxxxx omega_limit {omega_limit}")
+        self.check_motor_limit_range("Omega", omega_limit)
+
