@@ -600,7 +600,6 @@ class MICROMAXCollect(DataCollect):
             # the MD3 raster scan command is relative to the currently saved centered position,
             # calculate and save this mesh's center position
             self.move_to_mesh_center()
-            time.sleep(30)
 
             range_x, range_y = self._get_mesh_scan_range()
             self.diffractometer_hwobj.raster_scan(
