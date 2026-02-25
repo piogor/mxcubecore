@@ -729,6 +729,7 @@ class MAXIVMD3(GenericDiffractometer):
 
         self.log.info("MD3 helical oscillation finished, task result %s.", task_info)
 
+
     def raster_scan(
         self,
         start,
@@ -985,6 +986,7 @@ class MAXIVMD3(GenericDiffractometer):
         return {
             "phi": float(self.phi_motor_hwobj.get_value()),
             "focus": float(self.focus_motor_hwobj.get_value()),
+            "phix": float(self.phix_motor_hwobj.get_value()),
             "phiy": float(self.phiy_motor_hwobj.get_value()),
             "phiz": float(self.phiz_motor_hwobj.get_value()),
             "sampx": float(self.sample_x_motor_hwobj.get_value()),
@@ -1123,6 +1125,5 @@ class MAXIVMD3(GenericDiffractometer):
 
     def check_omega_limit(self):
         omega_limit = HWR.beamline.tango_keystore.get_value("md3_omega_limit") or 5
-        self.log.info(f"xxxxxxxxxxxxxxxxxxxxxxxxxxxx omega_limit {omega_limit}")
         self.check_motor_limit_range("Omega", omega_limit)
 
