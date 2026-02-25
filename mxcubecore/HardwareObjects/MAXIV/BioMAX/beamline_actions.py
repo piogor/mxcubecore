@@ -17,7 +17,7 @@ user_log = logging.getLogger("user_level_log")
 class TestMacro:
     def __call__(self, *args, **kw):
         try:
-            cmd = self.get_command_object("testMacro")
+            cmd = HWR.beamline.beamline_actions.get_command_object("testMacro")
             cmd(wait=True)
         except Exception:
             hwr_log.exception("Cannot testMacro")
@@ -30,7 +30,7 @@ class BeamtimeEnd:
         """
         try:
             PrepareOpenHutch().__call__()
-            cmd = self.get_command_object("beamtime_end")
+            cmd = HWR.beamline.beamline_actions.get_command_object("beamtime_end")
             cmd(wait=True)
         except Exception:
             hwr_log.exception("Cannot end beamtime.")
@@ -42,7 +42,7 @@ class BeamtimeStart:
         TBD: sardana macro not yet available in MicroMAX
         """
         try:
-            cmd = self.get_command_object("beamtime_start")
+            cmd = HWR.beamline.beamline_actions.get_command_object("beamtime_start")
             cmd(wait=True)
         except Exception:
             hwr_log.exception("Cannot start beamtime.")
@@ -54,7 +54,9 @@ class OpenBeamlineShutters:
         TBD: sardana macro not yet available in MicroMAX
         """
         try:
-            cmd = self.get_command_object("open_beamline_shutters")
+            cmd = HWR.beamline.beamline_actions.get_command_object(
+                "open_beamline_shutters"
+            )
             cmd(wait=True)
         except Exception:
             hwr_log.exception("Cannot open beamline shutters.")
