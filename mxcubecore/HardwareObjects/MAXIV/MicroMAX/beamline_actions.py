@@ -204,7 +204,7 @@ class FinishChipAlignment:
         curr_omega = diff.phi_motor_hwobj.get_value()
         diff.phi_motor_hwobj.set_value(curr_omega - omega_diff)
 
-        log.info("Adjusted Omega angle with %d degrees.", omega_diff)
+        log.info(f"Adjusted Omega angle with {omega_diff:.3f} degrees.")
 
         # reset 'start' position, so it's not re-used by mistake
         StartChipAlignment.Position = None
