@@ -180,6 +180,13 @@ class StartChipAlignment:
         StartChipAlignment.Position = _get_chip_motor_pos()
         log.info("Chip alignment start position recorded.")
 
+class AbortMD3:
+    """Abort MD3 """
+
+    def __call__(self):
+        HWR.beamline.diffractometer.abort()
+        log.info("Abort MD3")
+
 
 class FinishChipAlignment:
     """Finish the Chip alignment procedure.
@@ -201,7 +208,11 @@ class FinishChipAlignment:
 
         # rotate the chip along the omega axis
         curr_omega = diff.phi_motor_hwobj.get_value()
-        diff.phi_motor_hwobj.set_value(curr_omega - omega_diff)
+        try:
+            diff.phi_motor_hwobj.set_value(curr_omega - omega_diff)
+        except Exception as ex:
+            msg = f"Please adjust the sample manually! Cannot move to the aligned position {ex}"
+            log.error(msg)
 
         log.info(f"Adjusted Omega angle with {omega_diff:.3f} degrees.")
 
