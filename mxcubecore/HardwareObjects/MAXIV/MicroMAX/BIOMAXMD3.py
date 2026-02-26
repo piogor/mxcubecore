@@ -1121,5 +1121,6 @@ class MAXIVMD3(GenericDiffractometer):
 
     def check_omega_limit(self):
         omega_limit = HWR.beamline.tango_keystore.get_value("md3_omega_limit") or 5
-        self.check_motor_limit_range("Omega", omega_limit)
+        if omega_limit >= 0:
+            self.check_motor_limit_range("Omega", omega_limit)
 
