@@ -40,7 +40,7 @@ SPACE_GROUPS = {
     "P3": SpaceGroup("P 3", 143),
     "P31": SpaceGroup("P 31", 144),
     "P32": SpaceGroup("P 32", 145),
-    "H3": SpaceGroup("H 3", 146),
+    "R3": SpaceGroup("R 3", 146),
     # accordingly to https://en.wikipedia.org/wiki/List_of_space_groups 146 is R3 R 3
     "P312": SpaceGroup("P 3 1 2", 149),
     "P321": SpaceGroup("P 3 2 1", 150),
@@ -48,7 +48,7 @@ SPACE_GROUPS = {
     "P3121": SpaceGroup("P 31 2 1", 152),
     "P3212": SpaceGroup("P 32 1 2", 153),
     "P3221": SpaceGroup("P 32 2 1", 154),
-    "H32": SpaceGroup("H 3 2", 155),
+    "R32": SpaceGroup("R 3 2", 155),
     # accordingly to https://en.wikipedia.org/wiki/List_of_space_groups 155 is R32 R 3 2
     "P6": SpaceGroup("P 6", 168),
     "P61": SpaceGroup("P 61", 169),
@@ -80,7 +80,7 @@ SPACE_GROUPS = {
 
 def _get_space_group(short_name: str) -> SpaceGroup:
     try:
-        space_group = SPACE_GROUPS[short_name.upper()]
+        space_group = SPACE_GROUPS[short_name.upper().strip()]
     except KeyError as exc:
         msg = (
             f"Unknown space group short name: {short_name}, "
