@@ -1044,6 +1044,7 @@ class MICROMAXCollect(DataCollect):
             row,
             col,
         )
+        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict = header_appendix["collect_dict"]
         collect_dict["ssx_mode"] = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict["target_beam_size_factor"] = (
