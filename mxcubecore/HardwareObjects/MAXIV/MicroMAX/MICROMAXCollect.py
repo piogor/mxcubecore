@@ -79,7 +79,6 @@ class MICROMAXCollect(DataCollect):
         self.estimated_flux_before_collect = None
         self.flux_after_collect = None
         self.estimated_flux_after_collect = None
-        self.ssx_mode = False
 
     def init(self):
         super().init()
@@ -393,7 +392,7 @@ class MICROMAXCollect(DataCollect):
             self.stop_collect()
             raise Exception(msg) from ex
 
-        if self.ssx_mode:
+        if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
             self.generate_crystfel_input_files(det_config)
 
         # Move MD3 to DataCollection phase, even if it's already there
@@ -570,6 +569,9 @@ class MICROMAXCollect(DataCollect):
                 # table pitch disabled for fixed-target collections
                 return 0
 
+            if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+                return 0
+
             return 1
 
         time.sleep(1)
@@ -621,8 +623,12 @@ class MICROMAXCollect(DataCollect):
         range_x, range_y = self._get_mesh_scan_range(cell_center=False)
 
         self.diffractometer_hwobj.phiy_motor_hwobj.set_value_relative(range_y / 2.0)
-        self.diffractometer_hwobj.move_cent_vertical_relative(-range_x / 2.0)
-
+        if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+            self.diffractometer_hwobj.phiz_motor_hwobj.set_value_relative(
+                -range_x / 2.0
+            )
+        else:
+            self.diffractometer_hwobj.move_cent_vertical_relative(-range_x / 2.0)
         self.diffractometer_hwobj.save_centered_position()
 
     def _update_task_progress(self):
@@ -703,12 +709,13 @@ class MICROMAXCollect(DataCollect):
         num_images = self.current_dc_parameters["oscillation_sequence"][0][
             "number_of_images"
         ]
+        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         if (
             exp_type in ("OSC", "Helical")
             and overlap == 0
             and num_images >= self.NIMAGES_TRIGGER_AUTO_PROC
             and not self.in_interleave
-            and not self.ssx_mode
+            and not ssx_mode
         ):
             gevent.spawn(self.trigger_auto_processing, "after", 0)
 
@@ -933,7 +940,7 @@ class MICROMAXCollect(DataCollect):
         )
 
         while True:
-            if self.ssx_mode:
+            if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
                 prefix = "crystfel"
             else:
                 prefix = "xds"
@@ -1036,8 +1043,9 @@ class MICROMAXCollect(DataCollect):
             row,
             col,
         )
+        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict = header_appendix["collect_dict"]
-        collect_dict["ssx_mode"] = self.ssx_mode
+        collect_dict["ssx_mode"] = ssx_mode
         collect_dict["target_beam_size_factor"] = (
             2.0  # this value should be from x-ray centering
         )
@@ -1141,8 +1149,8 @@ class MICROMAXCollect(DataCollect):
 
         try:
             self.progress_task.kill(block=False)
-        except Exception:
-            pass
+        except Exception as ex:
+            self.log.error(f"Stopping progress task failure, error: {ex}")
         if self.data_collect_task is not None:
             self.data_collect_task.kill(block=False)
         self.log.warning("Collection stopped")

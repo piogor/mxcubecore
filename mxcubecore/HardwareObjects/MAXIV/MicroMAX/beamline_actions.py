@@ -143,7 +143,7 @@ class EmptyMount:
 class _ChipMotorPosition:
     """MD3 motor position used for chip alignment."""
 
-    phiz: float
+    hor: float
     focus: float
 
 
@@ -152,14 +152,21 @@ def _get_chip_motor_pos():
 
     diff = HWR.beamline.diffractometer
 
-    phiz = diff.phiz_motor_hwobj.get_value()
-    focus = diff.focus_motor_hwobj.get_value()
+    if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+        log.info("Chip positions from alignment table")
+        focus = diff.phix_motor_hwobj.get_value()
+        hor = diff.phiz_motor_hwobj.get_value()
+    else:
+        log.info("Chip positions from centring table")
+        focus = diff.focus_motor_hwobj.get_value()
+        hor = diff.cent_vertical_pseudo_motor.get_value()
 
-    return _ChipMotorPosition(phiz, focus)
+    return _ChipMotorPosition(hor, focus)
 
 
 def _calc_omega_diff(start: _ChipMotorPosition, finish: _ChipMotorPosition) -> float:
-    return math.atan2(start.focus - finish.focus, start.phiz - finish.phiz) * (
+    log.info(f"{start.focus=} - {finish.focus=}, {start.hor=} - {finish.hor=}")
+    return math.atan((start.focus - finish.focus) / (start.hor - finish.hor)) * (
         180.0 / math.pi
     )
 
