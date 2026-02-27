@@ -208,8 +208,8 @@ class MICROMAXMD3(MAXIVMD3):
         # is implemented, this method should be revised
         # and removed or updated accordingly.
         #
-        ssx_mode = HWR.beamline.collect.ssx_mode
-        self.log.info(f"move_to_beam({x:.4f} {y:.4f}) ssx_mode={ssx_mode}")
+        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
+        self.log.info(f"move_to_beam({x:.4f} {y:.4f}) {ssx_mode=}")
 
         if ssx_mode:
             horizontal_axis = self.phiz_motor_hwobj
@@ -267,3 +267,35 @@ class MICROMAXMD3(MAXIVMD3):
             tolerance=tolerance_mm * self.pixels_per_mm_x,
             segmentor=foreground_segmentor,
         )
+
+    def get_centred_point_from_coord(self, x, y, return_by_names=None):
+        if not HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+            self.centring_hwobj.initCentringProcedure()
+            self.centring_hwobj.appendCentringDataPoint(
+                {
+                    "X": (x - self.beam_position[0]) / self.pixels_per_mm_x,
+                    "Y": (y - self.beam_position[1]) / self.pixels_per_mm_y,
+                }
+            )
+            self.omega_reference_add_constraint()
+            pos = self.centring_hwobj.centeredPosition()
+            if return_by_names:
+                pos = self.convert_from_obj_to_name(pos)
+
+            if "zoom" in pos:
+                pos["zoom"] = pos["zoom"].value
+
+        else:
+            dx = (x - self.zoom_centre["x"]) / float(self.pixels_per_mm_x)
+            dy = (y - self.zoom_centre["y"]) / float(self.pixels_per_mm_y)
+
+            pos = self.get_positions()
+            pos["phiy"] += dy
+            pos["phiz"] -= dx
+        try:
+            pos.pop("kappa")
+            pos.pop("kappa_phi")
+        except:
+            pass
+
+        return pos
