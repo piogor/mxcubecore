@@ -735,18 +735,11 @@ class Hve2DScanQueueEntry(AbstractSsxQueueEntry):
         )
         collect.current_dc_parameters = dc_params[0]
 
-        # SSX mode must be enabled in collect when generating CrystFEL files
-        old_ssx_mode = collect.ssx_mode
-        collect.ssx_mode = True
-
         collect.create_file_directories()
         collect.generate_crystfel_input_files(det_cfg)
 
         # set-up header appendix for this collection
         collect.setup_header_appendix(self._get_shape_id(), dozor_dict)
-
-        # restore old SSX mode state
-        collect.ssx_mode = old_ssx_mode
 
     def _prepare_scan(self, step_num=None):
         det_cfg, dozor_dict = self._prepare_detector(step_num)
