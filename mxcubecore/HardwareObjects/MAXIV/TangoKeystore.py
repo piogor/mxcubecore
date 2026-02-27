@@ -14,6 +14,9 @@ class TangoKeystore(HardwareObject):
     def __repr__(self):
         return f"{self.namespace}: {self.registered_keys}"
 
+    def __getattr__(self, name: str) -> Any:
+        return self.get(name)
+
     def init(self):
         super().init()
         self.namespace = self.get_property("namespace", None)
