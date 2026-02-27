@@ -1,0 +1,1 @@
+xmlrpc_prefix = "maxiv"
