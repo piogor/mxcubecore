@@ -60,20 +60,41 @@ class TangoKeystore(HardwareObject):
         self._ensure_exists(key)
         return self._keystore.get(key)
 
-    def getd(self, key: str) -> int:
-        """Return value for a registered key as an int."""
+    def get_int(self, key: str) -> int:
+        """Return value for a registered key as an int.
+
+        This helps coders understand the data type of the value."""
         self._ensure_registered(key)
         self._ensure_exists(key)
         return self._keystore.getd(key)
 
-    def getf(self, key: str) -> float:
-        """Return value for a registered key as a float."""
+    def get_float(self, key: str) -> float:
+        """Return value for a registered key as a float.
+
+        This helps coders understand the data type of the value.
+        """
         self._ensure_registered(key)
         self._ensure_exists(key)
         return self._keystore.getf(key)
 
     def is_true(self, key: str) -> bool:
-        """Return value for a registered key as a bool"""
+        """Return True if the value for a registered key is true."""
         self._ensure_registered(key)
         self._ensure_exists(key)
         return self._keystore.is_true(key)
+
+    def is_false(self, key: str) -> bool:
+        """Return True if the value for a registered key is false."""
+        self._ensure_registered(key)
+        self._ensure_exists(key)
+        return self._keystore.is_false(key)
+
+    # the following aliases make code a lot more comprehensible
+    is_active = is_true
+    is_enabled = is_true
+    is_on = is_true
+    is_yes = is_true
+    is_inactive = is_false
+    is_disabled = is_false
+    is_off = is_false
+    is_no = is_false
