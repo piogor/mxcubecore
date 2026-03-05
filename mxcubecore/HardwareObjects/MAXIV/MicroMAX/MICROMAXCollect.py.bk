@@ -496,7 +496,11 @@ class MICROMAXCollect(DataCollect):
                 nframes_per_trigger,
                 osc_range,
             ) in self.triggers_to_collect:
-                osc_end = osc_start + osc_range * nframes_per_trigger
+                if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+                    #tmp, should disable the UI setting
+                    osc_end = osc_start
+                else:
+                    osc_end = osc_start + osc_range * nframes_per_trigger
                 gevent.spawn(self._update_image_to_display)
                 self.progress_task = gevent.spawn(self._update_task_progress)
 
@@ -625,9 +629,7 @@ class MICROMAXCollect(DataCollect):
 
         self.diffractometer_hwobj.phiy_motor_hwobj.set_value_relative(range_y / 2.0)
         if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
-            self.diffractometer_hwobj.phiz_motor_hwobj.set_value_relative(
-                -range_x / 2.0
-            )
+            self.diffractometer_hwobj.phiz_motor_hwobj.set_value_relative(-range_x / 2.0)
         else:
             self.diffractometer_hwobj.move_cent_vertical_relative(-range_x / 2.0)
         self.diffractometer_hwobj.save_centered_position()
@@ -1044,8 +1046,9 @@ class MICROMAXCollect(DataCollect):
             row,
             col,
         )
+        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict = header_appendix["collect_dict"]
-        collect_dict["ssx_mode"] = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
+        collect_dict["ssx_mode"] = ssx_mode
         collect_dict["target_beam_size_factor"] = (
             2.0  # this value should be from x-ray centering
         )
@@ -1158,8 +1161,8 @@ class MICROMAXCollect(DataCollect):
 
         try:
             self.progress_task.kill(block=False)
-        except Exception:
-            self.log.exception("Stopping progress task failure")
+        except Exception as ex:
+            self.log.error(f"Stopping progress task failure, error: {ex}")
         if self.data_collect_task is not None:
             self.data_collect_task.kill(block=False)
         self.log.warning("Collection stopped")
@@ -1223,12 +1226,12 @@ class MICROMAXCollect(DataCollect):
         """
         if not HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
             self.log.warning("Reading flux is disable in the keystore")
-            return  # noqa: RET502
+            return
         try:
             self.close_detector_cover()
-            self.log.info("xxxxxxxxxxx will set to calculate flux phase")
+            self.log.info("xxxxxxxxxxxxxxxxx will set to calculate flux phase")
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
-            self.log.info("xxxxxxxxxxx md3 is set to calcualte flux phase")
+            self.log.info("xxxxxxxxxxxxxxxxxxxxxxxxxx md3 is set to calcualte flux phase")
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
             flux = self.flux.calc_flux()
@@ -1282,7 +1285,7 @@ class MICROMAXCollect(DataCollect):
         if manual_mode and not (
             self.diffractometer_hwobj.head_type == GenericDiffractometer.HEAD_TYPE_PLATE
         ):
-            self.diffractometer_hwobj.set_phase("Transfer", wait=True)
+            self.diffractometer_hwobj.set_phase("Transfer", wait = True)
             if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
                 self.diffractometer_hwobj.phi_motor_hwobj.set_value(45)
                 self.diffractometer_hwobj.wait_ready(10)
@@ -1386,6 +1389,6 @@ class MICROMAXCollect(DataCollect):
         finally:
             self.close_fast_shutter()
             if flux > 1e9:
-                _msg = "Contact support: Direct beam detected behind beamstop"
-                self.user_log.error(_msg)
-                raise Exception(_msg)
+                error_msg = f"Contact support: Direct beam detected behind beamstop"
+                self.user_log.error(error_msg)
+                raise Exception(error_msg)

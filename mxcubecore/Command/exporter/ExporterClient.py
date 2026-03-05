@@ -20,6 +20,7 @@
 
 """Exporter Client implementation"""
 
+import contextlib
 import logging
 
 from .StandardClient import (
@@ -184,10 +185,8 @@ class ExporterClient(StandardClient):
         cmd = "{} {}".format(CMD_PROPERTY_READ, prop)
         ret = self.send_receive(cmd, timeout)
         process_return = None
-        try:
+        with contextlib.suppress(Exception):
             process_return = self.__process_return(ret)
-        except Exception:
-            pass
         return process_return
 
     def read_property_as_string_array(self, prop):
