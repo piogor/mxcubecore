@@ -70,7 +70,9 @@ def test_prepare_open_hutch_eiger(sample_delivery: SampleDelivery):
 
     with (
         patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.HWR", hwr),
-        patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.log", log),
+        patch(
+            "mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.user_log", log
+        ),
     ):
         bl_action = PrepareOpenHutch()
         bl_action()
@@ -97,7 +99,9 @@ def test_prepare_open_hutch_jungfrau(sample_delivery: SampleDelivery):
 
     with (
         patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.HWR", hwr),
-        patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.log", log),
+        patch(
+            "mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.user_log", log
+        ),
     ):
         bl_action = PrepareOpenHutch()
         bl_action()
@@ -119,7 +123,9 @@ def test_prepare_open_hutch_error():
 
     with (
         patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.HWR", hwr),
-        patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.log", log),
+        patch(
+            "mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.user_log", log
+        ),
     ):
         bl_action = PrepareOpenHutch()
         bl_action()
@@ -142,7 +148,9 @@ def test_measure_flux():
 
     with (
         patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.HWR", hwr),
-        patch("mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.log", log),
+        patch(
+            "mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions.user_log", log
+        ),
     ):
         bl_action = MeasureFlux()
         bl_action()

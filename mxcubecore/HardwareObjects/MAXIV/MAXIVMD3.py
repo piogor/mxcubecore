@@ -729,7 +729,6 @@ class MAXIVMD3(GenericDiffractometer):
 
         self.log.info("MD3 helical oscillation finished, task result %s.", task_info)
 
-
     def raster_scan(
         self,
         start,
@@ -832,7 +831,7 @@ class MAXIVMD3(GenericDiffractometer):
                 )
 
             if self.is_head_minikappa() and phase == "Transfer":
-                self.log.info("MD3: Saving centered position after reaching \"Transfer\"")
+                self.log.info('MD3: Saving centered position after reaching "Transfer"')
                 self.save_centered_position()
 
     def move_to_motors_positions(self, motor_positions, wait=False):
@@ -1119,7 +1118,10 @@ class MAXIVMD3(GenericDiffractometer):
     def check_motor_limit_range(self, motor_name, range_limit):
         limits = self.command_dict["getMotorLimits"](motor_name)
         if abs(limits[1] - limits[0]) > range_limit:
-            msg = f"The current limits of Motor {motor_name} is beyond {range_limit}, please check motor setting in MD3"
+            msg = (
+                f"The current limits of Motor {motor_name} is beyond {range_limit},"
+                " please check motor setting in MD3"
+            )
             self.user_log.error(msg)
             raise Exception(msg)
 
@@ -1127,4 +1129,3 @@ class MAXIVMD3(GenericDiffractometer):
         omega_limit = HWR.beamline.tango_keystore.get_value("md3_omega_limit") or 5
         if omega_limit >= 0:
             self.check_motor_limit_range("Omega", omega_limit)
-

@@ -9,7 +9,7 @@ from tango import DeviceProxy
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.utils.units import kev_to_ev
 
-log = logging.getLogger("user_level_log")
+user_log = logging.getLogger("user_level_log")
 
 
 class PrepareOpenHutch:
@@ -35,7 +35,7 @@ class PrepareOpenHutch:
             diffractometer = HWR.beamline.diffractometer
             detector = HWR.beamline.detector
 
-            log.info("Preparing experimental hutch for door opening.")
+            user_log.info("Preparing experimental hutch for door opening.")
 
             collect.close_fast_shutter()
             collect.close_safety_shutter()
@@ -44,24 +44,28 @@ class PrepareOpenHutch:
             diffractometer.wait_device_ready()
             if HWR.beamline.is_hve_sample_delivery():
                 # This is 'equivalent' of Transfer phase for HVE experiments
-                log.info("Setting diffractometer to 'equivalent' of Transfer phase.")
+                user_log.info(
+                    "Setting diffractometer to 'equivalent' of Transfer phase."
+                )
                 diffractometer.channel_dict["BeamstopPosition"].set_value("PARK")
                 diffractometer.channel_dict["CapillaryPosition"].set_value("PARK")
             else:
-                log.info("Setting diffractometer to Transfer phase.")
+                user_log.info("Setting diffractometer to Transfer phase.")
                 diffractometer.set_phase("Transfer")
 
-            log.info("Moving detector to safe position.")
+            user_log.info("Moving detector to safe position.")
             collect.move_detector_to_safe_position()
 
             if detector.get_property("model") == "JUNGFRAU":
-                log.info("Collecting Jungfrau pedestal.")
+                user_log.info("Collecting Jungfrau pedestal.")
                 detector.pedestal()
 
-        except Exception as ex:
+        except Exception as ex:  # noqa: BLE001
             # Explicitly add raised exception into the log message,
             # so that it is shown to the user in the beamline action UI log.
-            log.exception("Error preparing to open hutch.\nError was: '%s'", str(ex))  # noqa: TRY401
+            user_log.exception(
+                "Error preparing to open hutch.\nError was: '%s'", str(ex)
+            )
 
 
 class CheckBeam:
@@ -86,14 +90,14 @@ class CheckBeam:
                 - 4.39169e13 * energy
                 + 1.14591e17
             )
-            log.info(
+            user_log.info(
                 f"XBPM: {name}, total current: {total_current * 1e6:.2f} uA, "
                 f"estimated flux at sample position: {flux:.2e} ph/s"
             )
 
             if "BCU" in name:
                 full_flux = flux * 100.0 / transmission
-                log.info(
+                user_log.info(
                     f"Current transmission: {transmission:.2f}%, "
                     f"estimated full flux at BCU: {full_flux:.2e} ph/s"
                 )
@@ -105,7 +109,7 @@ class MeasureFlux:
         calculate flux at sample position
         """
         flux_at_sample = HWR.beamline.collect.get_instant_flux()
-        log.info("Flux at sample position is %.2e ph/s", flux_at_sample)
+        user_log.info("Flux at sample position is %.2e ph/s", flux_at_sample)
 
 
 class SaveMD3Position:
@@ -122,11 +126,11 @@ class EmptyMount:
     def __call__(self):
         isara = HWR.beamline.sample_changer
 
-        log.info("Performing empty mount recovery sequence.")
+        user_log.info("Performing empty mount recovery sequence.")
 
         isara.execute_command("Reset")
 
-        log.info("Recovery sequence completed.")
+        user_log.info("Recovery sequence completed.")
 
 
 #
@@ -152,11 +156,11 @@ def _get_chip_motor_pos():
     diff = HWR.beamline.diffractometer
 
     if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
-        log.info("Chip positions from alignment table")
+        user_log.info("Chip positions from alignment table")
         focus = diff.phix_motor_hwobj.get_value()
         hor = diff.phiz_motor_hwobj.get_value()
     else:
-        log.info("Chip positions from centring table")
+        user_log.info("Chip positions from centring table")
         focus = diff.focus_motor_hwobj.get_value()
         hor = diff.cent_vertical_pseudo_motor.get_value()
 
@@ -164,7 +168,7 @@ def _get_chip_motor_pos():
 
 
 def _calc_omega_diff(start: _ChipMotorPosition, finish: _ChipMotorPosition) -> float:
-    log.info(f"{start.focus=} - {finish.focus=}, {start.hor=} - {finish.hor=}")
+    user_log.info(f"{start.focus=} - {finish.focus=}, {start.hor=} - {finish.hor=}")
     return math.atan((start.focus - finish.focus) / (start.hor - finish.hor)) * (
         180.0 / math.pi
     )
@@ -178,14 +182,15 @@ class StartChipAlignment:
     def __call__(self):
         # save current motor positions
         StartChipAlignment.Position = _get_chip_motor_pos()
-        log.info("Chip alignment start position recorded.")
+        user_log.info("Chip alignment start position recorded.")
+
 
 class AbortMD3:
-    """Abort MD3 """
+    """Abort MD3"""
 
     def __call__(self):
         HWR.beamline.diffractometer.abort()
-        log.info("Abort MD3")
+        user_log.info("Abort MD3")
 
 
 class FinishChipAlignment:
@@ -196,7 +201,7 @@ class FinishChipAlignment:
 
     def __call__(self):
         if StartChipAlignment.Position is None:
-            log.warning("No alignment start position available.")
+            user_log.warning("No alignment start position available.")
             return
 
         diff = HWR.beamline.diffractometer
@@ -210,11 +215,12 @@ class FinishChipAlignment:
         curr_omega = diff.phi_motor_hwobj.get_value()
         try:
             diff.phi_motor_hwobj.set_value(curr_omega - omega_diff)
-        except Exception as ex:
-            msg = f"Please adjust the sample manually! Cannot move to the aligned position {ex}"
-            log.error(msg)
+        except Exception as ex:  # noqa: BLE001
+            msg = "Please adjust the sample manually!"
+            user_log.error(msg)
+            user_log.error(f"Cannot move to the aligned position {ex}")
 
-        log.info(f"Adjusted Omega angle with {omega_diff:.3f} degrees.")
+        user_log.info(f"Adjusted Omega angle with {omega_diff:.3f} degrees.")
 
         # reset 'start' position, so it's not re-used by mistake
         StartChipAlignment.Position = None

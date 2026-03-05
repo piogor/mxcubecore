@@ -9,7 +9,7 @@ from mxcubecore.HardwareObjects.MAXIV.space_groups import (
 )
 
 
-@pytest.mark.parametrize("spg", ["P21", "H32", "p312"])
+@pytest.mark.parametrize("spg", ["P21", "R32", "p312"])
 def test_get_existing_space_group(spg):
     """
     Test that the full name of a space group can be retrieved correctly.
@@ -26,7 +26,7 @@ def test_get_nonexisting_space_group(spg):
         _get_space_group(spg)
 
 
-@pytest.mark.parametrize("spg", ["P21", "H32", "p312"])
+@pytest.mark.parametrize("spg", ["P21", "R32", "p312"])
 def test_get_existing_space_group_full_name(spg):
     """
     Test that the full name of a space group can be retrieved correctly.
@@ -43,7 +43,7 @@ def test_get_nonexisting_space_group_full_name(spg):
         get_full_name(spg)
 
 
-@pytest.mark.parametrize("spg", ["P21", "H32", "p312"])
+@pytest.mark.parametrize("spg", ["P21", "R32", "p312"])
 def test_get_existing_space_group_number(spg):
     """
     Test that the full name of a space group can be retrieved correctly.
