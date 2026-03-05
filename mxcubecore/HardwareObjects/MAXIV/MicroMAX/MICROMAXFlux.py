@@ -129,7 +129,6 @@ class MICROMAXFlux(AbstractFlux):
         print("Current on the detector photodiode is {}".format(current))
         return flux
 
-
     # we don't need this method, would be better to have a generic one
     """
     def check_beam_opt(self):
@@ -166,14 +165,21 @@ class MICROMAXFlux(AbstractFlux):
         if device == "DM3_XBPM":
             xbpm = self.dm3_xbpm
         elif device == "DM4_XBPM":
-            return "",0
+            return "", 0
             xbpm = self.dm4_xbpm
         elif device == "BCU_XBPM1":
             xbpm = self.bcu_xbpm1
         elif device == "BCU_XBPM2":
             xbpm = self.bcu_xbpm2
         else:
-            raise Exception(f"Unrecognized device name {device}")
+            msg = f"Unrecognized device name {device}"
+            raise Exception(msg)  # noqa: TRY002
         total = xbpm.S
-        flux = total * ( -0.534515 * energy_ev * energy_ev * energy_ev * energy_ev - 43197.6 * energy_ev * energy_ev * energy_ev + 5.13449e+09 * energy_ev * energy_ev - 4.39169e+13 * energy_ev + 1.14591e+17)
+        flux = total * (
+            -0.534515 * energy_ev**4
+            - 43197.6 * energy_ev**3
+            + 5.13449e09 * energy_ev**2
+            - 4.39169e13 * energy_ev
+            + 1.14591e17
+        )
         return flux
