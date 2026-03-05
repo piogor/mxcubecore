@@ -1044,9 +1044,8 @@ class MICROMAXCollect(DataCollect):
             row,
             col,
         )
-        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict = header_appendix["collect_dict"]
-        collect_dict["ssx_mode"] = ssx_mode
+        collect_dict["ssx_mode"] = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict["target_beam_size_factor"] = (
             2.0  # this value should be from x-ray centering
         )
@@ -1159,8 +1158,8 @@ class MICROMAXCollect(DataCollect):
 
         try:
             self.progress_task.kill(block=False)
-        except Exception as ex:
-            self.log.error(f"Stopping progress task failure, error: {ex}")
+        except Exception:
+            self.log.exception("Stopping progress task failure")
         if self.data_collect_task is not None:
             self.data_collect_task.kill(block=False)
         self.log.warning("Collection stopped")
