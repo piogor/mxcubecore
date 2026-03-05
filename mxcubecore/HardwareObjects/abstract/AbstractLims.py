@@ -521,3 +521,16 @@ class AbstractLims(HardwareObject, abc.ABC):
         )
 
         self.__set_sessions(self.get_shared_sessions())
+
+    def xrf_spectrum_results_url(self, spectrum_id: int) -> str | None:
+        """
+        Returns URL to see the results of the XRF spectrum
+        with a given id in the LIMS web interface.
+
+        Args:
+            spectrum_id: The id of the XRF spectrum.
+
+        Returns:
+            URL to the results, or None if not implemented by the LIMS integration.
+        """
+        return None

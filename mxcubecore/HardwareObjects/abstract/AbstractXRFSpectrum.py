@@ -254,6 +254,14 @@ class AbstractXRFSpectrum(HardwareObject):
         self.update_state(self.STATES.FAULT)
 
     def spectrum_store_lims(self):
-        """Store the data in lims, according to the existing data model."""
+        """Store the data in lims, according to the existing data model.
+
+        Emits:
+            xrfSpectrumStored (url: string):
+                URL to the results to be viewed in LIMS.
+        """
         if self.spectrum_info_dict.get("sessionId"):
-            self.lims.store_xfe_spectrum(self.spectrum_info_dict)
+            lims_data = self.lims.store_xfe_spectrum(self.spectrum_info_dict)
+            spectrum_id = lims_data["xfeFluorescenceSpectrumId"]
+            url = self.lims.xrf_spectrum_results_url(spectrum_id)
+            self.emit("xrfSpectrumStored", (url))

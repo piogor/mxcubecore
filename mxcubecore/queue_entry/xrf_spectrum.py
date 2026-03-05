@@ -42,6 +42,7 @@ class XrfSpectrumQueueEntry(BaseQueueEntry):
     def __init__(self, view=None, data_model=None):
         super().__init__(view, data_model)
         self._failed = False
+        self.result_url: str | None = None
 
     def __getstate__(self) -> dict:
         d = dict(self.__dict__)
@@ -50,6 +51,12 @@ class XrfSpectrumQueueEntry(BaseQueueEntry):
 
     def __setstate__(self, d: dict):
         self.__dict__.update(d)
+
+    def _set_result_url(self, url: str) -> None:
+        self.result_url = url
+        qctrl = self.get_queue_controller()
+        # non-parameterised, marks that queue state shall be invalidated
+        qctrl.emit("taskResultReady")
 
     def execute(self):
         """Execute"""
@@ -88,6 +95,9 @@ class XrfSpectrumQueueEntry(BaseQueueEntry):
             "xrfSpectrumStatusChanged",
             self.xrf_spectrum_status_changed,
         )
+        qctrl.connect(
+            HWR.beamline.xrf_spectrum, "xrfSpectrumStored", self._set_result_url
+        )
 
         qctrl.connect(HWR.beamline.xrf_spectrum, "stateChanged", self.xrf_state_handler)
 
@@ -102,6 +112,9 @@ class XrfSpectrumQueueEntry(BaseQueueEntry):
 
         qctrl.disconnect(
             HWR.beamline.xrf_spectrum, "stateChanged", self.xrf_state_handler
+        )
+        qctrl.disconnect(
+            HWR.beamline.xrf_spectrum, "xrfSpectrumStored", self._set_result_url
         )
         if self._failed:
             raise QueueAbortedException("Queue stopped", self)
