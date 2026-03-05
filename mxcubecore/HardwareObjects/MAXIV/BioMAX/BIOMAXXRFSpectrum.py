@@ -374,7 +374,6 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
 
     def spectrum_command_finished(self):
         logging.getLogger("HWR").info("Sprectrum acquired, launching analysis")
-
         self.spectrum_info_dict["endTime"] = time.strftime("%Y-%m-%d %H:%M:%S")
         if HWR.beamline.transmission:
             self.spectrum_info_dict["beamTransmission"] = (
@@ -555,13 +554,15 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
             logging.getLogger("HWR").exception("Could not open the safety shutter")
             raise Exception("Could not open the safety shutter")
 
-    def store_xrf_spectrum(self):
+    def store_xrf_spectrum(self) -> None:
         logging.getLogger("HWR").debug("XRFSpectrum info %r", self.spectrum_info_dict)
-
         try:
             self.spectrum_info_dict.pop("prefix")
             self.spectrum_info_dict.pop("spectrum_directory")
             self.spectrum_info_dict.pop("archive_directory")
-            return HWR.beamline.lims.store_xfe_spectrum(self.spectrum_info_dict)
+            lims_data = self.lims.store_xfe_spectrum(self.spectrum_info_dict)
+            spectrum_id = lims_data["xfeFluorescenceSpectrumId"]
+            url = self.lims.xrf_spectrum_results_url(spectrum_id)
+            self.emit("xrfSpectrumStored", (url))
         except Exception:
             logging.getLogger("HWR").exception("Cannot save XRFSpectrum info to Ispyb")
