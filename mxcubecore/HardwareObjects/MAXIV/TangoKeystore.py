@@ -11,17 +11,19 @@ log = logging.getLogger("HWR")
 class TangoKeystore(HardwareObject):
     """HWO to query tangodb free properties under specified namespace"""
 
-    def __repr__(self):
-        return f"{self.namespace}: {self.registered_keys}"
+    def __init__(self, name):
+        super().__init__(name)
+        self._keys = []
 
-    def __getattr__(self, name: str) -> Any:
-        return self.get(name)
+    def __repr__(self):
+        return f"TangoKeystore({self.namespace}: {self.registered_keys})"
 
     def __getattr__(self, name: str) -> Any:
         return self.get(name)
 
     def init(self):
         super().init()
+
         self.namespace = self.get_property("namespace", None)
         self._db = self.get_property("db", None)
         try:
