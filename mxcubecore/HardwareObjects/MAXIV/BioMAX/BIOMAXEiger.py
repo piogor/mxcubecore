@@ -768,3 +768,24 @@ class BIOMAXEiger(AbstractDetector):
         (Tuple): Tuple containing first and last image path (first, last)
         """
         return (pt.get_image_path(), pt.get_image_path())
+
+    def get_actual_file_path(
+        self, master_file_path: str, image_number: int
+    ) -> tuple[str, int]:
+        """
+        Get file path to image with the given image number <image_number> and
+        the master h5 file <master_file_path>
+
+        Args:
+            first_file_path: Path to master h5 file
+            image_number: image number (absolute)
+
+        Returns:
+            A tuple [image file path, image_number (relative to file)]
+        """
+        result_data_path = "_".join(master_file_path.split("_")[0:-2])
+        img_number = int(image_number) % self._images_per_file
+        start_file_number = int(int(image_number) / self._images_per_file) + 1
+        result_data_path += "_data_%06d.h5" % start_file_number
+
+        return result_data_path, img_number
