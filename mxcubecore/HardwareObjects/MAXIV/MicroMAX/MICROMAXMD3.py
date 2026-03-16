@@ -255,6 +255,10 @@ class MICROMAXMD3(MAXIVMD3):
 
         self.log.info("fast shutter is already closed")
 
+    def center_loop(self, patience: int = 100, tolerance_mm: float = 0.05) -> bool:
+        patience = HWR.beamline.tango_keystore.get_integer("loopfinder_max_tries")
+        super().center_loop(patience=patience)
+
     def centring_navigator(self, tolerance_mm: float) -> CentringNavigatorUp:
         """
         This returns a custom navigator for loop centering on MicroMAX.
