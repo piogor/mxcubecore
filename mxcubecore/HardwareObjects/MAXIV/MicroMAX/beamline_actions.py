@@ -27,10 +27,6 @@ class PrepareOpenHutch:
 
     def __call__(self):
         try:
-            # Ensure laser is stopped before opening the hutch
-            laser = HWR.beamline.get_object_by_role("laser")
-            laser.disarm()
-
             collect = HWR.beamline.collect
             diffractometer = HWR.beamline.diffractometer
             detector = HWR.beamline.detector
@@ -40,6 +36,15 @@ class PrepareOpenHutch:
             collect.close_fast_shutter()
             collect.close_safety_shutter()
             collect.close_detector_cover()
+
+            if HWR.beamline.tango_keystore.is_enabled("laser_in_operation"):
+                try:
+                    # Ensure laser is stopped before opening the hutch
+                    laser = HWR.beamline.get_object_by_role("laser")
+                    laser.disarm()
+                    user_log.info("Switching off laser")
+                except Exception as ex:
+                    user_log.info(f"Error when switching off laser {ex}")
 
             diffractometer.wait_device_ready()
             if HWR.beamline.is_hve_sample_delivery():
