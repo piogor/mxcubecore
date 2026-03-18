@@ -15,6 +15,7 @@ from tango import (
     DevState,
 )
 
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObjectState
 from mxcubecore.HardwareObjects.abstract.AbstractDetector import AbstractDetector
 from mxcubecore.utils.units import (
@@ -75,6 +76,7 @@ class JungfrauDetector(AbstractDetector):
             "BeamCenterX": None,
             "BeamCenterY": None,
             "DetectorDistance": None,
+            "ExperimentType": "rotation",
             "CountTime": None,
             "NbImages": None,
             "NbTriggers": None,
@@ -82,6 +84,7 @@ class JungfrauDetector(AbstractDetector):
             "RoiMode": None,
             "FilenamePattern": None,
             "PhotonEnergy": None,
+            "SampleName":None,
             "TriggerMode": "exts",
             "UnitCellA": None,
             "UnitCellB": None,
@@ -89,6 +92,7 @@ class JungfrauDetector(AbstractDetector):
             "UnitCellAlpha": None,
             "UnitCellBeta": None,
             "UnitCellGamma": None,
+            "SpaceGroupNumber": None,
         }
 
     def init(self):
@@ -200,14 +204,18 @@ class JungfrauDetector(AbstractDetector):
         dev.images_per_trigger = config["NbImages"]
         dev.ntrigger = config["NbTriggers"]
         dev.images_per_file = config["ImagesPerFile"]
+        dev.sample_name = config["SampleName"]
+        dev.experiment_type = config["ExperimentType"]
 
-        set_optional("unit_cell__a", "UnitCellA", 0.0)
-        set_optional("unit_cell__b", "UnitCellB", 0.0)
-        set_optional("unit_cell__c", "UnitCellC", 0.0)
-        set_optional("unit_cell__alpha", "UnitCellAlpha", 0.0)
-        set_optional("unit_cell__beta", "UnitCellBeta", 0.0)
-        set_optional("unit_cell__gamma", "UnitCellGamma", 0.0)
-        set_optional("space_group_number", "SpaceGroupNumber", 1)
+        #todo, jn, tmp fix of the cell params don't carry over to next collection
+        if config["SpaceGroupNumber"] is not None:
+            set_optional("unit_cell__a", "UnitCellA", 0.0)
+            set_optional("unit_cell__b", "UnitCellB", 0.0)
+            set_optional("unit_cell__c", "UnitCellC", 0.0)
+            set_optional("unit_cell__alpha", "UnitCellAlpha", 0.0)
+            set_optional("unit_cell__beta", "UnitCellBeta", 0.0)
+            set_optional("unit_cell__gamma", "UnitCellGamma", 0.0)
+            set_optional("space_group_number", "SpaceGroupNumber", 0)
 
         exposure_time = sec_to_us(config["CountTime"])
         # image_time_us has to be multiple of frame_time_us
@@ -245,7 +253,10 @@ class JungfrauDetector(AbstractDetector):
         current acquisition time, in seconds
         """
         dev = self.dev
-        acq_time_us = dev.images_per_trigger * dev.image_time_us * dev.ntrigger
+        if HWR.beamline.is_hve_sample_delivery():
+            acq_time_us = dev.images_per_trigger * dev.image_time_us * dev.ntrigger
+        else:
+            acq_time_us = dev.images_per_trigger * dev.image_time_us
         return us_to_sec(acq_time_us)
 
     def wait_config_done(self):
@@ -272,3 +283,6 @@ class JungfrauDetector(AbstractDetector):
     def get_frame_time_us(self) -> float:
         """Get frame time in microseconds."""
         return self.dev.frame_time_us
+
+    def abort(self):
+        self.dev.Stop()

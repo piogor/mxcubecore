@@ -1,5 +1,7 @@
 import logging
 import math
+import time
+import gevent
 from dataclasses import dataclass
 
 from tango import DeviceProxy
@@ -8,6 +10,7 @@ from tango import DeviceProxy
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.utils.units import kev_to_ev
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import Celeroton
 
 user_log = logging.getLogger("user_level_log")
 
@@ -34,15 +37,16 @@ class PrepareOpenHutch:
             user_log.info("Preparing experimental hutch for door opening.")
 
             collect.close_fast_shutter()
-            collect.close_safety_shutter()
             collect.close_detector_cover()
 
             if HWR.beamline.tango_keystore.is_enabled("laser_in_operation"):
                 try:
                     # Ensure laser is stopped before opening the hutch
-                    laser = HWR.beamline.get_object_by_role("laser")
-                    laser.disarm()
+                    collect.stop_laser()
                     user_log.info("Switching off laser")
+                    collect.move_out_laser()
+                    user_log.info("Moving out laser")
+
                 except Exception as ex:
                     user_log.info(f"Error when switching off laser {ex}")
 
@@ -53,15 +57,25 @@ class PrepareOpenHutch:
                     "Setting diffractometer to 'equivalent' of Transfer phase."
                 )
                 diffractometer.channel_dict["BeamstopPosition"].set_value("PARK")
+                diffractometer.wait_device_ready()
                 diffractometer.channel_dict["CapillaryPosition"].set_value("PARK")
             else:
                 user_log.info("Setting diffractometer to Transfer phase.")
                 diffractometer.set_phase("Transfer")
 
-            user_log.info("Moving detector to safe position.")
-            collect.move_detector_to_safe_position()
+            try:
+                user_log.info("Moving detector to safe position.")
+                #todo, jn we should do this properly and check if the hutch is searched
+                collect.move_detector_to_safe_position()
+            except:
+                user_log.warning("Couldn't move detector, maybe hutch is not searched")
+                pass
 
-            if detector.get_property("model") == "JUNGFRAU":
+            collect.close_safety_shutter()
+
+            if collect.is_jungfrau():
+                #make sure safety shutter is closed before pedestal
+                time.sleep(1)
                 user_log.info("Collecting Jungfrau pedestal.")
                 detector.pedestal()
 
@@ -72,6 +86,31 @@ class PrepareOpenHutch:
                 "Error preparing to open hutch.\nError was: '%s'", str(ex)
             )
 
+class RecoverMD3:
+    def __call__(self):
+        """
+        RestartMD3 and set the necessary omega limits
+        """
+        diffractometer = HWR.beamline.diffractometer
+        diffractometer.restart_md3(cold_restart = False)
+
+class RecoverMD3Hard:
+    def __call__(self):
+        """
+        RestartMD3 and set the necessary omega limits
+        """
+        diffractometer = HWR.beamline.diffractometer
+        diffractometer.restart_md3(cold_restart = True)
+
+class StartChopper:
+    def __call__(self):
+        """
+        RestartMD3 and set the necessary omega limits
+        """
+        chopper = Celeroton()
+        user_log.info(f"Starting chopper now")
+        chopper.external_sync()
+        
 
 class CheckBeam:
     def __call__(self):
@@ -197,6 +236,10 @@ class AbortMD3:
         HWR.beamline.diffractometer.abort()
         user_log.info("Abort MD3")
 
+class MoveInLaser:
+    def __call__(self):
+        HWR.beamline.collect.move_in_laser()
+        user_log.info("Moving in laser")
 
 class FinishChipAlignment:
     """Finish the Chip alignment procedure.

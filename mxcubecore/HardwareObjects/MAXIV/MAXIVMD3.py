@@ -405,6 +405,10 @@ class MAXIVMD3(GenericDiffractometer):
         return self.pixels_per_mm_x, self.pixels_per_mm_y
 
     def manual_centring(self):
+        # not perform centring at all for hve
+        if HWR.beamline.is_hve_sample_delivery():
+            return
+        self.check_omega_limit()
         self.move_to_omega_reference_pos()
         self.wait_device_ready(10)
 
@@ -840,6 +844,7 @@ class MAXIVMD3(GenericDiffractometer):
     def set_phase(self, phase, wait=False, timeout=None):
         try:
             self.check_omega_limit()
+            self.check_phiy_limit()
             self.wait_ready(10)
         except Exception:
             self.log.exception(
@@ -860,7 +865,10 @@ class MAXIVMD3(GenericDiffractometer):
             self.log.info("MD3: Saving centered position")
             self.save_centered_position()
 
-        task_id = self.command_dict["startSetPhase"](phase)
+            if HWR.beamline.is_hve_sample_delivery():
+                self.save_centered_position()
+
+            task_id = self.command_dict["startSetPhase"](phase)
 
         task_info = self.waitTaskResult(task_id)
         task_output, task_exception, task_result = task_info[4:7]
@@ -987,7 +995,7 @@ class MAXIVMD3(GenericDiffractometer):
 
         return pos
 
-    def abort(self):
+    def abort(self, wait=True):
         """Abort all the pending tasks.
 
         Stops all the motors and closes all theirs control loops.
@@ -1005,7 +1013,8 @@ class MAXIVMD3(GenericDiffractometer):
         #
         # Note using self.wait_device_ready() did not work here for some reason.
         #
-        time.sleep(WAIT_AFTER_ABORT)
+        if wait:
+            time.sleep(WAIT_AFTER_ABORT)
 
         self.log.warning("all tasks aborted")
 
@@ -1175,7 +1184,60 @@ class MAXIVMD3(GenericDiffractometer):
             self.user_log.error(msg)
             raise Exception(msg)
 
+    def check_motor_limits(self, motor_name, min_value, max_value):
+        limits = self.command_dict["getMotorLimits"](motor_name)
+        if limits[0] < min_value or limits[1] > max_value:
+            msg = (
+                f"The current limits of Motor {motor_name} is {limits}, beyond [{min_value}, {max_value}],"
+                " please check motor setting in MD3"
+            )
+            self.user_log.error(msg)
+            raise Exception(msg)
+
+
     def check_omega_limit(self):
-        omega_limit = HWR.beamline.tango_keystore.get_float("md3_omega_limit") or 5
-        if omega_limit >= 0:
-            self.check_motor_limit_range("Omega", omega_limit)
+        omega_limit = HWR.beamline.tango_keystore.get("md3_omega_limit")
+        if omega_limit["max"] >= omega_limit["min"]:
+            self.check_motor_limits("Omega", omega_limit["min"],omega_limit["max"])
+
+    def check_phiy_limit(self):
+        phiy_limit = HWR.beamline.tango_keystore.get("md3_alignmenty_limit")
+        self.check_motor_limits("AlignmentY", phiy_limit["min"], phiy_limit["max"])
+
+    def set_omega_limit(self):
+        omega_limit = HWR.beamline.tango_keystore.get("md3_omega_limit")
+        if omega_limit["max"] >= omega_limit["min"]:
+            start_pos = self.phi_motor_hwobj.get_value()
+            self.command_dict["setOmegaLimits"]("%0.3f\t%0.3f" % (omega_limit["min"], omega_limit["max"]))
+            self.user_log.info(f"setting MD3 Omega Limits to {omega_limit}")
+            #critical, otherwise the first movement may cause collision
+            self.home_motor("Omega")
+            self.wait_device_ready(300)
+            # set to the middle value
+            self.user_log.info(f"Setting Omega back to the starting position {start_pos}")
+            self.phi_motor_hwobj.set_value(start_pos)
+            self.wait_device_ready(100)
+
+    def home_motor(self, motor_name):
+        self.user_log.info(f"Homing Motor {motor_name}")
+        self.command_dict["startHomingMotor"](motor_name)
+
+    def restart_md3(self, cold_restart = False):
+        self.user_log.info("Restarting MD3 application")
+        if cold_restart:
+            self.command_dict["restart"]("1")
+            time.sleep(200)
+            #todo jn, more action needs to be added
+        else:
+            self.command_dict["restart"]("0")
+            time.sleep(60)
+        self.wait_device_ready(300)
+        self.set_omega_limit()
+
+        if cold_restart:
+            self.wait_device_ready(300)
+            self.save_centered_position()
+            self.wait_device_ready(30)
+            self.home_motor("AlignmentX")
+            self.wait_device_ready(300)
+            self.set_phase("Centring", wait=True, timeout=300)
