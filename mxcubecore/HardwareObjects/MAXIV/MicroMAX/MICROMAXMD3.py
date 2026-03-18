@@ -156,6 +156,11 @@ class MICROMAXMD3(MAXIVMD3):
         self.log.info("MD3 raster oscillation finished, task result %s.", task_info)
 
     def set_calculate_flux_phase(self):
+        if HWR.beamline.is_hve_sample_delivery():
+            self.wait_ready(10)
+            self.set_organ_pos("beamstopZ", -10)
+            self.wait_ready(10)
+
         if self.head_type == GenericDiffractometer.HEAD_TYPE_MINIKAPPA:
             motors = [
                 "phi",
