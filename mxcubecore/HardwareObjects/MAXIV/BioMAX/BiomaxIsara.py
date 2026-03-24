@@ -7,7 +7,6 @@
 # YAML config files. With YAML configs we get more flexibility with module
 # names.
 #
-# ruff: noqa: N999
 #
 # Temporary disabling 'Create your own exception' check.
 # We should do what the check instructs us to do.
@@ -50,6 +49,17 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         super().init()
 
         self._is_handling_md3_not_safe = False
+
+    def gripper_drying(self) -> bool:
+        """Check if the gripper is drying."""
+        # Isara1 does not implement GripperDrying
+        # but it can be detected by parsing the Message attribute.
+        message = self.get_channel_value("Message")
+        drying_message = "WAIT for Dew_C condition / 31", "Gripper drying in progress"
+        if message.startswith(drying_message):
+            self.log.info("Gripper drying in progress. Message: '%s'", message)
+            return True
+        return False
 
     def _create_attr_channels(self):
         super()._create_attr_channels()

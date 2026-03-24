@@ -181,6 +181,17 @@ class ISARA(SampleChanger):
             self._sample_on_diff_changed,
         )
 
+        try:
+            self._chnGripperDrying = add_attribute_channel(
+                self, self.tangoname, "GripperDrying"
+            )
+        except TangoAttributeReadError:
+            self.log.warning(
+                "ISARA: could not connect to 'GripperDrying' tango attribute. "
+                "Gripper drying status is only available with Isara2 Tango Device."
+            )
+            self._chnGripperDrying = None
+
         self._chnState.connect_signal("update", self.cats_state_changed)
         self._chnPathRunning.connect_signal("update", self.cats_pathrunning_changed)
         self._chnPowered.connect_signal("update", self.cats_powered_changed)
@@ -233,7 +244,7 @@ class ISARA(SampleChanger):
                 "name": command_name,
                 "tangoname": self.tangoname,
             },
-            tango_command_name if tango_command_name else command_name,
+            tango_command_name or command_name,
         )
 
         if failed_callback is not None:
@@ -422,7 +433,9 @@ class ISARA(SampleChanger):
                 )
             else:
                 self.log.warning("chained load sample, sending to cats: %s", argin)
-                return self._execute_server_task(self._cmdChainedLoad, argin)
+                return self._execute_server_task(
+                    self._cmdChainedLoad, argin, waitdrying=False
+                )
         else:
             if self.cats_sample_on_diffr() == 1:
                 self.log.warning(
@@ -437,7 +450,7 @@ class ISARA(SampleChanger):
                 self._update_state()  # remove software flags like Loading.
             else:
                 self.log.warning("load sample, sending to cats: %s", argin)
-                return self._execute_server_task(self._cmdLoad, argin)
+                return self._execute_server_task(self._cmdLoad, argin, waitdrying=False)
 
         return False
 
@@ -465,7 +478,7 @@ class ISARA(SampleChanger):
             return
 
         self.log.warning("unload sample")
-        self._execute_server_task(self._cmdUnload)
+        self._execute_server_task(self._cmdUnload, waitdrying=False)
 
     def _on_task_failed(self, task, exception):
         if task in [SampleChangerState.Loading, SampleChangerState.Unloading]:
@@ -565,6 +578,8 @@ class ISARA(SampleChanger):
             task_id = None
 
         waitsafe = kwargs.get("waitsafe", False)
+        waitdrying = kwargs.get("waitdrying", True)
+
         self.log.debug(
             "executing method %s / task_id %s / waiting only for safe status is %s",
             method,
@@ -594,6 +609,11 @@ class ISARA(SampleChanger):
                             "server execution polling finished as path is not running"
                         )
                         break
+                    if not waitdrying and self.gripper_drying():
+                        self.log.debug(
+                            "server execution polling finished as gripper is drying"
+                        )
+                        break
                 gevent.sleep(0.1)
             ret = True
         return ret
@@ -603,6 +623,10 @@ class ISARA(SampleChanger):
 
     def path_running(self):
         return str(self._chnPathRunning.get_value()).lower() == "true"
+
+    def gripper_drying(self) -> bool:
+        """Check if the gripper is drying."""
+        return str(self._chnGripperDrying.get_value()).lower() == "true"
 
     def _do_update_state(self):
         """
