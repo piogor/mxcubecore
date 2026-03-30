@@ -152,11 +152,11 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
             list out of {size_x:0.1, size_y:0.1, shape:"rectangular"}
         """
         # return list(self.get_beam_info_dict().values())
-        current_aperture = float(self.aperture_hwobj.get_diameter_size())
+        current_aperture = self.aperture_hwobj.get_diameter_size()
 
         return (
-            um_to_mm(current_aperture),
-            um_to_mm(current_aperture),
+            um_to_mm(float(current_aperture)),
+            um_to_mm(float(current_aperture)),
             BeamShape.ELIPTICAL,
             current_aperture,
         )
