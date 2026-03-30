@@ -406,7 +406,7 @@ class MAXIVMD3(GenericDiffractometer):
 
     def manual_centring(self):
         # not perform centring at all for hve
-        if HWR.beamline.is_hve_sample_delivery():
+        if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
             return
         self.check_omega_limit()
         self.move_to_omega_reference_pos()
@@ -483,10 +483,12 @@ class MAXIVMD3(GenericDiffractometer):
         )
         for i in range(patience):
             self.wait_device_ready(20)
+            time.sleep(0.2)
             img = np.array(HWR.beamline.sample_view.take_snapshot())
             step = nav.next_step(img)
             self.log.info(f"step {i}/{patience} - {step}")
             if step.finished():
+                self.log.warning("center_loop success")
                 return True
             if step.rotate:
                 self.phi_motor_hwobj.set_value_relative(step.rotate)
@@ -498,7 +500,7 @@ class MAXIVMD3(GenericDiffractometer):
                 target_pos = self.get_centred_point_from_coord(
                     step.x_to_center, step.y_to_center, return_by_names=True
                 )
-                inside_cryo = -4.0 < target_pos["sampy"] < 4.0
+                inside_cryo = -4.0 < target_pos["phiy"] < 4.0
                 if not inside_cryo:
                     self.log.error(
                         """
@@ -528,7 +530,7 @@ class MAXIVMD3(GenericDiffractometer):
                 }
                 self.move_sync_motors(relevant_motorpos, wait=True)
                 self.wait_device_ready(20)
-        self.log.debug(
+        self.log.warning(
             f"center_loop ran out of patience ({patience}). Maybe increase tolerance?"
         )
         return False
@@ -548,6 +550,14 @@ class MAXIVMD3(GenericDiffractometer):
         for the centering to work. Returns a 3d point on the centered position.
         """
         self.wait_device_ready(20)
+
+        # don't even try centring if a sample is not detected
+        if not self.sample_is_loaded:
+            self.log.warning("a sample is not detected on the magnet, "
+                             "bailing out of loop centring")
+            self.user_log.critical("a sample is not detected on the magnet, "
+                             "check camera and run //Empty Mount// beamline action")
+            return self.get_center_pos()
 
         # move MD3 to Centring phase if it's not
         if self.get_current_phase() != "Centring":
@@ -579,7 +589,7 @@ class MAXIVMD3(GenericDiffractometer):
 
         success = self.center_loop()
         if not success:
-            self.user_log.error("Automatic loop centering failed!")
+            self.user_log.warning("Automatic loop centering failed!")
 
         return self.get_center_pos()
 
@@ -781,6 +791,10 @@ class MAXIVMD3(GenericDiffractometer):
         self.channel_dict["ScanExposureTime"].set_value(exptime)
         self.channel_dict["ScanRange"].set_value(end - start)
         self.channel_dict["ScanNumberOfFrames"].set_value(nframes)
+
+        if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+            self.log.warning("setting scan range to 0.0 for ssx_mode mesh scan")
+            self.channel_dict["ScanRange"].set_value(0.0)
 
         raster_params = "%0.5f\t%0.5f\t%i\t%i\t%i" % (
             vertical_range,

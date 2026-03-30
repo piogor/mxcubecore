@@ -6,13 +6,28 @@ from dataclasses import dataclass
 
 from tango import DeviceProxy
 
-from tango import DeviceProxy
+# Temporary until tango_keystore package is updated to version
+# with tag support
+from tango_keystore import TangoKeystore
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.utils.units import kev_to_ev
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import Celeroton
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.sendEmail import sendEmail
 
 user_log = logging.getLogger("user_level_log")
+
+
+def send_email(receivers, subject, content):
+    send_email = sendEmail(receivers = receivers)
+    attachments = None
+    """
+    try:
+        attachments = eval(email["attachments"])
+    except:
+        pass
+    """
+    send_email.send_email(subject=subject, content= content, attachments=attachments)
 
 
 class PrepareOpenHutch:
@@ -62,6 +77,10 @@ class PrepareOpenHutch:
             else:
                 user_log.info("Setting diffractometer to Transfer phase.")
                 diffractometer.set_phase("Transfer")
+                if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
+                    self.diffractometer_hwobj.wait_ready(10)
+                    self.diffractometer_hwobj.phi_motor_hwobj.set_value(170)
+
 
             try:
                 user_log.info("Moving detector to safe position.")
@@ -99,8 +118,12 @@ class RecoverMD3Hard:
         """
         RestartMD3 and set the necessary omega limits
         """
+        user_log.info("MD3 Cold restart, this takes 5 minutes; coffee break!")
+
         diffractometer = HWR.beamline.diffractometer
         diffractometer.restart_md3(cold_restart = True)
+        user_log.info("MD3 restart done; coffee break is over!")
+
 
 class StartChopper:
     def __call__(self):
@@ -110,7 +133,7 @@ class StartChopper:
         chopper = Celeroton()
         user_log.info(f"Starting chopper now")
         chopper.external_sync()
-        
+
 
 class CheckBeam:
     def __call__(self):
@@ -172,7 +195,12 @@ class EmptyMount:
 
         user_log.info("Performing empty mount recovery sequence.")
 
+        isara.execute_command("abort")
+        isara.execute_command("ClearMemory")
         isara.execute_command("Reset")
+        time.sleep(0.5)
+        isara.execute_command("PowerOn")
+
 
         user_log.info("Recovery sequence completed.")
 
@@ -272,3 +300,42 @@ class FinishChipAlignment:
 
         # reset 'start' position, so it's not re-used by mistake
         StartChipAlignment.Position = None
+
+def get_tag_dict(tag) -> dict:
+    _ks = TangoKeystore(namespace=f"TangoKeystore_{tag}")
+    _all = _ks.get_all()
+    return {k: v for k, v in _all.items() if not k.startswith("_")}
+
+class EnableSSX:
+    def __call__(self):
+        HWR.beamline.tango_keystore.put("ssx_mode", True)  # noqa: FBT003
+        user_log.info("Enabling SSX_MODE")
+
+class DisableSSX:
+    def __call__(self):
+        HWR.beamline.tango_keystore.put("ssx_mode", False)  # noqa: FBT003
+        user_log.info("Enabling SSX_MODE")
+
+class BeamtimeEnd:
+    def __call__(self):
+        receivers = ["jie.nan@maxiv.lu.se", "mirko.milas@maxiv.lu.se"]
+        msg = "Beamtime End"
+        send_email(receivers, "Beamtime End", msg)
+        if HWR.beamline.is_sample_changer_used():
+            if HWR.beamline.sample_changer.has_loaded_sample():
+                user_log.info("Unmount sample...")
+                HWR.beamline.sample_changer.unload()
+            else:
+                user_log.info("No sample mounted by sample changer, will not unload")
+            if HWR.beamline.sample_changer_maintenance._position_name != "home":
+                user_log.info("Send gripper to home")
+                HWR.beamline.sample_changer_maintenance.send_command("home")
+                HWR.beamline.sample_changer._wait_device_ready(30)
+            user_log.info("Close lid")
+            HWR.beamline.sample_changer_maintenance.send_command("closeLid")
+            HWR.beamline.sample_changer._wait_device_ready(30)
+            time.sleep(5)
+            user_log.info("Power off")
+            HWR.beamline.sample_changer_maintenance.send_command("PowerOff")
+        else:
+            user_log.info("Sample changer is not used")

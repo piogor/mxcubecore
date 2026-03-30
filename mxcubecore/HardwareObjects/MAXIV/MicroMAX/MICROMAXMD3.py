@@ -115,6 +115,11 @@ class MICROMAXMD3(MAXIVMD3):
         self.channel_dict["ScanRange"].set_value(end - start)
         self.channel_dict["ScanNumberOfFrames"].set_value(1)
 
+        if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+            self.log.warning("setting scan range to 0.0 for ssx_mode mesh scan")
+            self.channel_dict["ScanRange"].set_value(0.0)
+
+
         raster_params = "%0.5f\t%0.5f\t%i\t%i\t%i\t%i\t%i" % (
             vertical_range,
             horizontal_range,
