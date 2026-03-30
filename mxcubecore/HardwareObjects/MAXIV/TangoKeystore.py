@@ -59,6 +59,12 @@ class TangoKeystore(HardwareObject):
             log.error(msg)
             raise RuntimeError(msg)
 
+    def put(self, key: str, value) -> Any:
+        """Get value for a registered key."""
+        self._ensure_registered(key)
+        self._ensure_exists(key)
+        return self._keystore.put(key, value)
+
     def get(self, key: str) -> Any:
         """Get value for a registered key."""
         self._ensure_registered(key)
@@ -103,3 +109,4 @@ class TangoKeystore(HardwareObject):
     is_disabled = is_false
     is_off = is_false
     is_no = is_false
+    get_integer = get_int

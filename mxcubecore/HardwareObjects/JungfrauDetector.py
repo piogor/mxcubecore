@@ -206,6 +206,8 @@ class JungfrauDetector(AbstractDetector):
         dev.images_per_file = config["ImagesPerFile"]
         dev.sample_name = config["SampleName"]
         dev.experiment_type = config["ExperimentType"]
+        if config["ExperimentType"] == "grid_scan":
+            dev.grid_scan__n_fast = config["NbImages"]
 
         #todo, jn, tmp fix of the cell params don't carry over to next collection
         if config["SpaceGroupNumber"] is not None:

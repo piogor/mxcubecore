@@ -218,6 +218,9 @@ class ISARA(SampleChanger):
         self._cmdScanSample = self._add_tango_command(
             "Barcode", failed_callback=self._on_command_fail
         )
+        self._cmdClearMemory = self._add_tango_command(
+            "ClearMemory", failed_callback=self._on_command_fail
+        )
         self._add_tango_command("Soak", failed_callback=self._on_command_fail)
         self._add_tango_command("Reset", failed_callback=self._on_command_fail)
 
