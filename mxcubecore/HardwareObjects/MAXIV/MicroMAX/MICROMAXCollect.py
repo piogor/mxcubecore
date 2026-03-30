@@ -421,9 +421,9 @@ class MICROMAXCollect(DataCollect):
             det_config = self.prepare_detector()
 
             if self.is_jungfrau():
-                self.pandabox_dev.set_attribute("BITS3.OUTA", "1")
+                self.pandabox_dev.set_attribute("BITS3.A", "1")
             elif self.is_eiger9m():
-                self.pandabox_dev.set_attribute("BITS3.OUTB", "1")
+                self.pandabox_dev.set_attribute("BITS3.B", "1")
             
         except Exception as ex:
             self.user_log.exception("Collection: cannot set prepare detector.")
@@ -479,11 +479,12 @@ class MICROMAXCollect(DataCollect):
                 osc_start += osc_range * nframes_per_trigger - overlap
             self.char = True
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
+            # web server send the wrong info, swapped here
             triggers_to_collect.append(
                 (
                     osc_start,
-                    self.get_mesh_total_nb_frames(),
-                    self.get_mesh_num_lines(),
+                    self.get_mesh_total_nb_frames(), #trigger_num
+                    self.get_mesh_num_lines(), #nframes_per_trigger
                     osc_range,
                 )
             )
@@ -614,6 +615,7 @@ class MICROMAXCollect(DataCollect):
             self.close_detector_cover()
 
     def get_mesh_num_lines(self):
+        self.log.info(f"xxxxxxxxxxxxxxxx {self.mesh_num_lines=}")
         return self.mesh_num_lines
 
     def get_mesh_total_nb_frames(self):
@@ -659,10 +661,6 @@ class MICROMAXCollect(DataCollect):
     def oscil(self, start, end, exptime, npass, wait=True):
         def get_table_pitch() -> int:
             """Figure out if mesh scan table pitch should be enabled."""
-
-            if HWR.beamline.is_fixed_target_sample_delivery():
-                # table pitch disabled for fixed-target collections
-                return 0
 
             if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
                 return 0
@@ -1162,12 +1160,13 @@ class MICROMAXCollect(DataCollect):
         ) = self.triggers_to_collect[0]
 
         if self.current_dc_parameters["experiment_type"] == "Mesh":
-            ntrigger = self.get_mesh_num_lines()
+            ntrigger = trigger_num
         else:
             ntrigger = len(self.triggers_to_collect)
 
         #we use "first image" to set multiple triggers
-        ntrigger = oscillation_parameters["start_image_number"]
+        if HWR.beamline.is_hve_sample_delivery():
+            ntrigger = oscillation_parameters["start_image_number"]
         config = self.detector_hwobj.col_config
 
         config["OmegaStart"] = osc_start  # oscillation_parameters['start']
@@ -1184,6 +1183,7 @@ class MICROMAXCollect(DataCollect):
 
         config["NbImages"] = nframes_per_trigger
         config["NbTriggers"] = ntrigger
+
 
         if nframes_per_trigger * ntrigger < config["ImagesPerFile"]:
             self.display["delay"] = (
@@ -1212,20 +1212,25 @@ class MICROMAXCollect(DataCollect):
 
             #todo, jn, tmp solution, we should unify the epxeriment type definition, several sources now
             if HWR.beamline.tango_keystore.get("experiment_type") == "tr":
-                config["ExperimentType"] = "still"
                 if self.time_resolved:
                     config["SampleName"] = "laseron"
                 else:
                     config["SampleName"] = "laseroff"
+            if HWR.beamline.is_hve_sample_delivery():
+                config["ExperimentType"] = "still"
             elif HWR.beamline.tango_keystore.get("experiment_type") == "osc":
                 config["ExperimentType"] = "rotation"
             elif self.current_dc_parameters["experiment_type"] == "Mesh":
                 config["ExperimentType"] = "grid_scan"
+                #beam_size_x, beam_size_y = self.get_beam_size()
+                #config["beamx"] = 
+                #config["beamy"] = 
 
             sample_info = self.current_dc_parameters["sample_reference"]
             space_group = sample_info.get("spacegroup").strip() or None
 
             if space_group is not None:
+                space_group = space_group.strip()
                 space_group_number = space_groups.get_number(space_group)
                 config["SpaceGroupNumber"] = space_group_number
             else:
@@ -1399,7 +1404,7 @@ class MICROMAXCollect(DataCollect):
         ):
             self.diffractometer_hwobj.set_phase("Transfer", wait=True)
             if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
-                self.diffractometer_hwobj.phi_motor_hwobj.set_value(45)
+                self.diffractometer_hwobj.phi_motor_hwobj.set_value(170)
                 self.diffractometer_hwobj.wait_ready(10)
             self.move_detector_to_safe_position()
 
@@ -1500,7 +1505,7 @@ class MICROMAXCollect(DataCollect):
             flux = self.flux.calc_flux()
         finally:
             self.close_fast_shutter()
-            if flux > 1e9:
+            if flux > 5e9:
                 _msg = "Contact support: Direct beam detected behind beamstop"
                 self.user_log.error(_msg)
                 raise Exception(_msg)
