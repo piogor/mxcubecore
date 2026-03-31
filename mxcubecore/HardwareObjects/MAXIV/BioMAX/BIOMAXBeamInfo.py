@@ -3,9 +3,12 @@ from enum import (
     Enum,
     unique,
 )
+from typing import TYPE_CHECKING
 
-from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects import BeamInfo
+
+if TYPE_CHECKING:
+    from mxcubecore.HardwareObjects.MAXIV.BioMAX.beam_definer import BeamDefiner
 from mxcubecore.HardwareObjects.abstract import AbstractBeam
 from mxcubecore.utils.units import um_to_mm
 
@@ -43,10 +46,9 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         self._beam_label = None
         self._beam_divergence = (None, None)
         self._beam_position_on_screen = [None, None]  # TODO move to sample_view
-        self.beam_size_hor = None
-        self.beam_size_ver = None
         self._beam_size_dict = {}
         self._beam_info_dict = {}
+        self._beam_definer: BeamDefiner | None = None
 
     def init(self):
         BeamInfo.BeamInfo.init(self)
@@ -70,16 +72,6 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         else:
             logging.getLogger("HWR").warning("BeamInfo: Aperture hwobj not defined")
 
-        self.beam_size_hor = self.get_object_by_role("beam_size_hor")
-        self.beam_size_ver = self.get_object_by_role("beam_size_ver")
-
-        if self.beam_size_hor and self.beam_size_ver:
-            self.beam_size_hor.connect("valueChanged", self.beam_size_hor_changed)
-            self.beam_size_ver.connect("valueChanged", self.beam_size_ver_changed)
-            self.beam_size_ver.connect("stateChanged", self.beam_size_state_changed)
-            self._beam_info_dict["size_y"] = um_to_mm(self.beam_size_ver.get_value())
-            self._beam_info_dict["size_x"] = um_to_mm(self.beam_size_hor.get_value())
-
         self.evaluate_beam_info()
         self.re_emit_values()
         self.emit("beamPosChanged", (self._beam_position_on_screen,))
@@ -100,43 +92,9 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
             dict: copy of beam_info_dict
         """
         self.evaluate_beam_info()
-        if self.beam_size_hor and self.beam_size_ver:
-            self._beam_info_dict["size_x"] = um_to_mm(self.beam_size_hor.get_value())
-            self._beam_info_dict["size_y"] = um_to_mm(self.beam_size_ver.get_value())
         self._beam_info_dict["label"] = self.aperture_hwobj.get_diameter_size()
         self.get_beam_shape()
         return self._beam_info_dict.copy()
-
-    def beam_size_hor_changed(self, value):
-        """Method called when the beam size changes
-
-        Args:
-            value (float):
-        """
-        self._beam_info_dict["size_x"] = value
-        self.evaluate_beam_info()
-        self.re_emit_values()
-
-    def beam_size_ver_changed(self, value):
-        """Method called when the beam size changes
-
-        Args:
-            value (float):
-        """
-        self._beam_info_dict["size_y"] = value
-        self.evaluate_beam_info()
-        self.re_emit_values()
-
-    def beam_size_state_changed(self, value):
-        """called if aperture, slits or focusing has been changed"""
-        self.re_emit_values()
-        self.get_beam_info_dict()
-
-        if self._beam_size_dict["aperture"] < self._beam_size_dict["slits"]:
-            self._beam_info_dict["shape"] = "ellipse"
-        else:
-            self._beam_info_dict["shape"] = "rectangular"
-        return self._beam_info_dict
 
     def get_slits_gap(self):
         """
@@ -194,18 +152,6 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
 
         return self.beam_position
 
-    def get_motors_states(self):
-        # (NOTINITIALIZED, UNUSABLE, READY, MOVESTARTED, MOVING, ONLIMIT) = (0,1,2,3,4,5)
-        _st1 = self.beam_size_hor.get_state()
-        _st2 = self.beam_size_ver.get_state()
-        # motor always unusable on start since the motor is always off
-        if _st1 == 1:
-            _st1 = 2
-        if _st2 == 1:
-            _st2 = 2
-        motors_states = {"mot01": _st1, "mot02": _st2}
-        return motors_states
-
     def set_value(self, value):
         """Setting new size for aperture diameter.
 
@@ -216,55 +162,6 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
             None
         """
         self.aperture_hwobj.set_diameter_size(value)
-
-    def set_beam_size(self, size_x, size_y):
-        """Setting beam size in millimeters
-
-        Returns:
-            None
-        """
-        logging.getLogger("HWR").info("Beamfocus moving to %s x %s" % (size_x, size_y))
-        size_x = int(size_x)
-        size_y = int(size_y)
-        if not (
-            (size_x == 20 and size_y == 5)
-            or (size_x == 50 and size_y == 50)
-            or (size_x == 100 and size_y == 100)
-        ):
-            logging.getLogger("user_level_log").error(
-                "Beamfocus value is not a valid size."
-            )
-            raise Exception("The value is not a valid size.")
-        try:
-            self.beam_size_hor._set_value(size_x)
-            self.beam_size_ver._set_value(size_y)
-            self.evaluate_beam_info()
-            self.re_emit_values()
-
-        except Exception as ex:
-            logging.getLogger("user_level_log").error("Beamfocus moving error")
-            logging.getLogger("HWR").error("Beamfocus moving error, %s" % ex)
-
-        # now we adapt the aperture
-        if size_x == 20 and size_y == 5:
-            logging.getLogger("HWR").info("Changing aperture to 10 um")
-            self.aperture_hwobj.set_diameter_size("10")
-            self.evaluate_beam_info()
-            self.re_emit_values()
-        elif size_x == 50 and size_y == 50:
-            logging.getLogger("HWR").info("Changing aperture to 50 um")
-            self.aperture_hwobj.set_diameter_size("50")
-            self.evaluate_beam_info()
-            self.re_emit_values()
-        elif size_x == 100 and size_y == 100:
-            logging.getLogger("HWR").info("Changing aperture to 100 um")
-            self.aperture_hwobj.set_diameter_size("100")
-            self.evaluate_beam_info()
-            self.re_emit_values()
-        else:
-            logging.getLogger("HWR").warning(
-                "Beamfocus, suitable aperture value not found."
-            )
 
     def get_beam_size(self):
         """getting beam size in millimeters
