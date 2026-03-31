@@ -3,6 +3,7 @@ import math
 import time
 
 from gevent import Timeout
+from tango import DevState
 
 from mxcubecore.BaseHardwareObjects import (
     HardwareObjectState,
@@ -161,13 +162,13 @@ class SardanaMotor(AbstractMotor):
         except (KeyError, AttributeError):
             return self.STATES.UNKNOWN
 
-    def _update_state(self, state):
+    def _update_state(self, state: str | DevState) -> None:
         try:
-            state = state.upper()
+            state = state.upper() if isinstance(state, str) else state.name
             state = SardanaMotorState[state].value
         except (AttributeError, KeyError):
             state = self.STATES.UNKNOWN
-        return self.update_state(state)
+        self.update_state(state)
 
     def is_ready(self) -> bool:
         """
