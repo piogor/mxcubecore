@@ -318,7 +318,7 @@ class DisableSSX:
 
 class BeamtimeEnd:
     def __call__(self):
-        receivers = ["jie.nan@maxiv.lu.se", "mirko.milas@maxiv.lu.se"]
+        receivers = HWR.beamline.tango_keystore.get("oncall")
         msg = "Beamtime End"
         send_email(receivers, "Beamtime End", msg)
         if HWR.beamline.is_sample_changer_used():
@@ -339,3 +339,7 @@ class BeamtimeEnd:
             HWR.beamline.sample_changer_maintenance.send_command("PowerOff")
         else:
             user_log.info("Sample changer is not used")
+
+        # end beamtime
+        cmd = HWR.beamline.beamline_actions.get_command_object("beamtime_end")
+        cmd(wait=True)
