@@ -17,7 +17,7 @@ from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 
 CORRECT_OMEGA_SCRIPT = (
-    "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega_2024.py"
+    "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega.sh"
 )
 
 hwr_log = logging.getLogger("HWR")
@@ -211,9 +211,9 @@ class BIOMAXCollect(DataCollect):
             # todo, self.move_to_centered_position() should go inside take_crystal_snapshots,
             # which makes sure it move motors to the correct positions and move back
             # if there is a phase change
-            user_log.debug("Collection: going to take snapshots...")
+            hwr_log.debug("Collection: going to take snapshots...")
             self.take_crystal_snapshots()
-            user_log.debug("Collection: snapshots taken")
+            hwr_log.debug("Collection: snapshots taken")
             # to fix permission issues
             snapshots_files = []
 
@@ -381,7 +381,7 @@ class BIOMAXCollect(DataCollect):
                 "DataCollection", wait=True, timeout=200
             )
 
-        self.flux_before_collect = 0  # self.get_instant_flux()
+        self.flux_before_collect = self.get_instant_flux()
         self.flux_after_collect = None
         # flux value is a string
         if float(self.flux_before_collect) < 1:
@@ -401,7 +401,13 @@ class BIOMAXCollect(DataCollect):
     def fix_mesh_start(self):
         dcp = self.current_dc_parameters
         shape = HWR.beamline.sample_view.get_shape(dcp["shape"])
-        if shape.label.lower() == "grid":
+        if shape is None:  # noqa: SIM108
+            _label = "None shape"
+        else:
+            _label = shape.label.lower()
+        self.log.warning(f"Shape label is {_label}")
+        # global phasing does not use a shape, sigh
+        if shape is None or shape.label.lower() != "grid":
             return
         md3 = self.diffractometer_hwobj
         self.log.warning("Fixing centered_position for mesh scan")
@@ -446,8 +452,11 @@ class BIOMAXCollect(DataCollect):
                 osc_start += osc_range * nframes_per_trigger - overlap
 
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
+            shape_id = self.get_current_shape_id()
+            shape = HWR.beamline.sample_view.get_shape(shape_id)
+
             triggers_to_collect.append(
-                (osc_start, self.get_mesh_num_lines(), nframes, osc_range)
+                (osc_start, shape.num_cols, shape.num_rows, osc_range)
             )
         else:
             triggers_to_collect.append((osc_start, 1, nframes, osc_range))
@@ -544,6 +553,13 @@ class BIOMAXCollect(DataCollect):
             self.close_detector_cover()
             raise Exception("data collection hook failed... ", sys.exc_info()[0])
 
+    def data_collection_cleanup(self):
+        """
+        Method called when at end of data collection, successful or not.
+        """
+        self.close_fast_shutter()
+        self.close_detector_cover()
+
     def get_mesh_num_lines(self):
         return self.mesh_num_lines
 
@@ -578,16 +594,17 @@ class BIOMAXCollect(DataCollect):
             )
             shape_id = self.get_current_shape_id()
             shape = HWR.beamline.sample_view.get_shape(shape_id).as_dict()
+            self.log.warning(f"raster_scan {shape=}")
             range_x = shape.get("num_cols") * shape.get("cell_width") / 1000.0
             range_y = shape.get("num_rows") * shape.get("cell_height") / 1000.0
             self.diffractometer_hwobj.raster_scan(
                 start,
                 end,
                 exptime,
-                range_y,  # vertical_range in mm,
                 range_x,  # horizontal_range in mm,
-                self.get_mesh_num_lines(),
-                self.get_mesh_total_nb_frames(),  # is in fact nframes per line
+                range_y,  # vertical_range in mm,
+                shape["steps_x"],
+                shape["steps_y"],
                 invert_direction=1,
                 wait=wait,
             )
@@ -757,11 +774,10 @@ class BIOMAXCollect(DataCollect):
         diffr = HWR.beamline.diffractometer
         number_of_snapshots = self.number_of_snapshots
         if number_of_snapshots > 0:
-            # snapshot_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
-            # save the image to the data collection directory for the moment
-            snapshot_directory = os.path.join(
-                self.current_dc_parameters["fileinfo"]["directory"], "snapshot"
-            )
+            snapshot_directory = self.current_dc_parameters["fileinfo"][
+                "archive_directory"
+            ]
+
             if not os.path.exists(snapshot_directory):
                 try:
                     self.create_directories(snapshot_directory)
@@ -884,7 +900,7 @@ class BIOMAXCollect(DataCollect):
         try:
             self.create_directories(xds_directory, auto_directory)
         except os.error:
-            logging.exception("Could not create processing file directory")
+            hwr_log.exception("Could not create processing file directory")
             return
         if xds_directory:
             self.current_dc_parameters["xds_dir"] = xds_directory
@@ -965,17 +981,18 @@ class BIOMAXCollect(DataCollect):
             return self.dtox_hwobj.get_limits()
 
     def prepare_detector(self):
+        dcp = self.current_dc_parameters
+        shape = HWR.beamline.sample_view.get_shape(dcp["shape"])
+
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         (
             osc_start,
-            trigger_num,
+            ntrigger,
             nframes_per_trigger,
             osc_range,
         ) = self.triggers_to_collect[0]
 
-        if self.current_dc_parameters["experiment_type"] == "Mesh":
-            ntrigger = self.get_mesh_num_lines()
-        else:
+        if self.current_dc_parameters["experiment_type"] != "Mesh":
             ntrigger = len(self.triggers_to_collect)
         config = self.detector_hwobj.col_config
         """ move after setting energy
@@ -1171,10 +1188,10 @@ class BIOMAXCollect(DataCollect):
         return checkbeam
 
     def _update_image_to_display(self):
-        fname1 = "/mxn/groups/biomax/wmxsoft/auto_load_img_cc/to_display"
+        fname1 = "/mxn/groups/sw/mxsw/albula_autoload/to_display"
         time.sleep(self.display["delay"] + 3)
         frequency = 5
-        step = int(math.ceil(frequency / self.display["exp"]))
+        step = math.ceil(frequency / self.display["exp"])
         if step == 1:
             frequency = self.display["exp"]
         for i in range(1, self.display["nimages"] + 1, step):
