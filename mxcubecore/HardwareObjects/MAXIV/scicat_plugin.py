@@ -2,24 +2,18 @@
 A plugin to connect to SciCat.
 """
 
-#
-# Temporary disabling '`os.path.join()` should be replaced' check.
-# We should fix the code and re-enable the check.
-#
-# ruff: noqa: PTH118
-#
-# Temporary disabling 'Invalid module name' check.
-# We should make this module name ruff in the future.
-#
-# ruff: noqa: N999
-#
-
+# ruff: noqa: C901, PLR0912
 import logging
 import math
-import os
-from datetime import datetime
+import time
+from datetime import UTC, datetime
+from pathlib import Path
 
 from scifish import SciFish
+
+_FILE_WAIT_TIMEOUT = 30.0
+_FILE_WAIT_INTERVAL = 0.5
+
 
 SKIP_VALUES = [
     "fileinfo",
@@ -41,6 +35,7 @@ class SciCatPlugin:
         self.log = logging.getLogger(__name__)
 
     def start_scan(self, proposalId, parameters):
+        self.log.info("Preparing scicat information ")
         directory = parameters["fileinfo"]["directory"]
         filename = parameters["fileinfo"]["template"]
         num_files = math.ceil(
@@ -52,10 +47,11 @@ class SciCatPlugin:
         self.scifish.scicat_data.proposalId = proposalId
         self.scifish.scicat_data.sourceFolder = directory
         self.files = []
-        self.files.append(os.path.join(directory, filename))
+        base = Path(directory)
+        self.files.append(base / filename)
         for i in range(1, num_files + 1):
             formatted_filename = filename.replace("master", f"data_{i:06d}")
-            self.files.append(os.path.join(directory, formatted_filename))
+            self.files.append(base / formatted_filename)
         self.scifish.sampleId = sample_id
 
     def end_scan(self, parameters):
@@ -94,23 +90,29 @@ class SciCatPlugin:
 
         files_list = list(set(self.files))
         for file in files_list:
-            try:
-                #
-                # Check if it's possible to rewrite this code to fix
-                # the disabled PTH202, PTH204 and DTZ004 checks.
-                # They are _probably_ flagging for old-school code.
-                #
-                file_size = os.path.getsize(file)  # noqa: PTH202
-                file_time = datetime.utcfromtimestamp(  # noqa: DTZ004
-                    os.path.getmtime(file),  # noqa: PTH204
-                ).isoformat()
+            path = Path(file)
+            deadline = time.monotonic() + _FILE_WAIT_TIMEOUT
+
+            self.log.warning("waiting for '%s'", file)
+
+            while not path.exists():
+                if time.monotonic() >= deadline:
+                    self.log.error("Timed out waiting for file '%s' to appear", file)
+                    break
+                time.sleep(_FILE_WAIT_INTERVAL)
+            else:
+                try:
+                    stat = path.stat()
+                except OSError:
+                    self.log.exception("Could not add file '%s'", file)
+                file_size = stat.st_size
+                file_time = datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat()
                 self.scifish.scicat_data.files.append(
                     {"path": file, "time": file_time, "size": file_size},
                 )
-            except OSError:
-                self.log.warning("Could not add file '%s'", file)
 
         self.scifish.end_scan()
+        self.log.info("scicat upload complete")
 
     def _scientific_metadata_writer(self, label, value):
         units = {

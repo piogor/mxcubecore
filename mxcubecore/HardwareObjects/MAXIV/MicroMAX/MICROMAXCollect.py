@@ -29,7 +29,7 @@ from mxcubecore.HardwareObjects.MAXIV.MicroMAX.pandabox import (
     load_osc_schema,
 )
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.snapshots import take_crystal_snapshot
-from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
+from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 from mxcubecore.utils.units import um_to_mm
 
