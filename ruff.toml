@@ -1060,7 +1060,7 @@ convention = "google"
     "SIM105",
     "TRY003",
 ]
-"mxcubecore/HardwareObjects/MAXIV/SciCatPlugin.py" = [
+"mxcubecore/HardwareObjects/MAXIV/scicat_plugin.py" = [
     "PERF203",
     "N803",
 ]

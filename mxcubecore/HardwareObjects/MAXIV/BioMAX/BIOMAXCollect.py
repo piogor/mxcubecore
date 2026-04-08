@@ -13,7 +13,7 @@ from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import DataCollect
-from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
+from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 
 CORRECT_OMEGA_SCRIPT = (
@@ -89,11 +89,7 @@ class BIOMAXCollect(DataCollect):
                 self.scicat_hwobj = SciCatPlugin()
                 self.log.info("[COLLECT] SciCat Datacatalog enabled")
             except Exception as ex:
-                self.log.warning(
-                    "[COLLECT] SciCat Datacatalog not initialized. Error was {}".format(
-                        ex
-                    )
-                )
+                self.log.exception("[COLLECT] SciCat Datacatalog not initialized")
         else:
             self.scicat_hwobj = None
             self.log.warning("[COLLECT] SciCat Datacatalog not enabled")
