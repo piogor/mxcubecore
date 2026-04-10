@@ -1151,9 +1151,9 @@ class BIOMAXCollect(DataCollect):
 
         hwr_log.info("[HWR] Preparing beamline for a new sample.")
         if manual_mode:
+            self.close_safety_shutter()
             self.close_detector_cover()
             self.diffractometer_hwobj.set_phase("Transfer", wait=False)
-            self.close_safety_shutter()
 
         self.move_detector_to_safe_position()
 
