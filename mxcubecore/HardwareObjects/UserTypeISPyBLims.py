@@ -85,7 +85,7 @@ class UserTypeISPyBLims(ISPyBAbstractLIMS):
         # if translation of the loginID is needed, need to be tested by ESRF
         if self.loginTranslate is True:
             login_name = self._translate(proposal_code, "ldap") + str(proposal_number)
-
+        msg = ""
         # Authentication
         msg = ""
         if self.authServerType == "ldap":
