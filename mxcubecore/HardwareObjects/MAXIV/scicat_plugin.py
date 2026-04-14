@@ -48,10 +48,10 @@ class SciCatPlugin:
         self.scifish.scicat_data.sourceFolder = directory
         self.files = []
         base = Path(directory)
-        self.files.append(base / filename)
+        self.files.append(str(base / filename))
         for i in range(1, num_files + 1):
             formatted_filename = filename.replace("master", f"data_{i:06d}")
-            self.files.append(base / formatted_filename)
+            self.files.append(str(base / formatted_filename))
         self.scifish.sampleId = sample_id
 
     def end_scan(self, parameters):
@@ -88,7 +88,7 @@ class SciCatPlugin:
                     item,
                 )
 
-        files_list = list(set(self.files))
+        files_list = {str(f) for f in self.files}
         for file in files_list:
             path = Path(file)
             deadline = time.monotonic() + _FILE_WAIT_TIMEOUT
