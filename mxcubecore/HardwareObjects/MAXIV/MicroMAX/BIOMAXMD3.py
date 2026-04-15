@@ -314,7 +314,7 @@ class MAXIVMD3(GenericDiffractometer):
 
     def open_fast_shutter(self, timeout=2):
         self.log.info("Opening fast shutter")
-        self.fast_shutter_channel.set_value(True)
+        self.fast_shutter_channel.set_value(1)
         with gevent.Timeout(
             timeout, RuntimeError("Timeout waiting for safety shutter to open")
         ):
@@ -328,7 +328,7 @@ class MAXIVMD3(GenericDiffractometer):
             timeout: Timeout for the operation, in seconds.
         """
         self.log.info("Closing fast shutter")
-        self.fast_shutter_channel.set_value(False)
+        self.fast_shutter_channel.set_value(0)
         with gevent.Timeout(
             timeout, RuntimeError("Timeout waiting for safety shutter to close")
         ):
@@ -729,7 +729,6 @@ class MAXIVMD3(GenericDiffractometer):
 
         self.log.info("MD3 helical oscillation finished, task result %s.", task_info)
 
-
     def raster_scan(
         self,
         start,
@@ -818,9 +817,9 @@ class MAXIVMD3(GenericDiffractometer):
                 "[MD3] Cannot change phase to %s, timeout waiting for MD3 ready", phase
             )
         else:
-            if self.is_head_minikappa() and self.is_in_data_collection():
-                self.log.info("MD3: Saving centered position")
-                self.save_centered_position()
+            # if self.is_head_minikappa() and self.is_in_data_collection():
+            #     self.log.info("MD3: Saving centered position")
+            #     self.save_centered_position()
 
             task_id = self.command_dict["startSetPhase"](phase)
 
@@ -830,6 +829,10 @@ class MAXIVMD3(GenericDiffractometer):
                 raise MD3TaskFailed(
                     MD3TaskFailed.SET_PHASE, task_output, task_exception, task_result
                 )
+
+            # if self.is_head_minikappa() and phase == "Transfer":
+            #     self.log.info('MD3: Saving centered position after reaching "Transfer"')
+            #     self.save_centered_position()
 
     def move_to_motors_positions(self, motor_positions, wait=False):
         motor_positions.pop("zoom", None)
@@ -1001,6 +1004,8 @@ class MAXIVMD3(GenericDiffractometer):
         }
 
     def set_calculate_flux_phase(self):
+        self.log.warning("Setting MD3 to calculate flux phase: DataCollection, "
+            "Clear_Scintillator, beamstop_Z to 90 mm")
         if not self.is_head_minikappa():
             motors = ["phi", "phiz", "phiy", "sampx", "sampy"]
         else:
@@ -1023,8 +1028,13 @@ class MAXIVMD3(GenericDiffractometer):
         ori_phase = self.current_phase
         if self.current_phase != "DataCollection":
             self.set_phase("DataCollection", wait=True, timeout=200)
+        self.log.warning("setAlignmentTable to CLEAR_SCINTILLATOR")
         self.channel_dict["AlignmentTablePosition"].set_value("CLEAR_SCINTILLATOR")
-        self.beamstop_z._set_value(85)
+        self.log.warning("set beamstop Z to 90 mm")
+
+        self.wait_ready(10)
+
+        self.beamstop_z._set_value(90)
         self.wait_ready(10)
         return ori_motors, ori_phase
 
@@ -1115,7 +1125,10 @@ class MAXIVMD3(GenericDiffractometer):
     def check_motor_limit_range(self, motor_name, range_limit):
         limits = self.command_dict["getMotorLimits"](motor_name)
         if abs(limits[1] - limits[0]) > range_limit:
-            msg = f"The current limits of Motor {motor_name} is beyond {range_limit}, please check motor setting in MD3"
+            msg = (
+                f"The current limits of Motor {motor_name} is beyond {range_limit},"
+                " please check motor setting in MD3"
+            )
             self.user_log.error(msg)
             raise Exception(msg)
 
@@ -1123,4 +1136,3 @@ class MAXIVMD3(GenericDiffractometer):
         omega_limit = HWR.beamline.tango_keystore.get_float("md3_omega_limit") or 5
         if omega_limit >= 0:
             self.check_motor_limit_range("Omega", omega_limit)
-
