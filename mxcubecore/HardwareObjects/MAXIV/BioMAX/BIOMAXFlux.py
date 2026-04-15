@@ -1,4 +1,3 @@
-import logging
 import time
 
 import gevent
@@ -73,7 +72,6 @@ class BIOMAXFlux(AbstractFlux):
 
     def init(self):
         super(BIOMAXFlux, self).init()
-        self.logger = logging.getLogger("HWR")
 
         self.cmd_macro = self.get_command_object("calculate_flux_mxcube")
         self.cmd_macro.connect_signal("macroResultUpdated", self.macro_finished)
@@ -96,6 +94,8 @@ class BIOMAXFlux(AbstractFlux):
     def macro_finished(self, *args):
         # listen to door.result once the macro finishes execution
         # in this case, checkbeam returns True/false and calculate_flux Float
+        self.log.warning(f"checkbeam full result: {args}")
+ 
         if args:
             self.macro_result = args[0]
             try:
@@ -103,7 +103,7 @@ class BIOMAXFlux(AbstractFlux):
             except:
                 # string result
                 self.check_beam_result = self.macro_result
-            # self.logger.info("New channel value: %s" %str(self.channel_value))
+            self.log.info(f"macro checkbeam result: {self.channel_value}")
             self._event.set()
 
     def acquire(self):
@@ -137,33 +137,33 @@ class BIOMAXFlux(AbstractFlux):
         energy = HWR.beamline.energy.get_current_energy()
         transmission = HWR.beamline.transmission.get_att_factor()
         self.check_beam_result = False
-        self.logger.info("Flux calculation started!")
+        self.log.info("Flux calculation started!")
 
         # close fast shutter
         try:
             HWR.beamline.collect.close_fast_shutter()
-            self.logger.info("Fast shutter closed!")
+            self.log.info("Fast shutter closed!")
         except Exception as ex:
-            self.logger.error("Cannot close fast shutter! %s", str(ex))
+            self.log.exception("Cannot close fast shutter!")
             return
 
         # open safety shutter
         try:
             HWR.beamline.collect.open_safety_shutter()
-            self.logger.info("Safety shutter open!")
+            self.log.info("Safety shutter open!")
         except Exception as ex:
-            self.logger.error("Cannot open safety shutter! %s", str(ex))
+            self.log.exception("Cannot open safety shutter!")
             return
 
         # checkbeam macro, it returns T/F
         try:
             self.check_beam()
         except Exception as ex:
-            self.logger.error("ERROR Checking beam! %s", str(ex))
+            self.log.exception("ERROR Checking beam!")
             return
 
         if self.check_beam_result == "False":
-            self.logger.error("Beam is not stable")
+            self.log.warning("Beam is not stable")
             return
 
         # set MD3 phase
@@ -173,27 +173,27 @@ class BIOMAXFlux(AbstractFlux):
                 self.ori_phase,
             ) = HWR.beamline.diffractometer.set_calculate_flux_phase()
         except Exception as ex:
-            self.logger.error("Cannot set MD3 phase for flux calculatio! %s", str(ex))
+            self.log.exception("Cannot set MD3 phase for flux calculatio!")
             return
 
         # check detector cover is closed
         try:
             HWR.beamline.collect.close_detector_cover()
         except:
-            logging.getLogger("HWR").exception("Could not close the detector cover")
+            self.log.exception("Could not close the detector cover")
             return
 
         # get_instant_flux
         try:
             self.current_flux = self.get_instant_flux()
         except Exception as ex:
-            self.logger.error("ERROR acquiring! %s", str(ex))
+            self.log.exception("ERROR acquiring!")
 
         try:
             HWR.beamline.collect.close_fast_shutter()
-            self.logger.info("Fast shutter closed!")
+            self.log.info("Fast shutter closed!")
         except Exception as ex:
-            self.logger.error("Cannot close fast shutter! %s", str(ex))
+            self.log.exception("Cannot close fast shutter!")
 
         HWR.beamline.diffractometer.finish_calculate_flux(
             self.ori_motors, self.ori_phase
@@ -203,8 +203,8 @@ class BIOMAXFlux(AbstractFlux):
         try:
             self.update_flux_density()
             self.emit("valueChanged", (self.current_flux))
-        except e:
-            print(e)
+        except Exception:
+            self.log.exception("oopsie updating flux density")
 
     def transmit(self, length, energy, model):
         att_l = (
@@ -249,33 +249,33 @@ class BIOMAXFlux(AbstractFlux):
         energy = HWR.beamline.energy.get_current_energy()
         transmission = HWR.beamline.transmission.get_att_factor()
 
-        self.logger.info("Start to measure flux")
+        self.log.info("Start to measure flux")
         try:
             self.acquire()
             current_offset = self.channel_value
         except Exception as ex:
-            self.logger.error("ERROR reading offset! %s", str(ex))
+            self.log.exception("ERROR reading current offset!")
             return -101
 
-        self.logger.info("Current Offset: {}".format(current_offset))
+        self.log.info(f"Current Offset: {current_offset}")
 
         try:
             HWR.beamline.collect.open_fast_shutter()
-            self.logger.info("Fast shutter opened!")
+            self.log.info("Fast shutter opened!")
         except Exception as ex:
-            self.logger.error("Cannot open fast shutter! %s", str(ex))
+            self.log.exception("Cannot open fast shutter!")
             return -102
 
         time.sleep(2)
         try:
             self.acquire()
         except Exception as ex:
-            self.logger.error("ERROR Acquiring! %s", str(ex))
+            self.log.exception("ERROR Acquiring!")
             HWR.beamline.collect.close_fast_shutter()
             return -103
         HWR.beamline.collect.close_fast_shutter()
         current_meas = self.channel_value
-        self.logger.info("Current Measurement: {}".format(current_meas))
+        self.log.info(f"Current Measurement: {current_meas}")
 
         current = current_meas - current_offset
 
@@ -298,7 +298,7 @@ class BIOMAXFlux(AbstractFlux):
             flux = 0
         self.current_flux = flux  # "{:.2E}".format(flux)
         self.flux_value_changed()
-        self.logger.info("Flux Measurement: {}".format(flux))
+        self.log.info(f"Flux Measurement: {flux}")
         return flux  # "{:.2E}".format(flux)
 
     def energy_changed(self, en, wl):
@@ -307,15 +307,16 @@ class BIOMAXFlux(AbstractFlux):
     def update_flux_density(self):
         try:
             beamx, beamy = HWR.beamline.beam.get_beam_size()  # in mm, float
-            transmission = HWR.beamline.transmission.get_att_factor()  # string
+            transmission = float(HWR.beamline.transmission.get_att_factor())
+            self.log.debug(f"beam x,u = ({beamx}, {beamy}) {transmission=}")
             self.flux_density = (
-                float(self.current_flux) / float(transmission) / beamx / beamy / 10000
+                float(self.current_flux) / transmission / beamx / beamy / 10000
             )
             self.flux_density_energy = HWR.beamline.energy.get_current_energy()
         except Exception as ex:
             self.current_flux = -1.0
             self.flux_density = -1.0
-            self.logger.error("ERROR calculating flux density %s", str(ex))
+            self.log.error("ERROR calculating flux density %s", str(ex))
 
     def get_average_flux_density(self, transmission=None):
         flux_at_100 = self.flux_density
@@ -338,7 +339,7 @@ class BIOMAXFlux(AbstractFlux):
             msg = (
                 "Error: AEM for esitmating flux is not defined or cannot connect to it"
             )
-            self.logger.error(msg)
+            self.log.error(msg)
             raise Exception(msg)
         else:
             current = self.flux_aem_dev.S
@@ -348,5 +349,5 @@ class BIOMAXFlux(AbstractFlux):
             * 7.96e14
         )
 
-        self.logger.info("Estimated flux at %s: %1.3e photons/s", self.flux_aem, flux)
+        self.log.info("Estimated flux at %s: %1.3e photons/s", self.flux_aem, flux)
         return flux
