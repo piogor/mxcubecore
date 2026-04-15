@@ -817,9 +817,9 @@ class MAXIVMD3(GenericDiffractometer):
                 "[MD3] Cannot change phase to %s, timeout waiting for MD3 ready", phase
             )
         else:
-            if self.is_head_minikappa() and self.is_in_data_collection():
-                self.log.info("MD3: Saving centered position")
-                self.save_centered_position()
+            # if self.is_head_minikappa() and self.is_in_data_collection():
+            #     self.log.info("MD3: Saving centered position")
+            #     self.save_centered_position()
 
             task_id = self.command_dict["startSetPhase"](phase)
 
@@ -830,9 +830,9 @@ class MAXIVMD3(GenericDiffractometer):
                     MD3TaskFailed.SET_PHASE, task_output, task_exception, task_result
                 )
 
-            if self.is_head_minikappa() and phase == "Transfer":
-                self.log.info('MD3: Saving centered position after reaching "Transfer"')
-                self.save_centered_position()
+            # if self.is_head_minikappa() and phase == "Transfer":
+            #     self.log.info('MD3: Saving centered position after reaching "Transfer"')
+            #     self.save_centered_position()
 
     def move_to_motors_positions(self, motor_positions, wait=False):
         motor_positions.pop("zoom", None)
@@ -1004,6 +1004,8 @@ class MAXIVMD3(GenericDiffractometer):
         }
 
     def set_calculate_flux_phase(self):
+        self.log.warning("Setting MD3 to calculate flux phase: DataCollection, "
+            "Clear_Scintillator, beamstop_Z to 90 mm")
         if not self.is_head_minikappa():
             motors = ["phi", "phiz", "phiy", "sampx", "sampy"]
         else:
@@ -1026,8 +1028,13 @@ class MAXIVMD3(GenericDiffractometer):
         ori_phase = self.current_phase
         if self.current_phase != "DataCollection":
             self.set_phase("DataCollection", wait=True, timeout=200)
+        self.log.warning("setAlignmentTable to CLEAR_SCINTILLATOR")
         self.channel_dict["AlignmentTablePosition"].set_value("CLEAR_SCINTILLATOR")
-        self.beamstop_z._set_value(85)
+        self.log.warning("set beamstop Z to 90 mm")
+
+        self.wait_ready(10)
+
+        self.beamstop_z._set_value(90)
         self.wait_ready(10)
         return ori_motors, ori_phase
 
