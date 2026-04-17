@@ -115,8 +115,8 @@ class PrepareOpenHutch:
                 user_log.info("Setting diffractometer to Transfer phase.")
                 diffractometer.set_phase(DiffractometerPhase.TRANSFER)
                 if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
-                    self.diffractometer_hwobj.wait_ready(10)
-                    self.diffractometer_hwobj.omega_motor_hwobj.set_value(170)
+                    HWR.beamline.diffractometer_hwobj.wait_ready(10)
+                    HWR.beamline.diffractometer_hwobj.omega_motor_hwobj.set_value(170)
 
             try:
                 user_log.info("Moving detector to safe position.")
