@@ -195,7 +195,7 @@ class JungfrauDetector(AbstractDetector):
 
         dev = self.dev
         # hard-coded gonio name
-        dev.goniometer__name = "Omega"
+        dev.goniometer__name = "omega"
         dev.goniometer__start = config["OmegaStart"]
         dev.goniometer__step = config["OmegaIncrement"]
         dev.beam_x_pxl = config["BeamCenterX"]
