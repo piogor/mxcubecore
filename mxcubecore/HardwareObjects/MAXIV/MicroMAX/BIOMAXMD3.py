@@ -1,5 +1,6 @@
 import ast
 import time
+from enum import StrEnum
 from typing import Callable
 
 import gevent
@@ -34,6 +35,15 @@ class MD3TaskFailed(Exception):
             f"MD3 {task_name} failed or aborted, output: {output} | "
             f"exception: {exception} | result: {result}"
         )
+
+
+class AlignmentTablePosition(StrEnum):
+    DEFAULT = "DEFAULT"
+    ALIGNED = "ALIGNED"
+    CLEAR_SCINTILLATOR = "CLEAR_SCINTILLATOR"
+    TRANSFER = "TRANSFER"
+    CLEARED = "CLEARED"
+    STORED = "STORED"
 
 
 class MAXIVMD3(GenericDiffractometer):
@@ -805,6 +815,27 @@ class MAXIVMD3(GenericDiffractometer):
 
         self.log.info("MD3 raster oscillation finished, task result %s.", task_info)
 
+    def get_table_position(self) -> AlignmentTablePosition:
+        """Get the current MD3 AlignmentTablePosition."""
+        try:
+            return AlignmentTablePosition(
+                self.channel_dict["AlignmentTablePosition"].get_value()
+            )
+        except Exception:
+            self.log.exception("Cannot get MD3 table position")
+
+    def set_table_position(self, position: AlignmentTablePosition):
+        """Set the MD3 AlignmentTablePosition."""
+        try:
+            self.channel_dict["AlignmentTablePosition"].set_value(position.value)
+            self.wait_device_ready(10)
+        except Exception:
+            self.log.exception("Cannot set MD3 table position to %s ", position)
+
+    def is_table_position_in(self, position: AlignmentTablePosition) -> bool:
+        """Check if the MD3 AlignmentTablePosition is in the specified position."""
+        return self.get_table_position() == position
+
     def set_phase(self, phase, wait=False, timeout=None):
         try:
             self.check_omega_limit()
@@ -813,26 +844,33 @@ class MAXIVMD3(GenericDiffractometer):
             self.log.exception(
                 "Cannot change phase to %s, timeout waiting for MD3 ready", phase
             )
-            self.user_log.error(
-                "[MD3] Cannot change phase to %s, timeout waiting for MD3 ready", phase
+            self.user_log.error("TIMEOUT waiting for MD3 ready")
+            return
+
+        is_clear_scintillator = self.is_table_position_in(
+            AlignmentTablePosition.CLEAR_SCINTILLATOR
+        )
+
+        if (
+            not is_clear_scintillator
+            and self.is_head_minikappa()
+            and self.is_in_data_collection()
+        ):
+            self.log.info("MD3: Saving centered position")
+            self.save_centered_position()
+
+        task_id = self.command_dict["startSetPhase"](phase)
+
+        task_info = self.waitTaskResult(task_id)
+        task_output, task_exception, task_result = task_info[4:7]
+        if int(task_result) <= 0:  # either failed or aborted
+            raise MD3TaskFailed(
+                MD3TaskFailed.SET_PHASE, task_output, task_exception, task_result
             )
-        else:
-            # if self.is_head_minikappa() and self.is_in_data_collection():
-            #     self.log.info("MD3: Saving centered position")
-            #     self.save_centered_position()
 
-            task_id = self.command_dict["startSetPhase"](phase)
-
-            task_info = self.waitTaskResult(task_id)
-            task_output, task_exception, task_result = task_info[4:7]
-            if int(task_result) <= 0:  # either failed or aborted
-                raise MD3TaskFailed(
-                    MD3TaskFailed.SET_PHASE, task_output, task_exception, task_result
-                )
-
-            # if self.is_head_minikappa() and phase == "Transfer":
-            #     self.log.info('MD3: Saving centered position after reaching "Transfer"')
-            #     self.save_centered_position()
+        if self.is_head_minikappa() and phase == "Transfer":
+            self.log.info('save centered position after reaching "Transfer"')
+            self.save_centered_position()
 
     def move_to_motors_positions(self, motor_positions, wait=False):
         motor_positions.pop("zoom", None)
@@ -1004,8 +1042,10 @@ class MAXIVMD3(GenericDiffractometer):
         }
 
     def set_calculate_flux_phase(self):
-        self.log.warning("Setting MD3 to calculate flux phase: DataCollection, "
-            "Clear_Scintillator, beamstop_Z to 90 mm")
+        self.log.warning(
+            "Setting MD3 to calculate flux phase: DataCollection, "
+            "Clear_Scintillator, beamstop_Z to 90 mm"
+        )
         if not self.is_head_minikappa():
             motors = ["phi", "phiz", "phiy", "sampx", "sampy"]
         else:
@@ -1028,14 +1068,15 @@ class MAXIVMD3(GenericDiffractometer):
         ori_phase = self.current_phase
         if self.current_phase != "DataCollection":
             self.set_phase("DataCollection", wait=True, timeout=200)
+
         self.log.warning("setAlignmentTable to CLEAR_SCINTILLATOR")
         self.channel_dict["AlignmentTablePosition"].set_value("CLEAR_SCINTILLATOR")
-        self.log.warning("set beamstop Z to 90 mm")
-
         self.wait_ready(10)
 
+        self.log.warning("set beamstop Z to 90 mm")
         self.beamstop_z._set_value(90)
         self.wait_ready(10)
+
         return ori_motors, ori_phase
 
     def finish_calculate_flux(self, ori_motors, ori_phase="DataCollection"):
