@@ -399,6 +399,7 @@ class GphlWorkflow(HardwareObject):
         data_model = self._queue_entry.get_data_model()
         strategy_settings = data_model.strategy_settings
         space_group = data_model.space_group or ""
+        space_group = space_group.upper()
         header = soldict = select_row = None
         if choose_lattice:
             header, soldict, select_row = self.parse_indexing_solution(choose_lattice)
@@ -560,7 +561,8 @@ class GphlWorkflow(HardwareObject):
             "enum": macros_list,
         }
         resolution = data_model.aimed_resolution or HWR.beamline.resolution.get_value()
-        resolution = round(resolution, resolution_decimals)
+        self.log.warning(f"resolution = {resolution} type = {type(resolution)}")
+        resolution = round(float(resolution), resolution_decimals)
         reslimits = HWR.beamline.resolution.get_limits()
         if None in reslimits:
             reslimits = (0.5, 5.0)
@@ -1758,7 +1760,7 @@ class GphlWorkflow(HardwareObject):
             "GphlWorkflow: setting transmission to %7.3f %%" % transmission
         )
         HWR.beamline.transmission.set_value(transmission)
-        HWR.beamline.transmission.wait_ready(20)
+        #HWR.beamline.transmission.wait_ready(20)
 
         # NB - now pre-setting of detector has been removed, this gets
         # the current resolution setting, whatever it is
