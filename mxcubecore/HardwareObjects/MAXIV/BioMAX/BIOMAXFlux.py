@@ -310,7 +310,8 @@ class BIOMAXFlux(AbstractFlux):
             transmission = float(HWR.beamline.transmission.get_att_factor())
             self.log.debug(f"beam x,u = ({beamx}, {beamy}) {transmission=}")
             self.flux_density = (
-                float(self.current_flux) / transmission / beamx / beamy / 10000
+                (100.0 * float(self.current_flux)) / transmission / beamx / beamy
+                # float(self.current_flux) / transmission / beamx / beamy / 10000
             )
             self.flux_density_energy = HWR.beamline.energy.get_current_energy()
         except Exception as ex:
