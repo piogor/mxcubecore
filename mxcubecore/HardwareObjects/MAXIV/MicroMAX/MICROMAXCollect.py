@@ -270,11 +270,8 @@ class MICROMAXCollect(DataCollect):
             "[COLLECT] Preparing data collection with parameters: %s"
             % self.current_dc_parameters
         )
-        if (
-            HWR.beamline.tango_keystore.get("experiment_type")
-            == "tr"  # time resolved experiment
-            and self.time_resolved
-        ):
+        self.time_resolved = HWR.beamline.tango_keystore.get("tr_mode")
+        if self.time_resolved:
             self.pandabox_schema = HWR.beamline.tango_keystore.get("pandabox_schema_tr")
         else:
             self.pandabox_schema = HWR.beamline.tango_keystore.get("pandabox_schema")
@@ -343,9 +340,7 @@ class MICROMAXCollect(DataCollect):
                 raise Exception(msg)
 
         if HWR.beamline.is_hve_sample_delivery():
-            self.time_resolved = False
-            if self.current_dc_parameters["oscillation_sequence"][0]["range"] >= 1:
-                self.time_resolved = True
+            if self.time_resolved:
                 self.move_in_laser()
             self.pandabox_laser_delay = 0  # default value
 
@@ -1146,15 +1141,12 @@ class MICROMAXCollect(DataCollect):
             # when Jungfrau detector is used, include user specified unit cell
             # parameters in the acquisition config sent to the detector
 
-            # TODO@JieNAN: tmp solution, we should unify the experiment type definition, several sources now
-            if (
-                HWR.beamline.tango_keystore.get("experiment_type") == "tr"
-            ):  # time resolved experiment
-                if self.time_resolved:
-                    config["SampleName"] = "laseron"
-                else:
-                    config["SampleName"] = "laseroff"
-
+            #TODO@JieNAN: tmp solution agreed for the processing pipeline solution,
+            #sanmple name should not be laser status
+            if self.time_resolved:
+                config["SampleName"] = "laseron"
+            else:
+                config["SampleName"] = "laseroff"
             if HWR.beamline.is_hve_sample_delivery():
                 config["ExperimentType"] = "still"
             elif HWR.beamline.tango_keystore.get("experiment_type") == "osc":
