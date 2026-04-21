@@ -1,4 +1,3 @@
-import logging
 import math
 import sys
 import time
@@ -35,7 +34,9 @@ class Energy(AbstractEnergy):
         # To check beam stability
         self.total_counts = 0.0
         # This is the minimum number of counts on the beam detector. If below, there is no beam
-        self.min_total_counts = HWR.beamline.tango_keystore.get_float("xbpm1_minimum_current")
+        self.min_total_counts = HWR.beamline.tango_keystore.get_float(
+            "xbpm1_minimum_current"
+        )
         # How many measurements of the beam position to average (to decrease the effect of noise)
         self.N = 4
         self.counts_now = deque(maxlen=self.N)
@@ -68,9 +69,7 @@ class Energy(AbstractEnergy):
             try:
                 return self.get_value()
             except:
-                self.log.exception(
-                    "EnergyHO: could not read current energy"
-                )
+                self.log.exception("EnergyHO: could not read current energy")
                 return None
         return self.default_en
 
@@ -86,17 +85,13 @@ class Energy(AbstractEnergy):
             try:
                 self._nominal_limits = _ev_vals_to_kev(self.energy_motor.get_limits())
             except:
-                self.log.exception(
-                    "EnergyHO: could not read energy motor limits"
-                )
+                self.log.exception("EnergyHO: could not read energy motor limits")
 
     def start_move_energy(self, value, wait=True, check_beam=True):
         try:
             value = float(value)
         except (TypeError, ValueError) as diag:
-            self.user_log.error(
-                "Energy: invalid energy (%s)" % value
-            )
+            self.user_log.error("Energy: invalid energy (%s)" % value)
             return False
 
         current_en = self.get_current_energy()
@@ -104,9 +99,7 @@ class Energy(AbstractEnergy):
             if math.fabs(value - current_en) < 0.001:
                 self.moving = False
                 self.emit("moveEnergyFinished", ())
-                self.user_log.debug(
-                    "Energy: already at %g, not moving", current_en
-                )
+                self.user_log.debug("Energy: already at %g, not moving", current_en)
                 return
         if self.check_limits(value) is False:
             return False
