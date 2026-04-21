@@ -44,6 +44,7 @@ class AlignmentTablePosition(StrEnum):
     TRANSFER = "TRANSFER"
     CLEARED = "CLEARED"
     STORED = "STORED"
+    UNKNOWN = "UNKNOWN"
 
 
 class MAXIVMD3(GenericDiffractometer):
@@ -1047,12 +1048,13 @@ class MAXIVMD3(GenericDiffractometer):
             "Clear_Scintillator, beamstop_Z to 90 mm"
         )
         if not self.is_head_minikappa():
-            motors = ["phi", "phiz", "phiy", "sampx", "sampy"]
+            motors = ["phi", "phix", "phyz", "phiz", "sampx", "sampy"]
         else:
             motors = [
                 "phi",
-                "phiz",
+                "phix",
                 "phiy",
+                "phiz",
                 "sampx",
                 "sampy",
                 "kappa",
