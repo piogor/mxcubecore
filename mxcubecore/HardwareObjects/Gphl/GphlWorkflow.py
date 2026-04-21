@@ -1760,7 +1760,7 @@ class GphlWorkflow(HardwareObject):
             "GphlWorkflow: setting transmission to %7.3f %%" % transmission
         )
         HWR.beamline.transmission.set_value(transmission)
-        #HWR.beamline.transmission.wait_ready(20)
+        # HWR.beamline.transmission.wait_ready(20)
 
         # NB - now pre-setting of detector has been removed, this gets
         # the current resolution setting, whatever it is
