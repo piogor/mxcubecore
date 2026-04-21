@@ -10,6 +10,7 @@ import numpy as np
 import PyTango
 from gevent import Timeout
 
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects import Energy
 from mxcubecore.HardwareObjects.abstract.AbstractEnergy import AbstractEnergy
 from mxcubecore.TaskUtils import *
@@ -34,7 +35,7 @@ class Energy(AbstractEnergy):
         # To check beam stability
         self.total_counts = 0.0
         # This is the minimum number of counts on the beam detector. If below, there is no beam
-        self.min_total_counts = 0.0000001
+        self.min_total_counts = HWR.beamline.tango_keystore.get_float("xbpm1_minimum_current")
         # How many measurements of the beam position to average (to decrease the effect of noise)
         self.N = 4
         self.counts_now = deque(maxlen=self.N)
@@ -42,7 +43,7 @@ class Energy(AbstractEnergy):
         try:
             self.energy_motor = self.get_object_by_role("energy")
         except KeyError:
-            logging.getLogger("HWR").warning("Energy: error initializing energy motor")
+            self.log.warning("Energy: error initializing energy motor")
 
         if self.energy_motor is not None:
             self.energy_motor.connect("valueChanged", self.energy_position_changed)
@@ -67,7 +68,7 @@ class Energy(AbstractEnergy):
             try:
                 return self.get_value()
             except:
-                logging.getLogger("HWR").exception(
+                self.log.exception(
                     "EnergyHO: could not read current energy"
                 )
                 return None
@@ -85,7 +86,7 @@ class Energy(AbstractEnergy):
             try:
                 self._nominal_limits = _ev_vals_to_kev(self.energy_motor.get_limits())
             except:
-                logging.getLogger("HWR").exception(
+                self.log.exception(
                     "EnergyHO: could not read energy motor limits"
                 )
 
@@ -93,7 +94,7 @@ class Energy(AbstractEnergy):
         try:
             value = float(value)
         except (TypeError, ValueError) as diag:
-            logging.getLogger("user_level_log").error(
+            self.user_log.error(
                 "Energy: invalid energy (%s)" % value
             )
             return False
@@ -103,7 +104,7 @@ class Energy(AbstractEnergy):
             if math.fabs(value - current_en) < 0.001:
                 self.moving = False
                 self.emit("moveEnergyFinished", ())
-                logging.getLogger("user_level_log").debug(
+                self.user_log.debug(
                     "Energy: already at %g, not moving", current_en
                 )
                 return
@@ -133,7 +134,7 @@ class Energy(AbstractEnergy):
         limits = self.get_limits()
         if value >= limits[0] and value <= limits[1]:
             return True
-        logging.getLogger("user_level_log").info("Requested value is out of limits")
+        self.user_log.info("Requested value is out of limits")
         return False
 
     def _set_value(self, value):
@@ -153,13 +154,11 @@ class Energy(AbstractEnergy):
             try:
                 self.check_beam()
             except RuntimeError as ex:
-                logging.getLogger("user_level_log").error("Check beam error: %s" % ex)
-                logging.getLogger("HWR").error("Check beam error: %s" % ex)
+                self.user_log.error("Check beam error")
+                self.log.exception("Check beam error")
             except Exception as ex:
-                logging.getLogger("HWR").warning("Check beam exception: %s" % ex)
-                logging.getLogger("user_level_log").error(
-                    "Check beam exception: %s" % ex
-                )
+                self.user_log.error("Check beam exception")
+                self.log.exception("Check beam exception")
 
     def sync_move(self, position, timeout=None):
         """
@@ -175,8 +174,8 @@ class Energy(AbstractEnergy):
             raise Timeout
 
     def cancel_move_energy(self):
-        logging.getLogger("user_level_log").info("Cancel Energy move")
-        logging.getLogger("HWR").info("Cancel Energy move")
+        self.user_log.info("Cancel Energy move")
+        self.log.info("Cancel Energy move")
         self.energy_motor.stop()
 
     def check_beam(self):
@@ -199,7 +198,7 @@ class Energy(AbstractEnergy):
         if self.total_counts < self.min_total_counts:
             # wait a little and check again
             time.sleep(5)
-            logging.getLogger("HWR").info("Checking XBPM counts again!")
+            self.log.info("Checking XBPM counts again!")
             self.total_counts = xbpm.S
             if self.total_counts < self.min_total_counts:
                 raise Exception(
@@ -222,7 +221,7 @@ class Energy(AbstractEnergy):
                 countsh = xbpm.X
 
                 gevent.sleep(1)
-        logging.getLogger("user_level_log").info("Beam is stable.")
+        self.user_log.info("Beam is stable.")
         return True
 
     def is_good_beam(self, N, counts):
