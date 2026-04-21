@@ -95,7 +95,7 @@ class BIOMAXFlux(AbstractFlux):
         # listen to door.result once the macro finishes execution
         # in this case, checkbeam returns True/false and calculate_flux Float
         self.log.warning(f"checkbeam full result: {args}")
- 
+
         if args:
             self.macro_result = args[0]
             try:
