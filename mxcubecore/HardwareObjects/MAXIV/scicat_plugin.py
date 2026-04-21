@@ -21,6 +21,7 @@ SKIP_VALUES = [
     "EDNA_files_dir",
     "xds_dir",
     "actualCenteringPosition",
+    "actualCentringPosition",
 ]
 
 
