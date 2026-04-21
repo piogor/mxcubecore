@@ -24,6 +24,7 @@ from string import Template
 
 import gevent
 
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.MAXIV import space_groups
 
@@ -122,6 +123,9 @@ class MAXIVAutoProcessing(HardwareObject):
               information about oscilation sequence.
             beamline: beamline name, equal to ``biomax`` or ``micromax``.
         """
+        if HWR.beamline.tango_keystore.get("ispyb_version") == "test":
+            self.log.warning(">>> ISPYB TEST version DETECTED, skipping pipelines")
+            return
         auto_dir = params_dict["auto_dir"]
         xds_dir = params_dict["xds_dir"]
         data_path = params_dict["fileinfo"]["filename"]
