@@ -1048,7 +1048,7 @@ class MAXIVMD3(GenericDiffractometer):
             "Clear_Scintillator, beamstop_Z to 90 mm"
         )
         if not self.is_head_minikappa():
-            motors = ["phi", "phix", "phyz", "phiz", "sampx", "sampy"]
+            motors = ["phi", "phix", "phiy", "phiz", "sampx", "sampy"]
         else:
             motors = [
                 "phi",
