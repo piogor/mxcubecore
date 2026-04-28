@@ -526,21 +526,15 @@ class MICROMAXCollect(DataCollect):
                         self.pandabox_dev.set_attribute(
                             "PULSE6.DELAY", str(pulse6_delay)
                         )
-                        self.start_laser()
-
-                        attribute_list = ["BITS2.B", "BITS2.A"]
-                        value_list = ["1", "1"]
                         """
 
-                        # laser diode, we cannot set laser delay, so have to be detector / chopper
-                        self.pandabox_dev.set_attribute("PULSE2.DELAY.UNITS", "us")
-                        detector_delay_ori_us = float(self.pandabox_dev.get_attribute("PULSE2.DELAY"))
-                        detector_shift_ms = self.pandabox_rep_time - self.pandabox_laser_delay
-                        detector_delay_final_us = detector_shift_ms * 1000 + detector_delay_ori_us
-                        self.pandabox_dev.set_attribute("PULSE2.DELAY", detector_delay_final_us)
+                        # laser diode
+                        self.pandabox_dev.set_attribute("PULSE6.DELAY.UNITS", "ms")
+                        self.pandabox_dev.set_attribute("PULSE6.DELAY", str(self.pandabox_laser_delay))
 
-                        attribute_list = ["BITS2.A", "BITS2.C", "BITS2.D"]
-                        value_list = ["1", "1", "1"]
+                        self.start_laser()
+                        attribute_list = ["BITS2.B", "BITS2.A"]
+                        value_list = ["1", "1"]
                     else:
                         attribute_list = ["BITS2.A"]
                         value_list = ["1"]
@@ -599,7 +593,6 @@ class MICROMAXCollect(DataCollect):
             self.close_detector_cover()
 
     def get_mesh_num_lines(self):
-        self.log.info("Mesh number of lines: %s", self.mesh_num_lines)
         return self.mesh_num_lines
 
     def get_mesh_total_nb_frames(self):
@@ -1445,13 +1438,13 @@ class MICROMAXCollect(DataCollect):
         #ns laser control
         #cmd_laser = f"{self.laser_script} -c start"
         #subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
-        self.pandabox_dev.set_attribute("BITS2.B", "1")
+        self.pandabox_dev.set_attribute("BITS2.D", "1")
 
     def stop_laser(self):
         # ns laser control
         #cmd_laser = f"{self.laser_script} -c stop"
         #subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
-        self.pandabox_dev.set_attribute("BITS2.B", "0")
+        self.pandabox_dev.set_attribute("BITS2.D", "0")
 
     def move_in_laser(self):
         # disable laser motor
