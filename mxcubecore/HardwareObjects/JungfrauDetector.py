@@ -84,7 +84,7 @@ class JungfrauDetector(AbstractDetector):
             "RoiMode": None,
             "FilenamePattern": None,
             "PhotonEnergy": None,
-            "SampleName":None,
+            "SampleName": None,
             "TriggerMode": "exts",
             "UnitCellA": None,
             "UnitCellB": None,
@@ -209,7 +209,7 @@ class JungfrauDetector(AbstractDetector):
         if config["ExperimentType"] == "grid_scan":
             dev.grid_scan__n_fast = config["NbImages"]
 
-        #todo, jn, tmp fix of the cell params don't carry over to next collection
+        # TODO: jn, tmp fix of the cell params don't carry over to next collection :noqa
         if config["SpaceGroupNumber"] is not None:
             set_optional("unit_cell__a", "UnitCellA", 0.0)
             set_optional("unit_cell__b", "UnitCellB", 0.0)

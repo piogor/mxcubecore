@@ -1,7 +1,6 @@
 import logging
 import math
 import time
-import gevent
 from dataclasses import dataclass
 
 from tango import DeviceProxy
@@ -11,15 +10,15 @@ from tango import DeviceProxy
 from tango_keystore import TangoKeystore
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.utils.units import kev_to_ev
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import Celeroton
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.sendEmail import sendEmail
+from mxcubecore.utils.units import kev_to_ev
 
 user_log = logging.getLogger("user_level_log")
 
 
 def send_email(receivers, subject, content):
-    send_email = sendEmail(receivers = receivers)
+    send_email = sendEmail(receivers=receivers)
     attachments = None
     """
     try:
@@ -27,7 +26,7 @@ def send_email(receivers, subject, content):
     except:
         pass
     """
-    send_email.send_email(subject=subject, content= content, attachments=attachments)
+    send_email.send_email(subject=subject, content=content, attachments=attachments)
 
 
 class PrepareOpenHutch:
@@ -62,7 +61,7 @@ class PrepareOpenHutch:
                     collect.move_out_laser()
                     user_log.info("Moving out laser")
 
-                except Exception as ex:
+                except Exception as ex:  # noqa: BLE001
                     user_log.info(f"Error when switching off laser {ex}")
 
             diffractometer.wait_device_ready()
@@ -81,19 +80,18 @@ class PrepareOpenHutch:
                     self.diffractometer_hwobj.wait_ready(10)
                     self.diffractometer_hwobj.phi_motor_hwobj.set_value(170)
 
-
             try:
                 user_log.info("Moving detector to safe position.")
-                #todo, jn we should do this properly and check if the hutch is searched
+                # TODO: jn we should do this properly # noqa: TD002,TD003,FIX002
+                # and check if the hutch is searched
                 collect.move_detector_to_safe_position()
-            except:
+            except Exception:  # noqa: BLE001
                 user_log.warning("Couldn't move detector, maybe hutch is not searched")
-                pass
 
             collect.close_safety_shutter()
 
             if collect.is_jungfrau():
-                #make sure safety shutter is closed before pedestal
+                # make sure safety shutter is closed before pedestal
                 time.sleep(1)
                 user_log.info("Collecting Jungfrau pedestal.")
                 detector.pedestal()
@@ -105,13 +103,15 @@ class PrepareOpenHutch:
                 "Error preparing to open hutch.\nError was: '%s'", str(ex)
             )
 
+
 class RecoverMD3:
     def __call__(self):
         """
         RestartMD3 and set the necessary omega limits
         """
         diffractometer = HWR.beamline.diffractometer
-        diffractometer.restart_md3(cold_restart = False)
+        diffractometer.restart_md3(cold_restart=False)
+
 
 class RecoverMD3Hard:
     def __call__(self):
@@ -121,7 +121,7 @@ class RecoverMD3Hard:
         user_log.info("MD3 Cold restart, this takes 5 minutes; coffee break!")
 
         diffractometer = HWR.beamline.diffractometer
-        diffractometer.restart_md3(cold_restart = True)
+        diffractometer.restart_md3(cold_restart=True)
         user_log.info("MD3 restart done; coffee break is over!")
 
 
@@ -131,7 +131,7 @@ class StartChopper:
         RestartMD3 and set the necessary omega limits
         """
         chopper = Celeroton()
-        user_log.info(f"Starting chopper now")
+        user_log.info("Starting chopper now")
         chopper.external_sync()
 
 
@@ -201,7 +201,6 @@ class EmptyMount:
         time.sleep(0.5)
         isara.execute_command("PowerOn")
 
-
         user_log.info("Recovery sequence completed.")
 
 
@@ -264,10 +263,12 @@ class AbortMD3:
         HWR.beamline.diffractometer.abort()
         user_log.info("Abort MD3")
 
+
 class MoveInLaser:
     def __call__(self):
         HWR.beamline.collect.move_in_laser()
         user_log.info("Moving in laser")
+
 
 class FinishChipAlignment:
     """Finish the Chip alignment procedure.
@@ -301,20 +302,24 @@ class FinishChipAlignment:
         # reset 'start' position, so it's not re-used by mistake
         StartChipAlignment.Position = None
 
+
 def get_tag_dict(tag) -> dict:
     _ks = TangoKeystore(namespace=f"TangoKeystore_{tag}")
     _all = _ks.get_all()
     return {k: v for k, v in _all.items() if not k.startswith("_")}
+
 
 class EnableSSX:
     def __call__(self):
         HWR.beamline.tango_keystore.put("ssx_mode", True)  # noqa: FBT003
         user_log.info("Enabling SSX_MODE")
 
+
 class DisableSSX:
     def __call__(self):
         HWR.beamline.tango_keystore.put("ssx_mode", False)  # noqa: FBT003
         user_log.info("Enabling SSX_MODE")
+
 
 class BeamtimeEnd:
     def __call__(self):
@@ -327,13 +332,13 @@ class BeamtimeEnd:
                 HWR.beamline.sample_changer.unload()
             else:
                 user_log.info("No sample mounted by sample changer, will not unload")
-            if HWR.beamline.sample_changer_maintenance._position_name != "home":
+            if HWR.beamline.sample_changer_maintenance._position_name != "home":  # noqa: SLF001
                 user_log.info("Send gripper to home")
                 HWR.beamline.sample_changer_maintenance.send_command("home")
-                HWR.beamline.sample_changer._wait_device_ready(30)
+                HWR.beamline.sample_changer._wait_device_ready(30)  # noqa: SLF001
             user_log.info("Close lid")
             HWR.beamline.sample_changer_maintenance.send_command("closeLid")
-            HWR.beamline.sample_changer._wait_device_ready(30)
+            HWR.beamline.sample_changer._wait_device_ready(30)  # noqa: SLF001
             time.sleep(5)
             user_log.info("Power off")
             HWR.beamline.sample_changer_maintenance.send_command("PowerOff")

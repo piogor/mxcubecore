@@ -553,10 +553,13 @@ class MAXIVMD3(GenericDiffractometer):
 
         # don't even try centring if a sample is not detected
         if not self.sample_is_loaded:
-            self.log.warning("a sample is not detected on the magnet, "
-                             "bailing out of loop centring")
-            self.user_log.critical("a sample is not detected on the magnet, "
-                             "check camera and run //Empty Mount// beamline action")
+            self.log.warning(
+                "a sample is not detected on the magnet, bailing out of loop centring"
+            )
+            self.user_log.critical(
+                "a sample is not detected on the magnet, "
+                "check camera and run //Empty Mount// beamline action"
+            )
             return self.get_center_pos()
 
         # move MD3 to Centring phase if it's not
@@ -1202,17 +1205,17 @@ class MAXIVMD3(GenericDiffractometer):
         limits = self.command_dict["getMotorLimits"](motor_name)
         if limits[0] < min_value or limits[1] > max_value:
             msg = (
-                f"The current limits of Motor {motor_name} is {limits}, beyond [{min_value}, {max_value}],"
+                f"The current limits of Motor {motor_name} is {limits}, "
+                f"beyond [{min_value}, {max_value}],"
                 " please check motor setting in MD3"
             )
             self.user_log.error(msg)
             raise Exception(msg)
 
-
     def check_omega_limit(self):
         omega_limit = HWR.beamline.tango_keystore.get("md3_omega_limit")
         if omega_limit["max"] >= omega_limit["min"]:
-            self.check_motor_limits("Omega", omega_limit["min"],omega_limit["max"])
+            self.check_motor_limits("Omega", omega_limit["min"], omega_limit["max"])
 
     def check_phiy_limit(self):
         phiy_limit = HWR.beamline.tango_keystore.get("md3_alignmenty_limit")
@@ -1222,13 +1225,17 @@ class MAXIVMD3(GenericDiffractometer):
         omega_limit = HWR.beamline.tango_keystore.get("md3_omega_limit")
         if omega_limit["max"] >= omega_limit["min"]:
             start_pos = self.phi_motor_hwobj.get_value()
-            self.command_dict["setOmegaLimits"]("%0.3f\t%0.3f" % (omega_limit["min"], omega_limit["max"]))
+            self.command_dict["setOmegaLimits"](
+                "%0.3f\t%0.3f" % (omega_limit["min"], omega_limit["max"])
+            )
             self.user_log.info(f"setting MD3 Omega Limits to {omega_limit}")
-            #critical, otherwise the first movement may cause collision
+            # critical, otherwise the first movement may cause collision
             self.home_motor("Omega")
             self.wait_device_ready(300)
             # set to the middle value
-            self.user_log.info(f"Setting Omega back to the starting position {start_pos}")
+            self.user_log.info(
+                f"Setting Omega back to the starting position {start_pos}"
+            )
             self.phi_motor_hwobj.set_value(start_pos)
             self.wait_device_ready(100)
 
@@ -1236,12 +1243,12 @@ class MAXIVMD3(GenericDiffractometer):
         self.user_log.info(f"Homing Motor {motor_name}")
         self.command_dict["startHomingMotor"](motor_name)
 
-    def restart_md3(self, cold_restart = False):
+    def restart_md3(self, cold_restart=False):
         self.user_log.info("Restarting MD3 application")
         if cold_restart:
             self.command_dict["restart"]("1")
             time.sleep(200)
-            #todo jn, more action needs to be added
+            # TODO: jn, more action needs to be added # noqa: TD002,TD003,FIX002
         else:
             self.command_dict["restart"]("0")
             time.sleep(60)
