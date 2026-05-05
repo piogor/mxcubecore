@@ -8,6 +8,7 @@ Biomax data collection
 import logging
 import math
 import os
+import subprocess
 import sys
 import time
 from pathlib import Path
@@ -24,12 +25,10 @@ from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
     DataCollect,
     parse_unit_cell_params,
 )
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX.pandabox import (
-    Detectors,
-    load_osc_schema,
-)
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.PandaBox import PandaBox
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.SnapshotManager import SnapshotManager
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.snapshots import take_crystal_snapshot
-from mxcubecore.HardwareObjects.MAXIV.SciCatPlugin import SciCatPlugin
+from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
 from mxcubecore.utils.units import um_to_mm
 
@@ -39,6 +38,10 @@ from mxcubecore.utils.units import um_to_mm
 # of currently running data collection.
 #
 IMAGE_AUTOLOAD_FILE = "/mxn/groups/sw/mxsw/albula_autoload/to_display_micromax"
+PANDABOX_DEVICE = "b312a-eh1/tim/pandabox-01"
+LASER_SCRIPT = "/data/staff/micromax/software/bin/laser_control"
+LASER_IN_SNAPSHOT_ID = 328
+LASER_OUT_SNAPSHOT_ID = 329
 
 
 class MICROMAXCollect(DataCollect):
@@ -52,7 +55,6 @@ class MICROMAXCollect(DataCollect):
         HardwareObject.__init__(self, name)
 
         self._centring_status = None
-
         self.osc_id = None
         self.owner = None
         self._collecting = False
@@ -75,11 +77,18 @@ class MICROMAXCollect(DataCollect):
         self.scicat_enabled = False
         self.collection_uuid = ""
         self.number_of_snapshots = 0
-
         self.flux_before_collect = None
         self.estimated_flux_before_collect = 0
         self.flux_after_collect = None
         self.estimated_flux_after_collect = None
+        self.time_resolved = False
+        self.pandabox_dev = None
+        self.pandabox_schema = None
+        self.pandabox_laser_delay = None
+        self.pandabox_rep_time = None  # s
+        self.laser = None
+        self.laser_script = None
+        self.snap_manager = None
 
     def init(self):
         super().init()
@@ -121,6 +130,11 @@ class MICROMAXCollect(DataCollect):
         self.user_log = logging.getLogger("user_level_log")
 
         self.safety_shutter_hwobj = HWR.beamline.safety_shutter
+        self.pandabox_dev = PandaBox(PANDABOX_DEVICE)
+        self.laser = HWR.beamline.get_object_by_role("laser")
+        self.laser_script = LASER_SCRIPT
+        self.snap_manager = SnapshotManager()
+
         # todo
         # self.fast_shutter_hwobj = self.getObjectByRole("fast_shutter")
         # self.cryo_stream_hwobj = self.getObjectByRole("cryo_stream")
@@ -253,7 +267,7 @@ class MICROMAXCollect(DataCollect):
                 )
                 self.user_log.error(msg)
 
-            self._configure_pandabox()
+            # self._configure_pandabox()
             self.close_fast_shutter()
             self.close_detector_cover()
             self.open_safety_shutter()
@@ -291,8 +305,19 @@ class MICROMAXCollect(DataCollect):
             "[COLLECT] Preparing data collection with parameters: %s"
             % self.current_dc_parameters
         )
-
+        if (
+            HWR.beamline.tango_keystore.get("experiment_type")
+            == "tr"  # time resolved experiment
+            and self.time_resolved
+        ):
+            self.pandabox_schema = HWR.beamline.tango_keystore.get("pandabox_schema_tr")
+        else:
+            self.pandabox_schema = HWR.beamline.tango_keystore.get("pandabox_schema")
+        self.pandabox_dev.load_schema_from_file(self.pandabox_schema)
+        self.pandabox_rep_time = self.get_tr_rep_time()
+        self.log.debug("Repetition time is %s", self.pandabox_rep_time)
         self.diffractometer_hwobj.check_omega_limit()
+        self.diffractometer_hwobj.check_phiy_limit()
 
         self.stop_display = False
 
@@ -352,7 +377,22 @@ class MICROMAXCollect(DataCollect):
                 self.log.error(msg)
                 raise Exception(msg)
 
+        if HWR.beamline.is_hve_sample_delivery():
+            self.time_resolved = False
+            if self.current_dc_parameters["oscillation_sequence"][0]["range"] >= 1:
+                self.time_resolved = True
+                self.move_in_laser()
+            self.pandabox_laser_delay = 0  # default value
+
         if "transmission" in self.current_dc_parameters:
+            if HWR.beamline.is_hve_sample_delivery():
+                # use transmission for panda box jf delay
+                exp_time = self.current_dc_parameters["oscillation_sequence"][0][
+                    "exposure_time"
+                ]  # s
+                dark_images = self.current_dc_parameters["transmission"]
+                self.pandabox_laser_delay = exp_time * int(dark_images) * 1000  # ms
+
             transmission = self.current_dc_parameters["transmission"]
             self.user_log.info("Collection: Setting transmission to %.3f", transmission)
             try:
@@ -386,6 +426,12 @@ class MICROMAXCollect(DataCollect):
 
         try:
             det_config = self.prepare_detector()
+
+            if self.is_jungfrau():
+                self.pandabox_dev.set_attribute("BITS3.A", "1")
+            else:  # Eiger 9m
+                self.pandabox_dev.set_attribute("BITS3.B", "1")
+
         except Exception as ex:
             self.user_log.exception("Collection: cannot set prepare detector.")
             msg = "[COLLECT] Error preparing detector: %s" % ex
@@ -407,11 +453,12 @@ class MICROMAXCollect(DataCollect):
             self.flux_before_collect = self.get_instant_flux()
             self.estimated_flux_before_collect = self.get_estimated_flux()
 
-        self.move_to_centered_position()
+        # For `hve`` it's important that to not move the sample between phase change.
+        if not HWR.beamline.is_hve_sample_delivery():
+            self.move_to_centered_position()
 
         self.log.info(
-            "Updating data collection in LIMS with data: %s"
-            % self.current_dc_parameters
+            "Updating data collection in LIMS with data: %s", self.current_dc_parameters
         )
         self.update_data_collection_in_lims()
 
@@ -437,11 +484,12 @@ class MICROMAXCollect(DataCollect):
                 osc_start += osc_range * nframes_per_trigger - overlap
             self.char = True
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
+            # web server send the wrong info, swapped here
             triggers_to_collect.append(
                 (
                     osc_start,
-                    self.get_mesh_total_nb_frames(),
-                    self.get_mesh_num_lines(),
+                    self.get_mesh_total_nb_frames(),  # trigger_num
+                    self.get_mesh_num_lines(),  # nframes_per_trigger
                     osc_range,
                 )
             )
@@ -500,10 +548,64 @@ class MICROMAXCollect(DataCollect):
                 gevent.spawn(self._update_image_to_display)
                 self.progress_task = gevent.spawn(self._update_task_progress)
 
-                # Actual MD3 oscillation launched here
-                self.oscillation_task = self.oscil(
-                    osc_start, osc_end, shutterless_exptime, 1, wait=True
-                )
+                if HWR.beamline.is_hve_sample_delivery():
+                    if self.time_resolved:
+                        self.stop_laser()
+                        # enable panda box
+                        self.pandabox_dev.set_attribute("PULSE6.DELAY.UNITS", "ms")
+                        self.pandabox_dev.set_attribute("PULSE5.DELAY.UNITS", "ms")
+                        ori_pulse6_delay = float(
+                            self.pandabox_dev.get_attribute("PULSE6.DELAY")
+                        )
+                        ori_pulse5_delay = float(
+                            self.pandabox_dev.get_attribute("PULSE5.DELAY")
+                        )
+                        pulse6_delay = self.pandabox_laser_delay + ori_pulse6_delay
+                        pulse5_delay = self.pandabox_laser_delay + ori_pulse5_delay
+                        self.pandabox_dev.set_attribute(
+                            "PULSE5.DELAY", str(pulse5_delay)
+                        )
+                        self.pandabox_dev.set_attribute(
+                            "PULSE6.DELAY", str(pulse6_delay)
+                        )
+                        self.start_laser()
+
+                        self.pandabox_dev.set_attribute("BITS2.B", "1")
+
+                    self.pandabox_dev.set_attribute("BITS2.A", "1")
+
+                    shutterless_exptime = (
+                        self.pandabox_rep_time
+                        * self.current_dc_parameters["oscillation_sequence"][0][
+                            "start_image_number"
+                        ]
+                    )
+
+                    # For injector steady state...
+                    if shutterless_exptime < 2:
+                        # ...with short exposure time use MD3 scan
+                        self.oscillation_task = self.oscil(
+                            osc_start,
+                            osc_start + 0.00001,
+                            shutterless_exptime,
+                            1,
+                            wait=True,
+                        )
+                    else:
+                        # ...for eiger make sure it is set to internal trigger mode
+                        self.open_fast_shutter()
+                        # TODO@JieNan: uncomment or remove
+                        # time.sleep(6)
+                        # self.detector_hwobj.trigger()
+                        self.detector_hwobj.wait_ready(timeout=shutterless_exptime + 30)
+                        self.close_fast_shutter()
+
+                else:
+                    # Regular MD3 oscillation launched here
+                    self.oscillation_task = self.oscil(
+                        osc_start, osc_end, shutterless_exptime, 1, wait=True
+                    )
+
             self.log.debug("data_collection_hook OSC Done")
             self.emit("collectImageTaken", oscillation_parameters["number_of_images"])
         except RuntimeError as ex:
@@ -515,11 +617,19 @@ class MICROMAXCollect(DataCollect):
             self.data_collection_cleanup()
             raise Exception("data collection hook failed... ", sys.exc_info()[0])
         finally:
+            self.close_fast_shutter()
+            if self.time_resolved:
+                self.stop_laser()
+                self.pandabox_dev.set_attribute("BITS2.B", "0")
+
+            self.pandabox_dev.set_attribute("BITS2.A", "0")
+
             self.log.info("Requesting detector to stop data acquisition.")
             self.detector_hwobj.stop_acquisition()
             self.close_detector_cover()
 
     def get_mesh_num_lines(self):
+        self.log.info("Mesh number of lines: %s", self.mesh_num_lines)
         return self.mesh_num_lines
 
     def get_mesh_total_nb_frames(self):
@@ -565,10 +675,6 @@ class MICROMAXCollect(DataCollect):
     def oscil(self, start, end, exptime, npass, wait=True):
         def get_table_pitch() -> int:
             """Figure out if mesh scan table pitch should be enabled."""
-
-            if HWR.beamline.is_fixed_target_sample_delivery():
-                # table pitch disabled for fixed-target collections
-                return 0
 
             if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
                 return 0
@@ -927,7 +1033,7 @@ class MICROMAXCollect(DataCollect):
             """
             # os.symlink(files_directory, os.path.join(process_directory, "img"))
         except Exception:
-            logging.exception("Could not create processing file directory")
+            self.log.exception("Could not create processing file directory")
             return
         if proc_directory:
             self.current_dc_parameters["xds_dir"] = proc_directory
@@ -970,19 +1076,16 @@ class MICROMAXCollect(DataCollect):
         return proc_directory, auto_directory
 
     def is_jungfrau(self) -> bool:
-        """
-        return true if we are using Jungfrau detector
-        """
+        """Returns true if Jungfrau detector is used."""
         detector_model = self.detector_hwobj.get_property("model")
         return detector_model == "JUNGFRAU"
 
-    def _configure_pandabox(self):
-        if self.is_jungfrau():
-            detector = Detectors.Jungfrau
-        else:
-            detector = Detectors.Eiger
-
-        load_osc_schema(detector)
+    def is_eiger_9m(self) -> bool:
+        """Returns true if Eiger 9M detector is used."""
+        detector_model = self.detector_hwobj.get_property("model")
+        detector_mode = self.detector_hwobj.get_property("mode")
+        full_name = f"{detector_model}{detector_mode}"
+        return full_name == "EIGER9M"
 
     def move_detector(self, value):
         """Move detector to the specified distance."""
@@ -1044,7 +1147,6 @@ class MICROMAXCollect(DataCollect):
             row,
             col,
         )
-        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict = header_appendix["collect_dict"]
         collect_dict["ssx_mode"] = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
         collect_dict["target_beam_size_factor"] = (
@@ -1062,15 +1164,17 @@ class MICROMAXCollect(DataCollect):
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         (
             osc_start,
-            trigger_num,
+            ntrigger,
             nframes_per_trigger,
             osc_range,
         ) = self.triggers_to_collect[0]
 
-        if self.current_dc_parameters["experiment_type"] == "Mesh":
-            ntrigger = self.get_mesh_num_lines()
-        else:
+        if HWR.beamline.is_hve_sample_delivery():
+            # we use "first image" to set multiple triggers
+            ntrigger = oscillation_parameters["start_image_number"]
+        elif self.current_dc_parameters["experiment_type"] != "Mesh":
             ntrigger = len(self.triggers_to_collect)
+
         config = self.detector_hwobj.col_config
 
         config["OmegaStart"] = osc_start  # oscillation_parameters['start']
@@ -1112,10 +1216,28 @@ class MICROMAXCollect(DataCollect):
         if self.is_jungfrau():
             # when Jungfrau detector is used, include user specified unit cell
             # parameters in the acquisition config sent to the detector
+
+            # TODO@JieNAN: tmp solution, we should unify the epxeriment type definition, several sources now
+            if (
+                HWR.beamline.tango_keystore.get("experiment_type") == "tr"
+            ):  # time resolved experiment
+                if self.time_resolved:
+                    config["SampleName"] = "laseron"
+                else:
+                    config["SampleName"] = "laseroff"
+
+            if HWR.beamline.is_hve_sample_delivery():
+                config["ExperimentType"] = "still"
+            elif HWR.beamline.tango_keystore.get("experiment_type") == "osc":
+                config["ExperimentType"] = "rotation"
+            elif self.current_dc_parameters["experiment_type"] == "Mesh":
+                config["ExperimentType"] = "grid_scan"
+
             sample_info = self.current_dc_parameters["sample_reference"]
-            space_group = sample_info.get("spacegroup").strip() or None
+            space_group = sample_info.get("spacegroup", None)
 
             if space_group is not None:
+                space_group = space_group.strip()
                 space_group_number = space_groups.get_number(space_group)
                 config["SpaceGroupNumber"] = space_group_number
             else:
@@ -1224,12 +1346,16 @@ class MICROMAXCollect(DataCollect):
         """
         if not HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
             self.log.warning("Reading flux is disable in the keystore")
-            return
+            return  # noqa: RET502
         try:
             self.close_detector_cover()
-            self.log.info("xxxxxxxxxxxxxxxxx will set to calculate flux phase")
+            self.log.info("xxxxxxxxxxx will set to calculate flux phase")
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
-            self.log.info("xxxxxxxxxxxxxxxxxxxxxxxxxx md3 is set to calcualte flux phase")
+
+            if HWR.beamline.is_hve_sample_delivery():
+                keep_position = False
+                ori_phase = "DataCollection"
+            self.log.info("xxxxxxxxxxx md3 is set to calcualte flux phase")
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
             flux = self.flux.calc_flux()
@@ -1283,9 +1409,9 @@ class MICROMAXCollect(DataCollect):
         if manual_mode and not (
             self.diffractometer_hwobj.head_type == GenericDiffractometer.HEAD_TYPE_PLATE
         ):
-            self.diffractometer_hwobj.set_phase("Transfer", wait = True)
+            self.diffractometer_hwobj.set_phase("Transfer", wait=True)
             if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
-                self.diffractometer_hwobj.phi_motor_hwobj.set_value(45)
+                self.diffractometer_hwobj.phi_motor_hwobj.set_value(170)
                 self.diffractometer_hwobj.wait_ready(10)
             self.move_detector_to_safe_position()
 
@@ -1386,7 +1512,41 @@ class MICROMAXCollect(DataCollect):
             flux = self.flux.calc_flux()
         finally:
             self.close_fast_shutter()
-            if flux > 1e9:
-                error_msg = f"Contact support: Direct beam detected behind beamstop"
-                self.user_log.error(error_msg)
-                raise Exception(error_msg)
+            if flux > 5e9:
+                _msg = "Contact support: Direct beam detected behind beamstop"
+                self.user_log.error(_msg)
+                raise Exception(_msg)
+
+    def get_time_resolved_repetition_time(self):
+        self.pandabox_dev.set_attribute("CLOCK1.PERIOD.UNITS", "ms")
+        master_clock = float(self.pandabox_dev.get_attribute("CLOCK1.PERIOD"))
+        div1 = int(self.pandabox_dev.get_attribute("DIV1.DIVISOR"))
+        laser_div = int(self.pandabox_dev.get_attribute("DIV2.DIVISOR"))
+        return master_clock * div1 * laser_div / 1000.0  # s
+
+    def start_laser(self):
+        cmd_laser = f"{self.laser_script} -c start"
+        subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
+
+    def stop_laser(self):
+        cmd_laser = f"{self.laser_script} -c stop"
+        subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
+
+    def move_in_laser(self):
+        # disable laser motor
+        # TODO@JieNan: implement or remove comment
+        # self._load_laser_snapshot(LASER_IN_SNAPSHOT_ID)
+        return
+
+    def move_out_laser(self):
+        # disable laser motor
+        # TODO@JieNan: implement or remove comment
+        # self._load_laser_snapshot(LASER_OUT_SNAPSHOT_ID)
+        return
+
+    def _load_laser_snapshot(self, snapshot_id):
+        if self.snap_manager is None:
+            msg = "Snapshot manager hardware object is not configured"
+            self.log.error(msg)
+            raise RuntimeError(msg)
+        self.snap_manager.load_snapshot([snapshot_id], [])
