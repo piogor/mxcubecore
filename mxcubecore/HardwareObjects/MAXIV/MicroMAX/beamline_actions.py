@@ -10,7 +10,7 @@ from tango import DeviceProxy
 from tango_keystore import TangoKeystore
 
 from mxcubecore import HardwareRepository as HWR
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import Celeroton
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import CelerotonChopper
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.sendEmail import sendEmail
 from mxcubecore.utils.units import kev_to_ev
 
@@ -130,7 +130,7 @@ class StartChopper:
         """
         RestartMD3 and set the necessary omega limits
         """
-        chopper = Celeroton()
+        chopper = CelerotonChopper()
         user_log.info("Starting chopper now")
         chopper.external_sync()
 
