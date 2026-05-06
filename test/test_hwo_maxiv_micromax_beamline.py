@@ -1,11 +1,17 @@
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline import Beamline, SampleDelivery
+from unittest.mock import Mock, patch
+
+from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline import Beamline
 
 
 def _setup_beamline_obj(config: dict):
-    beamline = Beamline("dummy")
-    beamline._config = Beamline.HOConfig(**config)  # noqa: SLF001
+    tango_keystore_mock = Mock()
+    tango_keystore_mock.get = Mock(side_effect=lambda key: config[key])
 
-    return beamline
+    hwr_beamline = patch.object(HWR, "beamline").start()
+    hwr_beamline.tango_keystore = tango_keystore_mock
+
+    return Beamline("dummy")
 
 
 def test_sample_delivery_osc():
@@ -15,7 +21,7 @@ def test_sample_delivery_osc():
 
     assert not beamline.is_hve_sample_delivery()
     assert not beamline.is_fixed_target_sample_delivery()
-    assert beamline.sample_delivery == SampleDelivery.osc
+    assert beamline.sample_delivery == "osc"
 
 
 def test_sample_delivery_hve():
@@ -25,7 +31,7 @@ def test_sample_delivery_hve():
 
     assert beamline.is_hve_sample_delivery()
     assert not beamline.is_fixed_target_sample_delivery()
-    assert beamline.sample_delivery == SampleDelivery.hve
+    assert beamline.sample_delivery == "hve"
 
 
 def test_sample_delivery_fixed_target():
@@ -35,4 +41,4 @@ def test_sample_delivery_fixed_target():
 
     assert not beamline.is_hve_sample_delivery()
     assert beamline.is_fixed_target_sample_delivery()
-    assert beamline.sample_delivery == SampleDelivery.fixed_target
+    assert beamline.sample_delivery == "fixed-target"

@@ -2,7 +2,6 @@ from unittest.mock import Mock, call, patch
 
 import pytest
 
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline import SampleDelivery
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions import (
     MeasureFlux,
     MoveToMD3SavedPosition,
@@ -11,11 +10,8 @@ from mxcubecore.HardwareObjects.MAXIV.MicroMAX.beamline_actions import (
 )
 
 
-def _assert_open_hutch_calls(hwr, laser, log):
+def _assert_open_hutch_calls(hwr, log):
     """Checks that expected standard calls for 'prepare open hutch' where made."""
-
-    hwr.beamline.get_object_by_role.assert_called_once_with("laser")
-    laser.disarm.assert_called_once()
 
     # check calls on collect hardware object
     collect = hwr.beamline.collect
@@ -26,7 +22,7 @@ def _assert_open_hutch_calls(hwr, laser, log):
 
     # check calls on diffractometer hardware object
     diffractometer = hwr.beamline.diffractometer
-    diffractometer.wait_device_ready.assert_called_once()
+    assert diffractometer.wait_device_ready.call_count == 2
     if hwr.beamline.is_hve_sample_delivery():
         diffractometer.channel_dict[
             "BeamstopPosition"
@@ -37,6 +33,8 @@ def _assert_open_hutch_calls(hwr, laser, log):
         log.info.assert_has_calls(
             [
                 call("Preparing experimental hutch for door opening."),
+                call("Switching off laser"),
+                call("Moving out laser"),
                 call("Setting diffractometer to 'equivalent' of Transfer phase."),
                 call("Moving detector to safe position."),
             ],
@@ -53,12 +51,13 @@ def _assert_open_hutch_calls(hwr, laser, log):
         )
 
 
-@pytest.mark.parametrize("sample_delivery", [SampleDelivery.osc, SampleDelivery.hve])
-def test_prepare_open_hutch_eiger(sample_delivery: SampleDelivery):
+@pytest.mark.parametrize("sample_delivery", ["osc", "hve"])
+def test_prepare_open_hutch_eiger(sample_delivery: str):
     """Test PrepareOpenHutch beamline action with Eiger detector."""
 
     hwr = Mock()
     hwr.beamline.detector.get_property.return_value = "Eiger"
+    hwr.beamline.collect.is_jungfrau.return_value = False
     hwr.beamline.sample_delivery = sample_delivery
     hwr.beamline.diffractometer.channel_dict = {
         "BeamstopPosition": Mock(),
@@ -77,13 +76,13 @@ def test_prepare_open_hutch_eiger(sample_delivery: SampleDelivery):
         bl_action = PrepareOpenHutch()
         bl_action()
 
-    _assert_open_hutch_calls(hwr, laser, log)
+    _assert_open_hutch_calls(hwr, log)
     # take pedestal should not be called for Eiger
     hwr.beamline.detector.pedestal.assert_not_called()
 
 
-@pytest.mark.parametrize("sample_delivery", [SampleDelivery.osc, SampleDelivery.hve])
-def test_prepare_open_hutch_jungfrau(sample_delivery: SampleDelivery):
+@pytest.mark.parametrize("sample_delivery", ["osc", "hve"])
+def test_prepare_open_hutch_jungfrau(sample_delivery: str):
     """Test PrepareOpenHutch beamline action with Jungfrau detector."""
 
     hwr = Mock()
@@ -106,9 +105,10 @@ def test_prepare_open_hutch_jungfrau(sample_delivery: SampleDelivery):
         bl_action = PrepareOpenHutch()
         bl_action()
 
-    _assert_open_hutch_calls(hwr, laser, log)
+    _assert_open_hutch_calls(hwr, log)
 
     # check take pedestal operation was invoked
+    log.info.assert_called_with("Collecting Jungfrau pedestal.")
     hwr.beamline.detector.pedestal.assert_called_once()
 
 
@@ -116,6 +116,8 @@ def test_prepare_open_hutch_error():
     """Test a case where PrepareOpenHutch beamline action fails."""
 
     hwr = Mock()
+    hwr.beamline.is_hve_sample_delivery.return_value = False
+    hwr.beamline.tango_keystore.is_enabled.return_value = False
     hwr.beamline.collect.close_safety_shutter.side_effect = Exception("dummy")
     laser = Mock()
     hwr.beamline.get_object_by_role.return_value = laser
@@ -130,8 +132,6 @@ def test_prepare_open_hutch_error():
         bl_action = PrepareOpenHutch()
         bl_action()
 
-    hwr.beamline.get_object_by_role.assert_called_once_with("laser")
-    laser.disarm.assert_called_once()
     log.exception.assert_called_with(
         "Error preparing to open hutch.\nError was: '%s'",
         "dummy",
