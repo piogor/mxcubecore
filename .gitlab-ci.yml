@@ -36,6 +36,7 @@ run-test:
       --channel conda-forge
       --channel https://conda.maxiv.lu.se/get/maxiv-kits
       sdm=1.9.0
+      tango-keystore=0.5.0
     - micromamba activate mxcubecore
     - pip install --editable '.[maxiv]' pytest pytest-cov pytest-mock
   script:

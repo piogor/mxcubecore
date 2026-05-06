@@ -24,7 +24,7 @@ class Beamline(mxcubecore.HardwareObjects.MAXIV.beamline.Beamline):
 
     @property
     def sample_delivery(self) -> str:
-        HWR.beamline.tango_keystore.get("sample_delivery")
+        return HWR.beamline.tango_keystore.get("sample_delivery")
 
     def is_hve_sample_delivery(self) -> bool:
         """True when HVE sample delivery mode is configured."""
