@@ -291,12 +291,21 @@ class MAXIVSampleView(SampleView):
             if HWR.beamline.diffractometer.in_plate_mode:
                 dynamic_limits = self.omega_motor_hwobj.get_dynamic_limits()
                 if click == 0:
-                    self.omega_motor_hwobj.set_value(dynamic_limits[0])
+                    self.omega_motor_hwobj.set_value(dynamic_limits[0] + 0.1)
                 elif click == 1:
-                    self.omega_motor_hwobj.set_value(dynamic_limits[1])
+                    self.omega_motor_hwobj.set_value(dynamic_limits[1] - 0.1)
             elif click < 2:
                 self.omega_motor_hwobj.set_value_relative(90)
+
         self.omega_reference_add_constraint()
+
+        if HWR.beamline.diffractometer.in_plate_mode:
+            # set to the middle position of omega range in the end of manual centring
+            dynamic_limits = self.omega_motor_hwobj.get_dynamic_limits()
+            mid_angle = (dynamic_limits[0] + dynamic_limits[1]) / 2.0
+            if mid_angle > dynamic_limits[0] and mid_angle < dynamic_limits[1]:
+                self.omega_motor_hwobj.set_value(mid_angle)
+
         return self.centring_hwobj.centeredPosition(return_by_name=False)
 
     def wait_for_stable_backlight(

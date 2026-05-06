@@ -154,6 +154,7 @@ class MAXIVMD3(AbstractDiffractometer):
         self.pixels_per_mm_y = 1.0
 
         self.sample_is_loaded = False
+        self.plate_row_list = []
 
     def init(self):
         super().init()
@@ -270,6 +271,8 @@ class MAXIVMD3(AbstractDiffractometer):
         # to make it comaptible
         self.wait_device_ready = self.wait_ready
         self.wait_status_ready = self.wait_ready
+
+        self.plate_row_list = ["A", "B", "C", "D", "E", "F", "G", "H"]
 
     # Handling of pixels-per-millimeter
     def get_pixels_per_mm(self):
