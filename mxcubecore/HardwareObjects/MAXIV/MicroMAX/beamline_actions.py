@@ -13,10 +13,12 @@ from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
     DiffractometerPhase,
 )
+from mxcubecore.HardwareObjects.BeamlineActions import AnnotatedCommand
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import CelerotonChopper
 from mxcubecore.utils.units import kev_to_ev
 
 user_log = logging.getLogger("user_level_log")
+hwr_log = logging.getLogger("HWR")
 
 
 def send_email(
@@ -376,3 +378,41 @@ class BeamtimeEnd:
         # end beamtime
         cmd = HWR.beamline.beamline_actions.get_command_object("beamtime_end")
         cmd(wait=True)
+
+
+class MovePlate(AnnotatedCommand):
+    def __init__(self, *args):
+        super().__init__(*args)
+
+    def move_plate(self, row: str, col: int, drop: int) -> None:
+        logging.getLogger("user_level_log").info(f"Move Plate {row} {col} {drop}")
+        try:
+            hwr_log.info(
+                "Move Plate to position row: {}, col:{}, drop {}".format(row, col, drop)
+            )
+
+            try:
+                row_index = HWR.beamline.diffractometer.plate_row_list.index(
+                    row.upper()
+                )
+            except Exception as ex:
+                hwr_log.error("could find the row value {} in the row_list".format(row))
+                raise Exception("please make sure the Row value is within A-H") from ex
+
+            params = "{}\t{}\t{}".format(row_index, int(col) - 1, int(drop) - 1)
+            HWR.beamline.diffractometer.command_dict["startMovePlateToShelf"](params)
+            HWR.beamline.diffractometer.wait_ready(30)
+            current_pos = HWR.beamline.diffractometer.channel_dict[
+                "PlateLocation"
+            ].get_value()
+            current_row = HWR.beamline.diffractometer.plate_row_list[
+                int(current_pos[0])
+            ]
+            current_col = int(current_pos[1]) + 1
+            hwr_log.info(
+                "Current plate position row: {}, col:{}".format(
+                    current_row, current_col
+                )
+            )
+        except Exception:
+            hwr_log.exception("Cannot move plate.")
