@@ -409,7 +409,8 @@ class MICROMAXCollect(DataCollect):
 
         if HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
             self.log.warning("Reading flux")
-            self.flux_before_collect = self.get_instant_flux()
+            if not self.diffractometer_hwobj.in_plate_mode():
+                self.flux_before_collect = self.get_instant_flux()
             self.estimated_flux_before_collect = self.get_estimated_flux()
 
         # For `hve`` it's important that to not move the sample between phase change.
@@ -1277,13 +1278,11 @@ class MICROMAXCollect(DataCollect):
             return  # noqa: RET502
         try:
             self.close_detector_cover()
-            self.log.info("xxxxxxxxxxx will set to calculate flux phase")
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
 
             if HWR.beamline.is_hve_sample_delivery():
                 keep_position = False
                 ori_phase = DiffractometerPhase.COLLECT
-            self.log.info("xxxxxxxxxxx md3 is set to calcualte flux phase")
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
             flux = self.flux.calc_flux()
@@ -1320,17 +1319,20 @@ class MICROMAXCollect(DataCollect):
         return float(self.get_flux())
 
     def prepare_for_new_sample(self, manual_mode=True):
+        self.close_detector_cover()
         """Prepare beamline for a new sample."""
-        if HWR.beamline.is_hve_sample_delivery():
+        if (
+            HWR.beamline.is_hve_sample_delivery()
+            or self.diffractometer_hwobj.in_plate_mode()
+        ):
             self.log.info(
-                "[HWR] Beamline in HVE delivery mode, no preparation for a new sample required."
+                "[HWR] Beamline in HVE delivery or plate mode, no preparation for a new sample required."
             )
             return
 
         self.log.info(
             "[HWR] Beamline in OSC delivery mode, preparing beamline for a new sample."
         )
-        self.close_detector_cover()
 
         # HVE head is recognized as PLATE by the MD3. We do nothing for those two cases
         if manual_mode and not (
