@@ -59,7 +59,7 @@ py4j = "0.10.9.9"
 f90nml = "1.3.1"
 lucid3 = "^3.0.0"
 loopfinder = {version = "^3.0.1", optional = true}
-PyTango = "^9.3.6"
+PyTango = ">=9.3.6"  # MAX-IV uses 10.0.4 cpp-/py-tango
 python-ldap = "^3.4.5"
 requests = "^2.33.0"
 colorama = "^0.4.6"
