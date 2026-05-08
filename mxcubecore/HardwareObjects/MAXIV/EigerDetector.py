@@ -4,6 +4,7 @@ import time
 
 import gevent
 
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractDetector import AbstractDetector
 from mxcubecore.model.queue_model_objects import PathTemplate
@@ -42,7 +43,11 @@ class EigerDetector(AbstractDetector):
         super().init()
 
         self.cover = self.get_object_by_role("cover")
-        self.detector_distance = self.get_object_by_role("detector_distance")
+        if HWR.beamline.tango_keystore.is_enabled("emulate_detector_distance"):
+            distance_object = "detector_mock_distance"
+        else:
+            distance_object = "detector_distance"
+        self.detector_distance = self.get_object_by_role(distance_object)
 
         tango_device = self.get_property("detector_device")
         self.file_suffix = self.get_property("file_suffix")

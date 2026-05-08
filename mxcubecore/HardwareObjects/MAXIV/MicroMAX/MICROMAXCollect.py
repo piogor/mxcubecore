@@ -1036,6 +1036,10 @@ class MICROMAXCollect(DataCollect):
     def move_detector(self, value):
         """Move detector to the specified distance."""
 
+        if HWR.beamline.tango_keystore.is_enabled("emulate_detector_distance"):
+            return
+
+
         lower_limit, upper_limit = self.get_detector_distance_limits()
         self.log.info(
             "...................value %s, detector movement start..... %s"
@@ -1071,6 +1075,8 @@ class MICROMAXCollect(DataCollect):
 
     def get_detector_distance(self):
         """Get current detector distance."""
+        if HWR.beamline.tango_keystore.is_enabled("emulate_detector_distance"):
+            return 400.0
         if self.dtox_hwobj is not None:
             return self.dtox_hwobj.get_value()
 

@@ -28,8 +28,11 @@ from mxcubecore.HardwareObjects.MAXIV.TangoKeystore import TangoKeystore
 class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
     def emulate(self, feature: str) -> bool:
         """Check if some feature should be emulated."""
-        emulate = self.get_property("emulate", {})
-        return emulate.get(feature, False)
+        feature = f"emulate_{feature}"
+        enabled = self.tango_keystore.is_enabled(feature)
+        if enabled:
+            self.log.warning(f"emulation enabled for {feature}")
+        return enabled
 
     def is_hve_sample_delivery(self) -> bool:
         """True when HVE sample delivery mode is configured."""
