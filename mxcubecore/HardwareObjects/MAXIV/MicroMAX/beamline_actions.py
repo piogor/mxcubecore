@@ -11,22 +11,30 @@ from tango_keystore import TangoKeystore
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import CelerotonChopper
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX.sendEmail import sendEmail
 from mxcubecore.utils.units import kev_to_ev
 
 user_log = logging.getLogger("user_level_log")
 
 
-def send_email(receivers, subject, content):
-    send_email = sendEmail(receivers=receivers)
-    attachments = None
-    """
-    try:
-        attachments = eval(email["attachments"])
-    except:
-        pass
-    """
-    send_email.send_email(subject=subject, content=content, attachments=attachments)
+def send_email(receivers, subject, content, attachments=None):
+    email_sender = HWR.beamline.email_sender
+    if email_sender is None:
+        msg = "Email sender hardware object is not configured"
+        raise RuntimeError(msg)
+    email_sender.send_email(
+        receivers=receivers,
+        subject=subject,
+        content=content,
+        attachments=attachments,
+    )
+
+
+def send_notification(title, message):
+    notification_sender = HWR.beamline.notification_sender
+    if notification_sender is None:
+        msg = "Notification sender hardware object is not configured"
+        raise RuntimeError(msg)
+    return notification_sender.send_notification(title, message)
 
 
 class PrepareOpenHutch:
