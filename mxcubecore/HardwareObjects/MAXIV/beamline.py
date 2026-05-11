@@ -31,3 +31,11 @@ class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
     @property
     def tango_keystore(self) -> HardwareObject | None:
         return self.get_object_by_role("tango_keystore")
+
+    @property
+    def email_sender(self) -> HardwareObject | None:
+        return self.get_object_by_role("email_sender")
+
+    @property
+    def notification_sender(self) -> HardwareObject | None:
+        return self.get_object_by_role("notification_sender")
