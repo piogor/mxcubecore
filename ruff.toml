@@ -527,7 +527,7 @@ convention = "google"
     "B904",
     "E501",
 ]
-"mxcubecore/HardwareObjects/JungfrauDetector.py" = [
+"mxcubecore/HardwareObjects/MAXIV/MicroMAX/JungfrauDetector.py" = [
     "TD002",
     "TD003",
     "FIX002",
