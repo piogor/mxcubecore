@@ -99,12 +99,7 @@ class JungfrauDetector(AbstractDetector):
         super().init()
 
         self.cover = self.get_object_by_role("cover")
-
-        if HWR.beamline.tango_keystore.is_enabled("emulate_detector_distance"):
-            distance_object = "detector_mock_distance"
-        else:
-            distance_object = "detector_distance"
-        self._distance_motor_hwobj = self.get_object_by_role("detector_mock_distance")
+        self._distance_motor_hwobj = self.get_object_by_role("detector_distance")
         self.detector_distance = self._distance_motor_hwobj
         # read the optional 'images_per_file' config property
         self.col_config["ImagesPerFile"] = self.get_property(
