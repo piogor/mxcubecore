@@ -746,12 +746,18 @@ class ISARA(SampleChanger):
         state = self._read_state()
         return state in (SampleChangerState.Ready, SampleChangerState.Charging)
 
-    def _wait_device_ready(self, timeout=None):
-        """
-        Waits until the samle changer HO is ready.
+    def wait_device_ready(self, timeout: int | None = None) -> None:
+        """This method exposes _wait_device_ready with a public name."""
+        # TODO@DominikaTrojanowska: Kanban task #420 Remove this method  # noqa: FIX002
+        # and rename_wait_device_ready to wait_device_ready when all code is updated
+        # to use the public interface.
+        self._wait_device_ready(timeout)
 
-        :returns: None
-        :rtype: None
+    def _wait_device_ready(self, timeout: int | None = None) -> None:
+        """Waits until the sample changer HO is ready.
+
+        Raises:
+            Exception: If the device is not ready within the specified timeout.
         """
         with gevent.Timeout(timeout, Exception("Timeout waiting for device ready")):
             while not self._is_device_ready():

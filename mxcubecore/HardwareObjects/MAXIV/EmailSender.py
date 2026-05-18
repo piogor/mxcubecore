@@ -1,5 +1,6 @@
 import smtplib
 from email.message import EmailMessage
+from email.utils import parseaddr
 from pathlib import Path
 
 from pydantic import BaseModel
@@ -38,15 +39,10 @@ class EmailSender(HardwareObject):
         self.mail_server_port = None
         self.sender = None
 
-    def init(self):
-        """Initialize the hardware object after configuration is loaded."""
-
-        super().init()
-
     def _add_attachments(
-        self, msg: EmailMessage, attachments: list | str | Path | None
+        self, msg: EmailMessage, attachments: list[str] | str | Path | None
     ):
-        """Add file attachments to an email message.
+        """Add file attachments to the email message.
 
         Args:
             msg: Email message to update.
@@ -70,25 +66,32 @@ class EmailSender(HardwareObject):
                 filename=attachment_path.name,
             )
 
-    def validate_receivers(self, receivers: str) -> bool:
+    def validate_receivers(self, receivers: str) -> None:
         """Validate the format of the receivers string.
 
         Args:
             receivers: Comma-separated string of email addresses to validate.
 
-        Returns:
-            True if the receivers string has a valid email-like format,
-            otherwise False.
+        Raises:
+            ValueError: If the receivers string is invalid.
         """
+        msg = "Expected a comma-separated list of email addresses."
         if not receivers:
-            return False
-
+            msg = f"No email receivers specified. {msg}"
+            raise ValueError(msg)
         for receiver in receivers.split(","):
-            if "@" not in receiver or "." not in receiver:
-                return False
-        return True
+            _, addr = parseaddr(receiver.strip())
+            if not addr:
+                msg = f"Invalid email address: '{receiver.strip()}'. {msg}"
+                raise ValueError(msg)
 
-    def send_email(self, receivers: str, subject: str, content: str, attachments=None):
+    def send_email(
+        self,
+        receivers: str,
+        subject: str,
+        content: str,
+        attachments: list[str] | str | Path | None = None,
+    ):
         """Send an email to the specified receivers.
 
         Args:
@@ -98,15 +101,10 @@ class EmailSender(HardwareObject):
             attachments: Single file path or list of file paths to attach.
 
         Raises:
-            ValueError: If the receivers string is invalid.
             OSError: If the SMTP connection fails.
             smtplib.SMTPException: If the SMTP server rejects the message.
         """
-        if not self.validate_receivers(receivers):
-            msg = f"Invalid receivers format: '{receivers}'."
-            msg += " Expected a comma-separated list of email addresses."
-            raise ValueError(msg)
-
+        self.validate_receivers(receivers)
         msg = EmailMessage()
         msg.set_content(content or "")
         msg["Subject"] = subject or ""
@@ -120,7 +118,9 @@ class EmailSender(HardwareObject):
                 self._config.mail_server_address,
                 self._config.mail_server_port,
             ) as smtp:
-                smtp.sendmail(self._config.sender, recipients, msg.as_string())
+                smtp.send_message(
+                    msg, from_addr=self._config.sender, to_addrs=recipients
+                )
 
         except (OSError, smtplib.SMTPException):
             self.log.exception("Error while sending email")

@@ -96,6 +96,10 @@ class ISARAMaint(HardwareObject):
         self.isara_dev = DeviceProxy(tangoname)
         self._setup_attribute_polling(tangoname)
 
+    @property
+    def position_name(self):
+        return self._position_name
+
     def _get_polling(self):
         """
         get polling frequency to use for device attribute poller
