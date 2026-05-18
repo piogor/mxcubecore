@@ -16,30 +16,57 @@ from mxcubecore.utils.units import kev_to_ev
 user_log = logging.getLogger("user_level_log")
 
 
-def send_email(receivers, subject, content, attachments=None):
+def send_email(
+    receivers: str, subject: str, content: str, attachments: list[str] | None = None
+):
+    """Send an email to the specified receivers.
+
+     Args:
+        receivers: A comma-separated string of email addresses to send the email to.
+        subject: The subject of the email.
+        content: The body content of the email.
+        attachments: A list of file paths to attach to the email (optional).
+
+    Raises:
+        RuntimeError: If the email sender hardware object is not configured.
+    """
     email_sender = HWR.beamline.email_sender
-    if email_sender is None:
+    try:
+        email_sender.send_email(
+            receivers=receivers,
+            subject=subject,
+            content=content,
+            attachments=attachments,
+        )
+    except AttributeError as exc:
         msg = "Email sender hardware object is not configured"
-        raise RuntimeError(msg)
-    email_sender.send_email(
-        receivers=receivers,
-        subject=subject,
-        content=content,
-        attachments=attachments,
-    )
+        raise RuntimeError(msg) from exc
+    except Exception:  # noqa: BLE001
+        user_log.exception("Error while sending notification")
 
 
-def send_notification(title, message):
+def send_notification(title: str, message: str):
+    """Send a notification to the user.
+
+     Args:
+        title: The title of the notification.
+        message: The message content of the notification.
+
+    Raises:
+        RuntimeError: If the notification sender hardware object is not configured.
+    """
     notification_sender = HWR.beamline.notification_sender
-    if notification_sender is None:
+    try:
+        notification_sender.send_notification(title, message)
+    except AttributeError as exc:
         msg = "Notification sender hardware object is not configured"
-        raise RuntimeError(msg)
-    return notification_sender.send_notification(title, message)
+        raise RuntimeError(msg) from exc
+    except Exception:  # noqa: BLE001
+        user_log.exception("Error while sending notification")
 
 
 class PrepareOpenHutch:
-    """
-    Prepare beamline for opening the hutch door.
+    """Prepare the beamline for opening the hutch door.
 
     - close safety shutter
     - close detector cover
@@ -90,7 +117,7 @@ class PrepareOpenHutch:
 
             try:
                 user_log.info("Moving detector to safe position.")
-                # TODO: jn we should do this properly # noqa: TD002,TD003,FIX002
+                # TODO@JieNan: we should do this properly # noqa: TD003,FIX002
                 # and check if the hutch is searched
                 collect.move_detector_to_safe_position()
             except Exception:  # noqa: BLE001
@@ -114,18 +141,14 @@ class PrepareOpenHutch:
 
 class RecoverMD3:
     def __call__(self):
-        """
-        RestartMD3 and set the necessary omega limits
-        """
+        """Restart MD3 and set the necessary omega limits."""
         diffractometer = HWR.beamline.diffractometer
         diffractometer.restart_md3(cold_restart=False)
 
 
 class RecoverMD3Hard:
     def __call__(self):
-        """
-        RestartMD3 and set the necessary omega limits
-        """
+        """Cold restart MD3 and set the necessary omega limits."""
         user_log.info("MD3 Cold restart, this takes 5 minutes; coffee break!")
 
         diffractometer = HWR.beamline.diffractometer
@@ -135,9 +158,7 @@ class RecoverMD3Hard:
 
 class StartChopper:
     def __call__(self):
-        """
-        RestartMD3 and set the necessary omega limits
-        """
+        """Start the chopper in external sync mode."""
         chopper = CelerotonChopper()
         user_log.info("Starting chopper now")
         chopper.external_sync()
@@ -145,9 +166,7 @@ class StartChopper:
 
 class CheckBeam:
     def __call__(self):
-        """
-        Check beam stability
-        """
+        """Check beam stability."""
         xbpms = {
             "DM3": DeviceProxy("b312a-o06/dia/xbpm-01"),
             "DM4": DeviceProxy("b312a-e01/dia/xbpm-01"),
@@ -180,9 +199,7 @@ class CheckBeam:
 
 class MeasureFlux:
     def __call__(self):
-        """
-        calculate flux at sample position
-        """
+        """Calculate flux at the sample position."""
         flux_at_sample = HWR.beamline.collect.get_instant_flux()
         user_log.info("Flux at sample position is %.2e ph/s", flux_at_sample)
 
@@ -254,7 +271,7 @@ def _calc_omega_diff(start: _ChipMotorPosition, finish: _ChipMotorPosition) -> f
 
 
 class StartChipAlignment:
-    """Start the Chip alignment procedure."""
+    """Start the chip alignment procedure."""
 
     Position = None
 
@@ -265,7 +282,7 @@ class StartChipAlignment:
 
 
 class AbortMD3:
-    """Abort MD3"""
+    """Abort MD3."""
 
     def __call__(self):
         HWR.beamline.diffractometer.abort()
@@ -279,9 +296,9 @@ class MoveInLaser:
 
 
 class FinishChipAlignment:
-    """Finish the Chip alignment procedure.
+    """Finish the chip alignment procedure.
 
-    This beamline action requires that 'start alignment' action have been run.
+    This action requires the start alignment action to have been run.
     """
 
     def __call__(self):
@@ -312,21 +329,21 @@ class FinishChipAlignment:
 
 
 def get_tag_dict(tag) -> dict:
-    _ks = TangoKeystore(namespace=f"TangoKeystore_{tag}")
-    _all = _ks.get_all()
-    return {k: v for k, v in _all.items() if not k.startswith("_")}
+    key_store = TangoKeystore(namespace=f"TangoKeystore_{tag}")
+    all_keys = key_store.get_all()
+    return {k: v for k, v in all_keys.items() if not k.startswith("_")}
 
 
 class EnableSSX:
     def __call__(self):
-        HWR.beamline.tango_keystore.put("ssx_mode", True)  # noqa: FBT003
+        HWR.beamline.tango_keystore.put("ssx_mode", value=True)
         user_log.info("Enabling SSX_MODE")
 
 
 class DisableSSX:
     def __call__(self):
-        HWR.beamline.tango_keystore.put("ssx_mode", False)  # noqa: FBT003
-        user_log.info("Enabling SSX_MODE")
+        HWR.beamline.tango_keystore.put("ssx_mode", value=False)
+        user_log.info("Disabling SSX_MODE")
 
 
 class BeamtimeEnd:
@@ -340,13 +357,13 @@ class BeamtimeEnd:
                 HWR.beamline.sample_changer.unload()
             else:
                 user_log.info("No sample mounted by sample changer, will not unload")
-            if HWR.beamline.sample_changer_maintenance._position_name != "home":  # noqa: SLF001
+            if HWR.beamline.sample_changer_maintenance.position_name != "home":
                 user_log.info("Send gripper to home")
                 HWR.beamline.sample_changer_maintenance.send_command("home")
-                HWR.beamline.sample_changer._wait_device_ready(30)  # noqa: SLF001
+                HWR.beamline.sample_changer.wait_device_ready(30)
             user_log.info("Close lid")
             HWR.beamline.sample_changer_maintenance.send_command("closeLid")
-            HWR.beamline.sample_changer._wait_device_ready(30)  # noqa: SLF001
+            HWR.beamline.sample_changer.wait_device_ready(30)
             time.sleep(5)
             user_log.info("Power off")
             HWR.beamline.sample_changer_maintenance.send_command("PowerOff")
