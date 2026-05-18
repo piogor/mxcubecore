@@ -60,7 +60,7 @@ class TangoKeystore(HardwareObject):
             raise RuntimeError(msg)
 
     def put(self, key: str, value) -> Any:
-        """Get value for a registered key."""
+        """Set value for a registered key."""
         self._ensure_registered(key)
         self._ensure_exists(key)
         return self._keystore.put(key, value)

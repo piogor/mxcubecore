@@ -25,7 +25,7 @@ from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
     DataCollect,
     parse_unit_cell_params,
 )
-from mxcubecore.HardwareObjects.MAXIV.MicroMAX.PandaBox import PandaBox
+from mxcubecore.HardwareObjects.MAXIV.MicroMAX.PandaBox import PANDABOX_DEVICE, PandaBox
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.SnapshotManager import SnapshotManager
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.snapshots import take_crystal_snapshot
 from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
@@ -38,7 +38,6 @@ from mxcubecore.utils.units import um_to_mm
 # of currently running data collection.
 #
 IMAGE_AUTOLOAD_FILE = "/mxn/groups/sw/mxsw/albula_autoload/to_display_micromax"
-PANDABOX_DEVICE = "b312a-eh1/tim/pandabox-01"
 LASER_SCRIPT = "/data/staff/micromax/software/bin/laser_control"
 LASER_IN_SNAPSHOT_ID = 328
 LASER_OUT_SNAPSHOT_ID = 329

@@ -19,7 +19,9 @@ Example of ``emulate`` configuration::
 """
 
 import mxcubecore.HardwareObjects.Beamline
-from mxcubecore.BaseHardwareObjects import HardwareObject
+from mxcubecore.HardwareObjects.MAXIV.EmailSender import EmailSender
+from mxcubecore.HardwareObjects.MAXIV.NotificationSender import NotificationSender
+from mxcubecore.HardwareObjects.MAXIV.TangoKeystore import TangoKeystore
 
 
 class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
@@ -29,13 +31,13 @@ class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
         return emulate.get(feature, False)
 
     @property
-    def tango_keystore(self) -> HardwareObject | None:
+    def tango_keystore(self) -> TangoKeystore | None:
         return self.get_object_by_role("tango_keystore")
 
     @property
-    def email_sender(self) -> HardwareObject | None:
+    def email_sender(self) -> EmailSender | None:
         return self.get_object_by_role("email_sender")
 
     @property
-    def notification_sender(self) -> HardwareObject | None:
+    def notification_sender(self) -> NotificationSender | None:
         return self.get_object_by_role("notification_sender")

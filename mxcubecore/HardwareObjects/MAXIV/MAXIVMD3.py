@@ -405,7 +405,7 @@ class MAXIVMD3(GenericDiffractometer):
         return self.pixels_per_mm_x, self.pixels_per_mm_y
 
     def manual_centring(self):
-        # not perform centring at all for hve
+        # Do not perform centring for ssx experiments
         if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
             return
         self.check_omega_limit()
@@ -488,7 +488,7 @@ class MAXIVMD3(GenericDiffractometer):
             step = nav.next_step(img)
             self.log.info(f"step {i}/{patience} - {step}")
             if step.finished():
-                self.log.warning("center_loop success")
+                self.log.info("center_loop success")
                 return True
             if step.rotate:
                 self.phi_motor_hwobj.set_value_relative(step.rotate)
@@ -551,14 +551,14 @@ class MAXIVMD3(GenericDiffractometer):
         """
         self.wait_device_ready(20)
 
-        # don't even try centring if a sample is not detected
+        # Don't try centring if a sample is not detected
         if not self.sample_is_loaded:
             self.log.warning(
-                "a sample is not detected on the magnet, bailing out of loop centring"
+                "Sample is not detected on the magnet, bailing out of loop centring."
             )
             self.user_log.critical(
-                "a sample is not detected on the magnet, "
-                "check camera and run //Empty Mount// beamline action"
+                "Sample is not detected on the magnet. "
+                "Check camera and run //Empty Mount// beamline action."
             )
             return self.get_center_pos()
 
@@ -874,7 +874,7 @@ class MAXIVMD3(GenericDiffractometer):
             AlignmentTablePosition.CLEAR_SCINTILLATOR
         )
 
-        if (
+        if HWR.beamline.is_hve_sample_delivery() or (
             not is_clear_scintillator
             and self.is_head_minikappa()
             and self.is_in_data_collection()
@@ -882,11 +882,7 @@ class MAXIVMD3(GenericDiffractometer):
             self.log.info("MD3: Saving centered position")
             self.save_centered_position()
 
-            if HWR.beamline.is_hve_sample_delivery():
-                self.save_centered_position()
-
-            task_id = self.command_dict["startSetPhase"](phase)
-
+        task_id = self.command_dict["startSetPhase"](phase)
         task_info = self.waitTaskResult(task_id)
         task_output, task_exception, task_result = task_info[4:7]
         if int(task_result) <= 0:  # either failed or aborted
@@ -1219,7 +1215,13 @@ class MAXIVMD3(GenericDiffractometer):
 
     def check_phiy_limit(self):
         phiy_limit = HWR.beamline.tango_keystore.get("md3_alignmenty_limit")
-        self.check_motor_limits("AlignmentY", phiy_limit["min"], phiy_limit["max"])
+        if phiy_limit["max"] >= phiy_limit["min"]:
+            self.check_motor_limits("AlignmentY", phiy_limit["min"], phiy_limit["max"])
+        else:
+            self.log.warning(
+                "MD3 AlignmentY limits are not set correctly, "
+                "please check md3_alignmenty_limit in tango keystore"
+            )
 
     def set_omega_limit(self):
         omega_limit = HWR.beamline.tango_keystore.get("md3_omega_limit")
@@ -1238,6 +1240,11 @@ class MAXIVMD3(GenericDiffractometer):
             )
             self.phi_motor_hwobj.set_value(start_pos)
             self.wait_device_ready(100)
+        else:
+            self.log.warning(
+                "MD3 Omega limits are not set correctly, "
+                "please check md3_omega_limit in tango keystore"
+            )
 
     def home_motor(self, motor_name):
         self.user_log.info(f"Homing Motor {motor_name}")
@@ -1247,12 +1254,13 @@ class MAXIVMD3(GenericDiffractometer):
         self.user_log.info("Restarting MD3 application")
         if cold_restart:
             self.command_dict["restart"]("1")
-            time.sleep(200)
-            # TODO: jn, more action needs to be added # noqa: TD002,TD003,FIX002
+            time.sleep(140)
+            # TODO@JieNan: more actions need to be added # noqa: TD003,FIX002
         else:
             self.command_dict["restart"]("0")
-            time.sleep(60)
-        self.wait_device_ready(300)
+
+        self.wait_device_ready(360)
+
         self.set_omega_limit()
 
         if cold_restart:
