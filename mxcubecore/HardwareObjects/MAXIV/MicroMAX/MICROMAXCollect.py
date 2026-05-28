@@ -805,21 +805,22 @@ class MICROMAXCollect(DataCollect):
         self.diffractometer_hwobj.wait_ready(5)
 
         self.estimated_flux_after_collect = self.get_estimated_flux()
-        if self.estimated_flux_before_collect > 0:
-            self.flux_after_collect = str(
-                float(self.estimated_flux_after_collect)
-                * float(self.flux_before_collect)
-                / float(self.estimated_flux_before_collect)
+        if HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
+            if self.estimated_flux_before_collect > 0:
+                self.flux_after_collect = str(
+                    float(self.estimated_flux_after_collect)
+                    * float(self.flux_before_collect)
+                    / float(self.estimated_flux_before_collect)
+                )
+            self.log.info(
+                "[COLLECT] flux before and after collection are: {} {} estimated values are {} {}, beam_size is {}".format(
+                    self.flux_before_collect,
+                    self.flux_after_collect,
+                    self.estimated_flux_before_collect,
+                    self.estimated_flux_after_collect,
+                    self.current_dc_parameters["beamSizeAtSampleX"],
+                )
             )
-        self.log.info(
-            "[COLLECT] flux before and after collection are: {} {} estimated values are {} {}, beam_size is {}".format(
-                self.flux_before_collect,
-                self.flux_after_collect,
-                self.estimated_flux_before_collect,
-                self.estimated_flux_after_collect,
-                self.current_dc_parameters["beamSizeAtSampleX"],
-            )
-        )
 
         success_msg = "Data collection successful"
         self.current_dc_parameters["status"] = success_msg
@@ -1038,7 +1039,6 @@ class MICROMAXCollect(DataCollect):
 
         if HWR.beamline.tango_keystore.is_enabled("emulate_detector_distance"):
             return
-
 
         lower_limit, upper_limit = self.get_detector_distance_limits()
         self.log.info(
