@@ -407,6 +407,7 @@ class MAXIVMD3(GenericDiffractometer):
     def manual_centring(self):
         # Do not perform centring for ssx experiments
         if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
+            self.user_log.critical("SSX mode is enabled, cannot do manual centring.")
             return
         self.check_omega_limit()
         self.move_to_omega_reference_pos()
@@ -1218,6 +1219,11 @@ class MAXIVMD3(GenericDiffractometer):
         if phiy_limit["max"] >= phiy_limit["min"]:
             self.check_motor_limits("AlignmentY", phiy_limit["min"], phiy_limit["max"])
         else:
+            # FIXME: # noqa: TD001,TD002,TD003,FIX001
+            #        make the behaviour the same when checking md3_omega_limit.
+            #        we should have a proper way of disabling the limits.
+            #        the omega check assumes min > max to be a disabling the check
+            #        this seems too hackish
             self.log.warning(
                 "MD3 AlignmentY limits are not set correctly, "
                 "please check md3_alignmenty_limit in tango keystore"
