@@ -10,6 +10,7 @@ from mxcubecore.HardwareObjects import BeamInfo
 if TYPE_CHECKING:
     from mxcubecore.HardwareObjects.MAXIV.BioMAX.beam_definer import BeamDefiner
 from mxcubecore.HardwareObjects.abstract import AbstractBeam
+from mxcubecore.model.nstate import NStateOption
 from mxcubecore.utils.units import um_to_mm
 
 
@@ -72,6 +73,10 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         else:
             logging.getLogger("HWR").warning("BeamInfo: Aperture hwobj not defined")
 
+        self._beam_definer = self.get_object_by_role("definer")
+        if self._beam_definer is None:
+            logging.getLogger("HWR").warning("BeamInfo: Beam definer hwobj not defined")
+
         self.evaluate_beam_info()
         self.re_emit_values()
         self.emit("beamPosChanged", (self._beam_position_on_screen,))
@@ -130,6 +135,44 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         """
         aperture_list = self.aperture_hwobj.get_diameter_size_list()
         return {"type": "enum", "values": aperture_list}
+
+    def get_available_size_options(self) -> list[NStateOption]:
+        """Aperture diameters as option records.
+
+        Flags any diameter larger than the current beam focus — picking
+        such an aperture would over-expose the beam relative to the
+        focus setting. ``max(beam_focus)`` is the larger axis of the
+        ``(focus_x, focus_y)`` tuple held by the BeamDefiner.
+        """
+        if self.aperture_hwobj is None:
+            return []
+
+        sizes = self.aperture_hwobj.get_diameter_size_list()
+        if self._beam_definer is None:
+            return sizes
+
+        beam_focus = self._beam_definer.get_value().value
+        if not isinstance(beam_focus, tuple):  # then it is UNKNOWN value
+            return [NStateOption(value=value, label=f"{value} μm") for value in sizes]
+        options = list[NStateOption]()
+        for size in sizes:
+            if size > (max_focus := max(beam_focus)):
+                options.append(
+                    NStateOption(
+                        value=str(size),
+                        description=(
+                            f"{size} um exceeds beam focus (max {max_focus} um)"
+                        ),
+                        variant="danger",
+                    )
+                )
+            elif size <= 10:
+                options.append(
+                    NStateOption(value=size, variant="warning", description="Mesh only")
+                )
+            else:
+                options.append(NStateOption(value=size))
+        return options
 
     def get_aperture_pos_name(self):
         """getting the position of aperture.
