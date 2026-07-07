@@ -1343,7 +1343,9 @@ class AbstractMultiCollect(object):
         self.mesh_range = mesh_range_param
         self.mesh_center = mesh_center_param
 
-    def display_image(self, image_filename: str, image_num: int = 1):
+    def display_image(
+        self, image_filename: str, image_num: int = 1, client_addr: str | None = None
+    ):
         """
         Site specific call to a diffraction viewer, defaults to adxv notify
 
@@ -1351,5 +1353,7 @@ class AbstractMultiCollect(object):
            image_filename: full path to image file
            image_num: image number within image file to open (if it contains
                       multiple images i.e HDF5)
+           client_addr: incoming request client address for triggering local running
+                         viewer application
         """
         self.adxv_notify(image_filename=image_filename, image_num=image_num)
