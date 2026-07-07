@@ -602,3 +602,28 @@ class DataCollect(AbstractCollect, HardwareObject):
 
         # wait until MD3 is done with move commands
         self.diffractometer_hwobj.wait_ready(MD3_READY_TIMEOUT)
+
+    def display_image(
+        self, image_filename: str, image_num: int = 1, client_addr: str | None = None
+    ):
+        """
+        Site specific call to a diffraction viewer, opens pumpkin
+
+        Args:
+           image_filename: full path to image file
+           image_num: image number within image file to open (if it contains
+                      multiple images i.e HDF5)
+           client_addr: incoming request client address for triggering local running
+                         viewer application
+        """
+        message = f"{json.dumps({'file': image_filename, 'frame': image_num})}\n"
+        try:
+            with socket.create_connection((client_addr, 8100)) as sock:
+                sock.sendall(message.encode("utf-8"))
+        except socket.timeout:
+            self.log.warning(
+                "[PUMPKIN]: Timeout while connecting/sending for image '%s'",
+                image_filename,
+            )
+        except OSError:
+            self.log.exception("[PUMPKIN]: Failed to load image '%s'", image_filename)
