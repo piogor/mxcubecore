@@ -13,7 +13,7 @@ stages:
 
 run-test:
   stage: check
-  image: docker.io/mambaorg/micromamba:latest
+  image: docker.io/mambaorg/micromamba:1.5.10-alpine3.17
   tags:
     - kubernetes
   parallel:
