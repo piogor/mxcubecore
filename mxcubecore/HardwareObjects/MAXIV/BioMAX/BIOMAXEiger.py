@@ -641,34 +641,22 @@ class BIOMAXEiger(AbstractDetector):
         return self.arm()
 
     def stop_acquisition(self):
-        """
-        when use external trigger, Disarm is required, otherwise the last h5 will
+        """Stop acquisition.
+
+        When using external trigger, Disarm is required, otherwise the last h5 will
         not be released and not available in WebDAV.
         """
 
-        logging.getLogger("HWR").info("[DETECTOR] Stop acquisition, waiting...")
+        self.log.info("[DETECTOR] Stop acquisition, waiting...")
         self.wait_ready_or_idle()
 
-        try:
-            self.cancel()
-            # this is needed as disarm in tango device server does not seem to work
-            # as expected. the disarm command in the simpleinterface is always working
-            # when called from Tango it does not. Once bug is solved in tango server, the
-            # call to "cancel()" is not necessary here
-            self.disarm()
-            logging.getLogger("HWR").info(
-                "[DETECTOR] Stop acquisition, detector canceled and disarmed."
-            )
-        except Exception as ex:
-            RuntimeError("[DETECTOR] Error stopping acquisition: %s" % str(ex))
+        self.disarm()
+        self.log.info("[DETECTOR] Stop acquisition, detector disarmed.")
 
     def cancel_acquisition(self):
-        """Cancel acquisition"""
-        logging.getLogger("HWR").info("[DETECTOR] Cancelling acquisition")
-        try:
-            self.cancel()
-        except Exception as ex:
-            RuntimeError("[DETECTOR] Error cancelling acquisition: %s" % str(ex))
+        """Cancel acquisition."""
+        self.log.info("[DETECTOR] Cancelling acquisition")
+        self.cancel()
 
         time.sleep(1)
         self.disarm()
