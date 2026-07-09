@@ -466,7 +466,12 @@ class MAXIVMD3(GenericDiffractometer):
         """Returns the approperiate centring navigator for this beamline"""
         raise NotImplementedError("needs to be implemented for each beamline")
 
-    def center_loop(self, patience: int = 100, tolerance_mm: float = 0.05) -> bool:
+    def is_inside_cryo_beam(self, pos: dict) -> bool:
+        """Returns true if pos is guaranteed to keep the sample
+        safely within the cryo beam"""
+        return -4.0 < pos["phiy"] < 4.0
+
+    def center_loop(self, patience: int = 30, tolerance_mm: float = 0.05) -> bool:
         """
         Uses Loopfinder to iteratively find the loop tip.
         Tuned to special lighting conditions. see self.automatic_centring().
@@ -501,8 +506,7 @@ class MAXIVMD3(GenericDiffractometer):
                 target_pos = self.get_centred_point_from_coord(
                     step.x_to_center, step.y_to_center, return_by_names=True
                 )
-                inside_cryo = -4.0 < target_pos["phiy"] < 4.0
-                if not inside_cryo:
+                if not self.is_inside_cryo_beam(target_pos):
                     self.log.error(
                         """
                         Hi, The loopfinder navigator wants to move the sample to a
