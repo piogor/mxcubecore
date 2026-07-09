@@ -230,7 +230,7 @@ class BIOMAXEiger(AbstractDetector):
     def wait_ready_or_idle(self):
         with gevent.Timeout(20, RuntimeError("Detector neither ready or idle")):
             while not (self.is_ready() or self.is_idle()):
-                logging.getLogger("HWR").debug(
+                self.log.debug(
                     "Waiting for the detector to be ready, current state: "
                     + self.get_status()
                 )
@@ -254,13 +254,13 @@ class BIOMAXEiger(AbstractDetector):
                 gevent.sleep(0.25)
 
     def wait_config_done(self):
-        logging.getLogger("HWR").info("Waiting to configure the detector.")
+        self.log.info("Waiting to configure the detector.")
         with gevent.Timeout(30, RuntimeError("Detector configuration error")):
             while self.is_preparing():
                 gevent.sleep(0.1)
         if self.prepare_error():
             raise RuntimeError("Detector configuration failed")
-        logging.getLogger("HWR").info("Detector configuration finished.")
+        self.log.info("Detector configuration finished.")
 
     def isclose(self, a, b, rel_tol=1e-04, abs_tol=0.0):
         # implementation from PEP 485
@@ -301,16 +301,14 @@ class BIOMAXEiger(AbstractDetector):
 
     def set_value(self, name, value):
         try:
-            logging.getLogger("HWR").debug(
+            self.log.debug(
                 "[DETECTOR] Setting value: %s for attribute %s" % (value, name)
             )
             self.get_channel_object(name).set_value(value)
             self.wait_attribute_applied(name, value)
         except Exception as ex:
-            logging.getLogger("HWR").error(ex)
-            logging.getLogger("HWR").error(
-                "Cannot set value: %s for attribute %s" % (value, name)
-            )
+            self.log.error(ex)
+            self.log.error("Cannot set value: %s for attribute %s" % (value, name))
             raise RuntimeError(
                 "[DETECTOR] Cannot set value: %s for attribute %s" % (value, name)
             )
@@ -325,11 +323,11 @@ class BIOMAXEiger(AbstractDetector):
         time = nb_images * frame_time - readout_time
         _count_time = self._config_vals.get("CountTime")
         _nb_images = self._config_vals.get("NbImages")
-        logging.getLogger("HWR").debug(
+        self.log.debug(
             "[DETECTOR] Configuration params: CounTime: %s, NbImages: %s"
             % (_count_time, _nb_images)
         )
-        logging.getLogger("HWR").debug(
+        self.log.debug(
             "[DETECTOR] Params applied IN the detector: FrameTime: %s, NbImages: %s"
             % (frame_time, nb_images)
         )
@@ -339,10 +337,8 @@ class BIOMAXEiger(AbstractDetector):
             _nb_images * (_count_time + readout_time) - readout_time,
             rel_tol=1e-04,
         ):
-            logging.getLogger("HWR").error(
-                "[DETECTOR] Acquisition time configuration wrong."
-            )
-        logging.getLogger("HWR").info("Detector acquisition time: " + str(time))
+            self.log.error("[DETECTOR] Acquisition time configuration wrong.")
+        self.log.info("Detector acquisition time: " + str(time))
         return time
 
     def get_buffer_free(self):
@@ -443,7 +439,7 @@ class BIOMAXEiger(AbstractDetector):
             target_energy = float(energy)
         except Exception:
             # not a valid value
-            logging.getLogger("user_level_log").info("Wrong Energy value: %s" % energy)
+            self.user_log.info("Wrong Energy value: %s" % energy)
             return -1
 
         current_energy = self.get_value("PhotonEnergy")
@@ -451,27 +447,23 @@ class BIOMAXEiger(AbstractDetector):
         msg = f"target energy is: {target_energy}\n"
         msg += f"currently configured energy is: {current_energy}\n"
         msg += f" min val: {self.photon_energy_min}/ max val: {self.photon_energy_max}"
-        logging.getLogger("HWR").debug(msg)
+        self.log.debug(msg)
 
         if (
             target_energy < self.photon_energy_min
             or target_energy > self.photon_energy_max
         ):
             msg = f"Energy value out of limits: {energy}"
-            logging.getLogger("HWR").debug(msg)
-            logging.getLogger("user_level_log").info(msg)
+            self.log.debug(msg)
+            self.user_log.info(msg)
 
             return -1
 
         if abs(energy - current_energy) > self.energy_change_threshold:
-            logging.getLogger("HWR").debug(
-                "Energy difference over threshold. program energy necessary"
-            )
+            self.log.debug("Energy difference over threshold. program energy necessary")
             return 1
         else:
-            logging.getLogger("HWR").debug(
-                "Energy difference below threshold. Do not need to program"
-            )
+            self.log.debug("Energy difference below threshold. Do not need to program")
             return 0
 
     def set_energy_threshold(self, threshold):
@@ -500,11 +492,11 @@ class BIOMAXEiger(AbstractDetector):
         """
         self.set_value("ImageAppendix", value)
 
-    def set_roi_mode(self, value):
-        if value not in ["4M", "disabled"]:
-            logging.getLogger("HWR").error("Cannot set roi mode")
+    def set_roi_mode(self, roi_mode):
+        if roi_mode not in ["4M", "disabled"]:
+            self.log.error("Cannot set roi mode")
             return
-        return self.set_value("RoiMode", value)
+        return self.set_value("RoiMode", roi_mode)
 
     #  SET VALUES END
 
@@ -520,7 +512,7 @@ class BIOMAXEiger(AbstractDetector):
         compression,ROI,wavelength):
         """
 
-        logging.getLogger("user_level_log").info("Preparing acquisition")
+        self.user_log.info("Preparing acquisition")
         self.set_monitor()
 
         self.config_state = "config"
@@ -529,16 +521,12 @@ class BIOMAXEiger(AbstractDetector):
         try:
             self._prepare_acquisition_sequence()
         except Exception as ex:
-            logging.getLogger("HWR").error(
-                "[DETECTOR] Could not configure detector %s" % str(ex)
-            )
+            self.log.error("[DETECTOR] Could not configure detector %s" % str(ex))
             self._configuration_failed()
         else:
             self._configuration_done()
 
-        logging.getLogger("user_level_log").info(
-            "setting dozor dict for online analysis"
-        )
+        self.user_log.info("setting dozor dict for online analysis")
         dozor_dict = self.dozor_dict
         dozor_dict["beam_center_x"] = config["BeamCenterX"]
         dozor_dict["beam_center_y"] = config["BeamCenterY"]
@@ -555,12 +543,12 @@ class BIOMAXEiger(AbstractDetector):
         return dozor_dict
 
     def _configuration_done(self):  # (self, gl)
-        logging.getLogger("HWR").info("Detector configuration done")
+        self.log.info("Detector configuration done")
         self.config_state = None
 
     def _configuration_failed(self):  # (self, gl)
         self.config_state = "error"
-        logging.getLogger("HWR").error("Could not configure detector")
+        self.log.error("Could not configure detector")
         raise RuntimeError("Could not configure detector")
 
     def _prepare_acquisition_sequence(self):
@@ -568,10 +556,8 @@ class BIOMAXEiger(AbstractDetector):
             self.stop_acquisition()
 
         self.wait_idle()
-        logging.getLogger("HWR").info(
-            "Ok. detector is idle. Continuing with configuration"
-        )
-        logging.getLogger("HWR").info(self._config_vals)
+        self.log.info("Ok. detector is idle. Continuing with configuration")
+        self.log.info(self._config_vals)
         if "PhotonEnergy" in self._config_vals.keys():
             new_egy = self._config_vals["PhotonEnergy"]
             if new_egy is not None:
@@ -582,20 +568,18 @@ class BIOMAXEiger(AbstractDetector):
             msg = "Readout time: {} | count time: {}".format(
                 self.get_readout_time(), self.get_value("CountTime")
             )
-            logging.getLogger("HWR").debug(msg)
+            self.log.debug(msg)
             self.set_value(
                 "FrameTime", self._config_vals["CountTime"] + self.get_readout_time()
             )
             msg = "New frame time is {}".format(self.get_value("FrameTime"))
-            logging.getLogger("HWR").debug(msg)
+            self.log.debug(msg)
             for cfg_name, cfg_value in self._config_vals.items():
                 t0 = time.time()
                 if cfg_name == "PhotonEnergy" or cfg_name == "CountTime":
                     continue  # already handled above
 
-                logging.getLogger("HWR").info(
-                    "Detector: configuring %s: %s" % (cfg_name, cfg_value)
-                )
+                self.log.info("Detector: configuring %s: %s" % (cfg_name, cfg_value))
                 if cfg_value is None or cfg_value == "":
                     continue
 
@@ -605,15 +589,13 @@ class BIOMAXEiger(AbstractDetector):
                         if cfg_name == "RoiMode":
                             self.emit("roiChanged")
                     else:
-                        logging.getLogger("HWR").debug(
-                            "      - value does need to change"
-                        )
+                        self.log.debug("      - value does need to change")
                 else:
-                    logging.getLogger("HWR").error(
+                    self.log.error(
                         "Could not config value %s for detector. Not such channel"
                         % cfg_name
                     )
-        logging.getLogger("HWR").info(
+        self.log.info(
             "Detector parameter configuration took %s seconds" % (time.time() - t0)
         )
 
@@ -636,7 +618,7 @@ class BIOMAXEiger(AbstractDetector):
 
         self.config_state = None
 
-        logging.getLogger("user_level_log").info("Detector going to arm")
+        self.user_log.info("Detector going to arm")
 
         return self.arm()
 
@@ -662,16 +644,16 @@ class BIOMAXEiger(AbstractDetector):
         self.disarm()
 
     def arm(self):
-        logging.getLogger("HWR").info("[DETECTOR] Arm command requested")
+        self.log.info("[DETECTOR] Arm command requested")
         cmd = self.get_command_object("Arm")
         cmd.set_device_timeout(10000)
         cmd()
         self.wait_ready()
-        logging.getLogger("HWR").info(
+        self.log.info(
             "[DETECTOR] Arm command executed, new state of the dectector: "
             + self.get_status()
         )
-        logging.getLogger("user_level_log").info("Detector armed")
+        self.user_log.info("Detector armed")
 
     def trigger(self):
         self.get_command_object("Trigger")()
@@ -706,7 +688,7 @@ class BIOMAXEiger(AbstractDetector):
             self.set_value("MonitorMode", "enabled")
             self.set_value("DiscardNew", False)
         except Exception as ex:
-            logging.getLogger("HWR").error(
+            self.log.error(
                 "[DETECTOR] Couldn't set monitor during init with error {}".format(ex)
             )
 
