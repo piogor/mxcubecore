@@ -1159,6 +1159,8 @@ class BIOMAXCollect(DataCollect):
 
     def prepare_set_energy(self):
         """Figure out if we should check the beam after the energy changes."""
+        if HWR.beamline.tango_keystore.is_true("emulate_detector_cover"):
+            return False
 
         checkbeam = True
         try:
