@@ -145,9 +145,9 @@ class BIOMAXResolution(AbstractResolution):
             return None
 
     def get_wavelength(self):
-        return self.get_wavelegth_from_energy(self.energy.get_current_energy())
+        return self.get_wavelength_from_energy(self.energy.get_current_energy())
 
-    def get_wavelegth_from_energy(self, energy):
+    def get_wavelength_from_energy(self, energy):
         return (h * c) / (eV * angstrom * kilo) / energy
 
     def update_resolution(self, res):
