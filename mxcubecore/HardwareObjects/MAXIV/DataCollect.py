@@ -175,7 +175,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         send 'open' request to safety shutter and wait until it's open
         """
-        if HWR.beamline.emulate("safety_shutter"):
+        if HWR.beamline.tango_keystore.is_true("emulate_safety_shutter"):
             self.log.info("FAKE Opening the safety shutter.")
             return
 
@@ -190,6 +190,10 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         send 'close' request to safety shutter and wait until it's closed
         """
+        if HWR.beamline.tango_keystore.is_true("emulate_safety_shutter"):
+            self.log.info("FAKE closing the safety shutter.")
+            return
+
         self.log.info("Closing the safety shutter.")
         close_tango_shutter(
             self.safety_shutter_hwobj,
@@ -201,8 +205,8 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         send 'open' request to the detector cover and wait until it's open
         """
-        if HWR.beamline.emulate("detector_cover"):
-            self.log.info("FAKE Opening detector cover.")
+        if HWR.beamline.tango_keystore.is_true("emulate_detector_cover"):
+            self.log.info("FAKE Opening the detector cover.")
             return
 
         try:
@@ -220,6 +224,9 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         send 'close' request to the detector cover and wait until it's closed
         """
+        if HWR.beamline.tango_keystore.is_true("emulate_detector_cover"):
+            self.log.info("FAKE closing the detector cover.")
+            return
         try:
             self.log.info("Closing the detector cover")
             close_tango_shutter(

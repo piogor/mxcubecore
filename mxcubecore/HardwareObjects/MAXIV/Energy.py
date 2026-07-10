@@ -41,16 +41,21 @@ class Energy(AbstractEnergy):
         self.N = 4
         self.counts_now = deque(maxlen=self.N)
         # This is how much we allow the beam position to deviate (in microns)
-        try:
-            self.energy_motor = self.get_object_by_role("energy")
-        except KeyError:
-            self.log.warning("Energy: error initializing energy motor")
 
-        if self.energy_motor is not None:
-            self.energy_motor.connect("valueChanged", self.energy_position_changed)
-            self.energy_motor.connect("stateChanged", self.energy_state_changed)
+        ks = HWR.beamline.tango_keystore
+        if not ks.is_true("emulate_energy"):
+            try:
+                self.energy_motor = self.get_object_by_role("energy")
+            except KeyError:
+                self.log.warning("Energy: error initializing energy motor")
 
-        self.get_energy_limits()
+            if self.energy_motor is not None:
+                self.energy_motor.connect("valueChanged", self.energy_position_changed)
+                self.energy_motor.connect("stateChanged", self.energy_state_changed)
+            self.get_energy_limits()
+        else:
+            self.energy_motor = None
+            self._nominal_limits = ks.get("emulate_energy_limits")
 
     def energy_position_changed(self, pos):
         wl = 12.3984 / pos
@@ -62,9 +67,15 @@ class Energy(AbstractEnergy):
         self.emit("stateChanged", (state))
 
     def get_value(self):
+        ks = HWR.beamline.tango_keystore
+        if ks.is_true("emulate_energy"):
+            return ks.get_float("emulate_energy_value")
         return ev_to_kev(self.energy_motor.get_value())
 
     def get_current_energy(self):
+        ks = HWR.beamline.tango_keystore
+        if ks.is_true("emulate_energy"):
+            return ks.get_float("emulate_energy_value")
         if self.energy_motor is not None:
             try:
                 return self.get_value()
@@ -90,8 +101,8 @@ class Energy(AbstractEnergy):
     def start_move_energy(self, value, wait=True, check_beam=True):
         try:
             value = float(value)
-        except (TypeError, ValueError) as diag:
-            self.user_log.error("Energy: invalid energy (%s)" % value)
+        except (TypeError, ValueError):
+            self.user_log.error(f"Energy: invalid energy {value}")
             return False
 
         current_en = self.get_current_energy()
@@ -99,7 +110,7 @@ class Energy(AbstractEnergy):
             if math.fabs(value - current_en) < 0.001:
                 self.moving = False
                 self.emit("moveEnergyFinished", ())
-                self.user_log.debug("Energy: already at %g, not moving", current_en)
+                self.log.debug(f"Energy: already at {current_en:.4f}, not moving")
                 return
         if self.check_limits(value) is False:
             return False
@@ -124,10 +135,18 @@ class Energy(AbstractEnergy):
             gevent.spawn(change_egy)
 
     def check_limits(self, value):
-        limits = self.get_limits()
-        if value >= limits[0] and value <= limits[1]:
+        ks = HWR.beamline.tango_keystore
+        if ks.is_true("emulate_energy"):
+            min_e, max_e = ks.get("emulate_energy_limits")
+        else:
+            min_e, max_e = self.get_limits()
+
+        within_limits = min_e <= value <= max_e
+        if within_limits:
             return True
-        self.user_log.info("Requested value is out of limits")
+        self.user_log.info(
+            f"Requested energy is out of limits: {min_e} <= {value:.4f} <= {max_e}"
+        )
         return False
 
     def _set_value(self, value):
@@ -138,6 +157,11 @@ class Energy(AbstractEnergy):
         pos = math.fabs(current_en - energy)
         if pos < 0.001:
             self.log.info(f"Energy: already at {energy:.4f} keV, not moving")
+            return
+
+        ks = HWR.beamline.tango_keystore
+        if ks.is_true("emulate_energy"):
+            ks.put("emulate_energy_value", energy)
             return
 
         self.log.info(f"Energy: moving energy to {energy:.4f} keV")
@@ -153,7 +177,7 @@ class Energy(AbstractEnergy):
                 self.user_log.error("Check beam exception")
                 self.log.exception("Check beam exception")
 
-    def sync_move(self, position, timeout=None):
+    def _deprecate_sync_move(self, position, timeout=None):
         """
         Deprecated method - corresponds to move until move finished.
         """
@@ -169,6 +193,10 @@ class Energy(AbstractEnergy):
     def cancel_move_energy(self):
         self.user_log.info("Cancel Energy move")
         self.log.info("Cancel Energy move")
+
+        if HWR.beamline.tango_keystore.is_true("emulate_energy"):
+            return
+
         self.energy_motor.stop()
 
     def check_beam(self):
