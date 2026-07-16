@@ -385,12 +385,6 @@ class MAXIVAutoProcessing(HardwareObject):
         except Exception as ex:
             self.log.error("Could not store images in lims, error was {}".format(ex))
 
-    def store_image_in_lims_by_frame_num(self, frame, motor_position_id=None):
-        # Dont save mesh first and last images
-        # Mesh images (best positions) are stored after data analysis
-        self.log.info("TODO: fix store_image_in_lims_by_frame_num method for nimages>1")
-        return
-
     def gen_file_from_template(self, input_dict, template, output):
         try:
             content = template.safe_substitute(input_dict)

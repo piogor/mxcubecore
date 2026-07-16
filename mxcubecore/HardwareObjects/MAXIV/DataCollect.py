@@ -3,12 +3,6 @@ Contains code shared between BioMAX and MicroMAX for implementing
 a data collection hardware object.
 """
 
-#
-# Temporary disabling 'Invalid module name' check.
-# We should make this module name ruff in the future.
-#
-#
-
 import dataclasses
 import json
 import pathlib
@@ -76,9 +70,7 @@ class _FilesInfo:
 
 
 def _poll_until(condition: Callable, timeout: float, timeout_error_messge: str):
-    """
-    poll until condition() returns True, give up after timeout seconds
-    """
+    """Poll until condition() returns True, give up after timeout seconds"""
     with gevent.Timeout(timeout, Exception(timeout_error_messge)):
         while not condition():
             gevent.sleep(0.01)
@@ -110,8 +102,7 @@ def close_tango_shutter(shutter: TangoShutter, timeout: float, name: str):
 
 
 def parse_unit_cell_params(params: str) -> list[Optional[float]]:
-    """
-    Parse the comma separated unit cell parameters string of following format:
+    """Parse the comma separated unit cell parameters string of following format:
 
         '<cell_a>,<cell_b>,<cell_c>,<cell_alpha>,<cell_beta>,<cell_gamma>'
 
@@ -143,7 +134,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         super().init()
 
         self.detector_cover = HWR.beamline.detector.cover
-        self.detector_safe_possion = self.get_property(
+        self.detector_safe_position = self.get_property(
             "detector_safe_distance",
             self.DEFAULT_DETECTOR_SAFE_DISTANCE,
         )
@@ -167,14 +158,12 @@ class DataCollect(AbstractCollect, HardwareObject):
         """
         self.log.info(
             "Collection: Moving detector to the safe position: %s",
-            self.detector_safe_possion,
+            self.detector_safe_position,
         )
-        self.move_detector(self.detector_safe_possion)
+        self.move_detector(self.detector_safe_position)
 
     def open_safety_shutter(self):
-        """
-        send 'open' request to safety shutter and wait until it's open
-        """
+        """Send 'open' request to safety shutter and wait until it's open"""
         if HWR.beamline.tango_keystore.is_true("emulate_safety_shutter"):
             self.log.info("FAKE Opening the safety shutter.")
             return
@@ -187,9 +176,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         )
 
     def close_safety_shutter(self):
-        """
-        send 'close' request to safety shutter and wait until it's closed
-        """
+        """Send 'close' request to safety shutter and wait until it's closed"""
         if HWR.beamline.tango_keystore.is_true("emulate_safety_shutter"):
             self.log.info("FAKE closing the safety shutter.")
             return
@@ -202,9 +189,7 @@ class DataCollect(AbstractCollect, HardwareObject):
         )
 
     def open_detector_cover(self):
-        """
-        send 'open' request to the detector cover and wait until it's open
-        """
+        """Send 'open' request to the detector cover and wait until it's open"""
         if HWR.beamline.tango_keystore.is_true("emulate_detector_cover"):
             self.log.info("FAKE Opening the detector cover.")
             return
@@ -221,9 +206,7 @@ class DataCollect(AbstractCollect, HardwareObject):
             raise RuntimeError("[COLLECT] Could not open the detector cover.") from ex
 
     def close_detector_cover(self):
-        """
-        send 'close' request to the detector cover and wait until it's closed
-        """
+        """Send 'close' request to the detector cover and wait until it's closed"""
         if HWR.beamline.tango_keystore.is_true("emulate_detector_cover"):
             self.log.info("FAKE closing the detector cover.")
             return
@@ -238,10 +221,6 @@ class DataCollect(AbstractCollect, HardwareObject):
             self.log.exception("Could not close the detector cover")
 
     def open_fast_shutter(self):
-        """
-        Descript. : important to make sure it's passed, as we
-                    don't open the fast shutter in MXCuBE
-        """
         try:
             self.diffractometer_hwobj.open_fast_shutter()
         except Exception:
@@ -252,9 +231,6 @@ class DataCollect(AbstractCollect, HardwareObject):
         self.diffractometer_hwobj.close_fast_shutter()
 
     def get_mxcube_server_ip(self):
-        """
-        get the ip address of the mxcube server
-        """
         hostname = socket.gethostname()
         return socket.gethostbyname(hostname)
 
@@ -262,18 +238,19 @@ class DataCollect(AbstractCollect, HardwareObject):
         self,
         sample_reference_params: dict,
     ) -> dict | None:
-        """
-        build the 'sample_reference' dictionary for the header appendix
+        """Build the 'sample_reference' dictionary for the header appendix
 
-        returns the dictionary or None if no sample reference parameters specified
+        Returns
+            Dictionary, None if no sample reference parameters specified
         """
 
         def filter_empty_vals(**key_vals) -> dict | None:
-            """
-            build dictionary with specified key-values,
+            """Build dictionary with specified key-values,
             don't include key-value pairs where value is None or ""
 
-            if the result is an empty dictionary, returns None
+            Returns:
+                Dictionary without empty values
+                None if the result is an empty dictionary
             """
             res = {k: v for k, v in key_vals.items() if v}
             if len(res) == 0:
@@ -403,6 +380,12 @@ class DataCollect(AbstractCollect, HardwareObject):
                 frame_number,
                 motor_position_id,
             )
+
+    def _store_image_in_lims_by_frame_num(self, frame):
+        # Dont save mesh first and last images
+        # Mesh images (best positions) are stored after data analysis
+        # MAYBE TODO: fix store_image_in_lims_by_frame_num method for nimages>1"
+        pass
 
     def _post_collection_store_image(self, collection: dict | None = None) -> None:
         """Generate and store diffraction images and store them in the LIMS system.
