@@ -98,10 +98,6 @@ class BIOMAXCollect(DataCollect):
         self.polarisation = float(self.get_property("polarisation", 0.99))
         self.safety_shutter_hwobj = HWR.beamline.safety_shutter
 
-        # todo
-        # self.fast_shutter_hwobj = self.get_object_by_role("fast_shutter")
-        # self.cryo_stream_hwobj = self.get_object_by_role("cryo_stream")
-
         self.exp_type_dict = {"Mesh": "Mesh", "Helical": "Helical"}
         try:
             min_exp = self.detector_hwobj.get_minimum_exposure_time()
@@ -152,25 +148,14 @@ class BIOMAXCollect(DataCollect):
 
         self.emit("collectReady", (True,))
 
-    # ---------------------------------------------------------
-    # refactor do_collect
-    def do_collect(self, owner):  # noqa: PLR0915
+    def do_collect(self, owner):
         """
         Actual collect sequence
         """
         user_log.info("Collection: Preparing to collect")
-        # todo, add more exceptions and abort
         try:
             self.emit("collectReady", (False,))
             self.emit("collectStarted", (owner, 1))
-
-            # ----------------------------------------------------------------
-            """ should all go data collection hook
-            self.open_detector_cover()
-            self.open_safety_shutter()
-            self.open_fast_shutter()
-            """
-            # ----------------------------------------------------------------
 
             self.current_dc_parameters["status"] = "Running"
             self.current_dc_parameters["collection_start_time"] = time.strftime(
@@ -189,9 +174,6 @@ class BIOMAXCollect(DataCollect):
             user_log.info("Collection: Getting sample info from parameters")
             self.get_sample_info()
 
-            # user_log.info("Collect: Storing sample info in LIMS")
-            # self.store_sample_info_in_lims()
-
             if all(
                 item is None for item in self.current_dc_parameters["motors"].values()
             ):
@@ -204,13 +186,9 @@ class BIOMAXCollect(DataCollect):
                         current_diffractometer_position[motor]
                     )
 
-            # todo, self.move_to_centered_position() should go inside take_crystal_snapshots,
-            # which makes sure it move motors to the correct positions and move back
-            # if there is a phase change
             hwr_log.debug("Collection: going to take snapshots...")
             self.take_crystal_snapshots()
             hwr_log.debug("Collection: snapshots taken")
-            # to fix permission issues
             snapshots_files = []
 
             for key, value in self.current_dc_parameters.items():
@@ -233,12 +211,10 @@ class BIOMAXCollect(DataCollect):
                     % str(ex)
                 )
 
-            #
             self.close_fast_shutter()
             self.close_detector_cover()
             self.open_safety_shutter()
 
-            # prepare beamline for data acquisiion
             self.prepare_acquisition()
             self.emit(
                 "collectOscillationStarted",
@@ -265,10 +241,6 @@ class BIOMAXCollect(DataCollect):
             self.close_detector_cover()
 
     def prepare_acquisition(self):  # noqa
-        """todo
-        1. check the currrent value is the same as the tobeset value
-        2. check how to add detroi in the mode
-        """
         hwr_log.info(
             "[COLLECT] Preparing data collection with parameters: %s"
             % self.current_dc_parameters
@@ -370,7 +342,6 @@ class BIOMAXCollect(DataCollect):
             hwr_log.error("[COLLECT] Error preparing detector: %s" % ex)
             raise Exception("[COLLECT] Error preparing detector: %s" % ex)
 
-        # move MD3 to DataCollection phase if it"s not
         if self.diffractometer_hwobj.get_current_phase() != "DataCollection":
             user_log.info("Moving Diffractometer to Data Collection")
             self.diffractometer_hwobj.set_phase(
@@ -379,7 +350,6 @@ class BIOMAXCollect(DataCollect):
 
         self.flux_before_collect = self.get_instant_flux()
         self.flux_after_collect = None
-        # flux value is a string
         if float(self.flux_before_collect) < 1:
             user_log.error("Collection: Flux is 0, please check the beam!!")
 
@@ -397,12 +367,6 @@ class BIOMAXCollect(DataCollect):
     def fix_mesh_start(self):
         dcp = self.current_dc_parameters
         shape = HWR.beamline.sample_view.get_shape(dcp["shape"])
-        if shape is None:  # noqa: SIM108
-            _label = "None shape"
-        else:
-            _label = shape.label.lower()
-        self.log.warning(f"Shape label is {_label}")
-        # global phasing does not use a shape, sigh
         if shape is None or shape.label.lower() != "grid":
             return
         md3 = self.diffractometer_hwobj
@@ -468,10 +432,8 @@ class BIOMAXCollect(DataCollect):
                 0
             ]
             self.open_detector_cover()
-            # self.open_safety_shutter()
 
-            # TODO: investigate gevent.timeout exception handing, this wait is to ensure
-            # that conf is done before arming
+            # This wait is to ensure that configuration is done before arming
             time.sleep(2)
             try:
                 self.detector_hwobj.wait_config_done()
@@ -481,13 +443,10 @@ class BIOMAXCollect(DataCollect):
                 hwr_log.error("[COLLECT] Detector Error: %s" % ex)
                 raise RuntimeError("[COLLECT] Detector error while arming.")
 
-            # call after start_acquisition (detector is armed), when all the config parameters are definitely
-            # implemented
             try:
-                """
-                add 3ms into the total acquisition time, to compensate the unsynchronization between
-                fastshutter and detector, otherwise the last image sample is less radiated.
-                """
+                # add 3ms into the total acquisition time, to compensate the unsynchronization between
+                # fastshutter and detector, otherwise the last image sample is less radiated.
+
                 shutterless_exptime = self.detector_hwobj.get_acquisition_time() + 0.003
             except Exception as ex:
                 hwr_log.error(
@@ -495,9 +454,6 @@ class BIOMAXCollect(DataCollect):
                 )
                 shutterless_exptime = 0.01
 
-            # wait until detector is ready (will raise timeout RuntimeError), sometimes arm command
-            # is accepted by the detector but without any effect at all... sad...
-            # self.detector_hwobj.wait_ready()
             for (
                 osc_start,
                 trigger_num,
@@ -515,38 +471,16 @@ class BIOMAXCollect(DataCollect):
             except Exception as ex:
                 hwr_log.error("[COLLECT] Detector error stopping acquisition: %s" % ex)
 
-                # not closing the safety shutter here, but in prepare_beamline
-                # to avoid extra open/closes
-                # self.close_safety_shutter()
             self.close_detector_cover()
             self.emit("collectImageTaken", oscillation_parameters["number_of_images"])
-
-            # XRAY CENTERING RELATED
-            if self.current_dc_parameters["experiment_type"] == "LineScan":
-                self.user_log.info(
-                    "Images are taken, waiting for Xray Centering Analysis to locate the crystal"
-                )
-                self.wait_for_xray_center_result(self.get_current_shape_id())
-            elif self.current_dc_parameters["experiment_type"] == "Mesh":
-                shape_id = self.get_current_shape_id()
-                shape = HWR.beamline.sample_view.get_shape(shape_id).as_dict()
-                num_cols = shape.get("num_cols")
-                num_rows = shape.get("num_rows")
-                # if num_cols * num_rows < 10000:
-                #    self.user_log.info(
-                #        "Images are taken, waiting for Xray Centering Analysis to locate the crystal"
-                #    )
-                #    self.wait_for_xray_center_result(self.get_current_shape_id())
 
         except RuntimeError as ex:
             self.data_collection_cleanup()
             hwr_log.error("[COLLECT] Runtime Error: %s" % ex)
-            self.close_detector_cover()
             raise Exception("data collection hook failed... ", str(ex))
         except Exception:
             self.data_collection_cleanup()
             hwr_log.error("Unexpected error:", sys.exc_info()[0])
-            self.close_detector_cover()
             raise Exception("data collection hook failed... ", sys.exc_info()[0])
 
     def data_collection_cleanup(self):
@@ -572,7 +506,6 @@ class BIOMAXCollect(DataCollect):
             "[BIOMAXCOLLECT] Oscillation requested oscillation_parameters: %s"
             % oscillation_parameters
         )
-        # msg += " || dc parameters: %s" % self.current_dc_parameters
         hwr_log.info(msg)
 
         if self.helical:
@@ -662,10 +595,8 @@ class BIOMAXCollect(DataCollect):
             ),
         )
         if self.char:
-            # stop char converter
             self.char = False
         if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
-            # disable stream interface
             self.detector_hwobj.disable_stream()
 
         self.emit("collectEnded", self.owner, False, failed_msg)
@@ -694,10 +625,8 @@ class BIOMAXCollect(DataCollect):
         gevent.spawn(self._post_collection_store_image)
 
         if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
-            # disable stream interface
             self.detector_hwobj.disable_stream()
         if self.char:
-            # stop char converter
             self.char = False
         self.diffractometer_hwobj.wait_device_ready(5)
 
@@ -760,12 +689,6 @@ class BIOMAXCollect(DataCollect):
         if self.scicat_enabled and not self.session_hwobj.is_proprietary():
             self.scicat_hwobj.end_scan(self.current_dc_parameters)
 
-    def _store_image_in_lims_by_frame_num(self, frame, motor_position_id=None):
-        # Dont save mesh first and last images
-        # Mesh images (best positions) are stored after data analysis
-        hwr_log.info("TODO: fix store_image_in_lims_by_frame_num method for nimages>1")
-        return
-
     def take_crystal_snapshots(self):
         diffr = HWR.beamline.diffractometer
         number_of_snapshots = self.number_of_snapshots
@@ -780,7 +703,6 @@ class BIOMAXCollect(DataCollect):
                 except os.error:
                     hwr_log.exception("Collection: Error creating snapshot directory")
 
-            # for plate head, takes only one image
             if diffr.is_head_plate():
                 number_of_snapshots = 1
             user_log.info(
@@ -805,7 +727,6 @@ class BIOMAXCollect(DataCollect):
                 self.current_dc_parameters[
                     "xtalSnapshotFullPath%i" % (snapshot_index + 1)
                 ] = snapshot_filename
-                # self._do_take_snapshot(snapshot_filename)
                 self._take_crystal_snapshot(snapshot_filename)
 
                 hwr_log.info("Collection: Snapshot at: '%s'", snapshot_filename)
@@ -827,7 +748,7 @@ class BIOMAXCollect(DataCollect):
                 process_event, self.current_dc_parameters, "biomax"
             )
         else:
-            hwr_log.warn(
+            hwr_log.warning(
                 "[COLLECT] No MAXIV Autoprocessing config: `autoprocess_hwobj=%s`",
                 autoprocess_hwobj,
             )
@@ -848,7 +769,6 @@ class BIOMAXCollect(DataCollect):
         HWR.beamline.sample_view.camera.take_snapshot(filename)
 
     def set_detector_roi(self, value):
-        """Set the detector roi mode."""
         self.detector_hwobj.set_roi_mode(value)
 
     def set_helical(self, helical_on):
@@ -891,7 +811,6 @@ class BIOMAXCollect(DataCollect):
             self.current_dc_parameters["fileinfo"]["process_directory"],
         )
 
-        """create processing directories and img links"""
         xds_directory, auto_directory = self.prepare_input_files()
         try:
             self.create_directories(xds_directory, auto_directory)
@@ -977,9 +896,6 @@ class BIOMAXCollect(DataCollect):
             return self.dtox_hwobj.get_limits()
 
     def prepare_detector(self):
-        dcp = self.current_dc_parameters
-        shape = HWR.beamline.sample_view.get_shape(dcp["shape"])
-
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
         (
             osc_start,
@@ -991,14 +907,7 @@ class BIOMAXCollect(DataCollect):
         if self.current_dc_parameters["experiment_type"] != "Mesh":
             ntrigger = len(self.triggers_to_collect)
         config = self.detector_hwobj.col_config
-        """ move after setting energy
-        if roi == "4M":
-            config["RoiMode"] = "4M"
-        else:
-            config["RoiMode"] = "disabled" #disabled means 16M
 
-        config["PhotonEnergy"] = self._tunable_bl.getCurrentEnergy()
-        """
         config["OmegaStart"] = osc_start  # oscillation_parameters["start"]
         config["OmegaIncrement"] = osc_range  # oscillation_parameters["range"]
 
@@ -1036,16 +945,12 @@ class BIOMAXCollect(DataCollect):
         file_parameters["suffix"] = self.bl_config.detector_fileext
         image_file_template = "%(prefix)s_%(run_number)s" % file_parameters
         name_pattern = os.path.join(file_parameters["directory"], image_file_template)
-        #    file_parameters["template"] = image_file_template
         file_parameters["filename"] = "%s_master.h5" % name_pattern
         self.display["file_name1"] = file_parameters["filename"]
 
-        # os.path.join(file_parameters["directory"], image_file_template)
         config["FilenamePattern"] = name_pattern
 
         if self.current_dc_parameters["experiment_type"] == "Mesh":
-            # enable stream interface
-            # appendix with grid name, collection id
             self.detector_hwobj.enable_stream()
             dozor_dict = self.detector_hwobj.prepare_acquisition(config)
             self.setup_header_appendix(
@@ -1103,7 +1008,6 @@ class BIOMAXCollect(DataCollect):
             return None
 
     def get_machine_message(self):
-        # todo
         return ""
 
     def get_machine_fill_mode(self):
@@ -1117,8 +1021,6 @@ class BIOMAXCollect(DataCollect):
 
         This method assumes that the MD3 is already in data collection phase.
         """
-        # disable it temporarily until the EM works properly
-
         try:
             ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
             flux = self.flux.get_instant_flux()
@@ -1127,7 +1029,6 @@ class BIOMAXCollect(DataCollect):
             flux = -1
             raise Exception("[COLLECT] Cannot get the current flux value")
         finally:
-            # close fast shutter
             self.close_fast_shutter()
             if keep_position:
                 self.diffractometer_hwobj.finish_calculate_flux(ori_motors, ori_phase)
@@ -1268,7 +1169,6 @@ class BIOMAXCollect(DataCollect):
         self._run_ssh_command(self._HPC_FE_HOST, command)
 
     def wait_for_xray_center_result(self, shape_id):
-        # is there an issue if one re-runs the collection?
         with gevent.Timeout(
             30, Exception("Timeout waiting for Xray Centering Analysis result")
         ):
@@ -1279,7 +1179,6 @@ class BIOMAXCollect(DataCollect):
             center_x = shape.result_center["x"]
             if shape.t == "L":
                 center_y = 0
-                pos_1 = self.helical_pos["1"]
                 save_point = True
             else:
                 center_y = shape.result_center["y"]
@@ -1333,7 +1232,6 @@ class BIOMAXCollect(DataCollect):
             row,
             col,
         )
-        exp_type = self.current_dc_parameters.get("experiment_type", "Mesh")
         if self.current_dc_parameters["experiment_type"] == "Mesh":
             mesh_params = HWR.beamline.get_default_acquisition_parameters(
                 "mesh"

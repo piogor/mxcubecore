@@ -1,10 +1,3 @@
-"""
-File:  MICROMAXCollect.py
-
-Description:  This module implements the hardware object for the
-Biomax data collection
-"""
-
 import logging
 import math
 import os
@@ -54,6 +47,7 @@ class MICROMAXCollect(DataCollect):
         HardwareObject.__init__(self, name)
 
         self._centring_status = None
+
         self.osc_id = None
         self.owner = None
         self._collecting = False
@@ -93,29 +87,23 @@ class MICROMAXCollect(DataCollect):
         super().init()
 
         self.ready_event = gevent.event.Event()
-        bl = HWR.beamline
 
-        self.diffractometer_hwobj = bl.diffractometer
-
-        self.lims_client_hwobj = bl.lims
+        self.diffractometer_hwobj = HWR.beamline.diffractometer
+        self.lims_client_hwobj = HWR.beamline.lims
         self.machine_info_hwobj = self.get_object_by_role("mach_info")
-        self.energy_hwobj = bl.energy
-        self.resolution_hwobj = bl.resolution
-        self.detector_hwobj = bl.detector
-        self.autoprocessing_hwobj = bl.offline_processing
-        # self.autoprocessing_hwobj.lims_client_hwobj = self.lims_client_hwobj
+        self.energy_hwobj = HWR.beamline.energy
+        self.resolution_hwobj = HWR.beamline.resolution
+        self.detector_hwobj = HWR.beamline.detector
+        self.autoprocessing_hwobj = HWR.beamline.offline_processing
         self.autoprocessing_hwobj.NIMAGES_TRIGGER_AUTO_PROC = (
             self.NIMAGES_TRIGGER_AUTO_PROC
         )
-        self.beam_info_hwobj = bl.beam
-        self.transmission_hwobj = bl.transmission
-        # self.sample_changer_hwobj = self.getObjectByRole("sample_changer")
-        # self.sample_changer_maint_hwobj = self.getObjectByRole("sample_changer_maintenance")
-
-        self.dtox_hwobj = bl.detector.detector_distance
-
-        self.session_hwobj = bl.session
+        self.beam_info_hwobj = HWR.beamline.beam
+        self.transmission_hwobj = HWR.beamline.transmission
+        self.dtox_hwobj = HWR.beamline.detector.detector_distance
+        self.session_hwobj = HWR.beamline.session
         self.shape_history_hwobj = HWR.beamline.sample_view
+
         self.scicat_enabled = self.get_property("scicat_enabled", False)
         if self.scicat_enabled:
             self.scicat_hwobj = SciCatPlugin()
@@ -133,10 +121,6 @@ class MICROMAXCollect(DataCollect):
         self.laser = HWR.beamline.get_object_by_role("laser")
         self.laser_script = LASER_SCRIPT
         self.snap_manager = SnapshotManager()
-
-        # todo
-        # self.fast_shutter_hwobj = self.getObjectByRole("fast_shutter")
-        # self.cryo_stream_hwobj = self.getObjectByRole("cryo_stream")
 
         self.exp_type_dict = {"Mesh": "Mesh", "Helical": "Helical"}
         try:
@@ -181,14 +165,6 @@ class MICROMAXCollect(DataCollect):
             input_files_server=self.get_property("input_files_server"),
         )
 
-        # self.add_channel({"type": "tango",
-        #                  "name": 'undulator_gap',
-        #                  "tangoname": self.get_property('undulator_gap'),
-        #                  "timeout": 10000,
-        #                  },
-        #                 'Position'
-        #                 )
-
         self.emit("collectReady", (True,))
 
     def do_collect(self, owner):
@@ -197,7 +173,6 @@ class MICROMAXCollect(DataCollect):
         """
         self.user_log.info("Collection: Preparing to collect")
         self.diffractometer_hwobj.set_direct_beam_enabled(False)
-        # todo, add more exceptions and abort
         try:
             self.emit("collectReady", (False,))
             self.emit("collectStarted", (owner, 1))
@@ -219,9 +194,6 @@ class MICROMAXCollect(DataCollect):
             self.user_log.info("Collection: Getting sample info from parameters")
             self.get_sample_info()
 
-            # log.info("Collect: Storing sample info in LIMS")
-            # self.store_sample_info_in_lims()
-
             if all(
                 item is None for item in self.current_dc_parameters["motors"].values()
             ):
@@ -235,9 +207,6 @@ class MICROMAXCollect(DataCollect):
                         current_diffractometer_position[motor]
                     )
 
-            # todo, self.move_to_centered_position() should go inside take_crystal_snapshots,
-            # which makes sure it move motors to the correct positions and move back
-            # if there is a phase change
             self.take_crystal_snapshots()
 
             snapshots_files = []
@@ -266,18 +235,16 @@ class MICROMAXCollect(DataCollect):
                 )
                 self.user_log.error(msg)
 
-            # self._configure_pandabox()
             self.close_fast_shutter()
             self.close_detector_cover()
             self.open_safety_shutter()
 
-            # prepare beamline for data acquisiion
             self.prepare_acquisition()
             self.emit(
                 "collectOscillationStarted",
                 (owner, None, None, None, self.current_dc_parameters, None),
             )
-            # Main data collection method
+
             self.data_collection_hook()
 
             # correct the omega values in the master file for characterization
@@ -297,9 +264,6 @@ class MICROMAXCollect(DataCollect):
             self.close_fast_shutter()
 
     def prepare_acquisition(self):
-        """
-        Prepare the beamline for the data collection
-        """
         self.log.info(
             "[COLLECT] Preparing data collection with parameters: %s"
             % self.current_dc_parameters
@@ -507,8 +471,8 @@ class MICROMAXCollect(DataCollect):
             ]
             self.open_detector_cover()
             self.log.debug("data_collection_hook {}".format(oscillation_parameters))
-            # TODO: investigate gevent.timeout exception handing, this wait is
-            # to ensure that configuration is done before arming
+
+            # This wait is to ensure that configuration is done before arming
             time.sleep(2)
             try:
                 self.detector_hwobj.wait_config_done()
@@ -550,7 +514,6 @@ class MICROMAXCollect(DataCollect):
                 if HWR.beamline.is_hve_sample_delivery():
                     if self.time_resolved:
                         self.stop_laser()
-                        # enable panda box
                         self.pandabox_dev.set_attribute("PULSE6.DELAY.UNITS", "ms")
                         self.pandabox_dev.set_attribute("PULSE5.DELAY.UNITS", "ms")
                         ori_pulse6_delay = float(
@@ -593,9 +556,6 @@ class MICROMAXCollect(DataCollect):
                     else:
                         # ...for eiger make sure it is set to internal trigger mode
                         self.open_fast_shutter()
-                        # TODO@JieNan: uncomment or remove
-                        # time.sleep(6)
-                        # self.detector_hwobj.trigger()
                         self.detector_hwobj.wait_ready(timeout=shutterless_exptime + 30)
                         self.close_fast_shutter()
 
@@ -673,8 +633,6 @@ class MICROMAXCollect(DataCollect):
 
     def oscil(self, start, end, exptime, npass, wait=True):
         def get_table_pitch() -> int:
-            """Figure out if mesh scan table pitch should be enabled."""
-
             if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
                 return 0
 
@@ -722,10 +680,6 @@ class MICROMAXCollect(DataCollect):
             self.diffractometer_hwobj.do_oscillation_scan(start, end, exptime, wait)
 
     def move_to_mesh_center(self) -> None:
-        """
-        move to the mesh center and invoke 'save centered position' command
-        """
-
         range_x, range_y = self._get_mesh_scan_range(cell_center=False)
 
         self.diffractometer_hwobj.phiy_motor_hwobj.set_value_relative(range_y / 2.0)
@@ -770,9 +724,7 @@ class MICROMAXCollect(DataCollect):
             step_count += 1
 
     def emit_collection_failed(self):
-        """
-        Handle failure messages and cleanup
-        """
+        """Handle failure messages and cleanup"""
         failed_msg = "Data collection failed!"
         self.current_dc_parameters["status"] = failed_msg
         self.current_dc_parameters["comments"] = "%s\n%s" % (
@@ -807,9 +759,7 @@ class MICROMAXCollect(DataCollect):
         self.update_data_collection_in_lims()
 
     def emit_collection_finished(self):
-        """
-        Handle finish messages and autoprocessing
-        """
+        """Handle finish messages and autoprocessing"""
         exp_type = self.current_dc_parameters["experiment_type"]
         overlap = self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
         num_images = self.current_dc_parameters["oscillation_sequence"][0][
@@ -829,14 +779,11 @@ class MICROMAXCollect(DataCollect):
             gevent.spawn(self._post_collection_store_image)
 
         if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
-            # disable stream interface
             self.detector_hwobj.disable_stream()
         if self.char:
-            # stop char converter
             self.char = False
         self.diffractometer_hwobj.wait_ready(5)
 
-        # estimate the flux at sample position
         self.estimated_flux_after_collect = self.get_estimated_flux()
         if self.estimated_flux_before_collect > 0:
             self.flux_after_collect = str(
@@ -882,12 +829,6 @@ class MICROMAXCollect(DataCollect):
         if self.scicat_enabled:
             self.scicat_hwobj.end_scan(self.current_dc_parameters)
 
-    def store_image_in_lims_by_frame_num(self, frame, motor_position_id=None):
-        # Dont save mesh first and last images
-        # Mesh images (best positions) are stored after data analysis
-        self.log.info("TODO: fix store_image_in_lims_by_frame_num method for nimages>1")
-        return
-
     def take_crystal_snapshots(self):
         if self.number_of_snapshots > 0:
             snapshot_dirs = [
@@ -902,7 +843,6 @@ class MICROMAXCollect(DataCollect):
                 self.user_log.info("Moving Diffractometer to CentringPhase")
                 self.diffractometer_hwobj.set_phase("Centring")
 
-            # we want to take snapshots at centered position
             self.move_to_centered_position()
 
             prefix = self.current_dc_parameters["fileinfo"]["prefix"]
@@ -970,8 +910,6 @@ class MICROMAXCollect(DataCollect):
             return self.beam_info_hwobj.get_beam_shape()
 
     def set_detector_roi(self, value):
-        """Set the detector ROI mode."""
-
         self.detector_hwobj.set_roi_mode(value)
 
     def set_helical(self, helical_on):
@@ -1002,7 +940,6 @@ class MICROMAXCollect(DataCollect):
 
     @task
     def move_motors(self, motor_position_dict):
-        """Move diffractometer motors."""
         self.diffractometer_hwobj.move_to_motors_positions(motor_position_dict)
 
     def create_file_directories(self):
@@ -1015,22 +952,12 @@ class MICROMAXCollect(DataCollect):
             self.current_dc_parameters["fileinfo"]["process_directory"],
         )
 
-        """create processing directories and img links"""
         proc_directory, auto_directory = self.prepare_input_files()
         try:
             self.create_directories(proc_directory, auto_directory)
-            # temporary, to improve
             os.system(
                 "chmod -R 770 %s %s" % (os.path.dirname(proc_directory), auto_directory)
             )
-            """todo, create link of imgs for auto_processing
-            try:
-                os.symlink(files_directory, os.path.join(process_directory, "img"))
-            except os.error, e:
-                if e.errno != errno.EEXIST:
-                    raise
-            """
-            # os.symlink(files_directory, os.path.join(process_directory, "img"))
         except Exception:
             self.log.exception("Could not create processing file directory")
             return
@@ -1207,7 +1134,6 @@ class MICROMAXCollect(DataCollect):
         image_file_template = "%(prefix)s_%(run_number)s" % file_parameters
         name_pattern = os.path.join(file_parameters["directory"], image_file_template)
 
-        #    file_parameters["template"] = image_file_template
         file_parameters["filename"] = "%s_master.h5" % name_pattern
         self.display["file_name1"] = file_parameters["filename"]
         config["FilenamePattern"] = name_pattern
@@ -1216,7 +1142,7 @@ class MICROMAXCollect(DataCollect):
             # when Jungfrau detector is used, include user specified unit cell
             # parameters in the acquisition config sent to the detector
 
-            # TODO@JieNAN: tmp solution, we should unify the epxeriment type definition, several sources now
+            # TODO@JieNAN: tmp solution, we should unify the experiment type definition, several sources now
             if (
                 HWR.beamline.tango_keystore.get("experiment_type") == "tr"
             ):  # time resolved experiment
@@ -1253,12 +1179,10 @@ class MICROMAXCollect(DataCollect):
                 config["UnitCellGamma"],
             ) = parse_unit_cell_params(cell)
 
-        # make sure the filewriter is enabled
         self.detector_hwobj.enable_filewriter()
         self.detector_hwobj.enable_stream()
         dozor_dict = self.detector_hwobj.prepare_acquisition(config)
 
-        # set-up header appendix for this collection
         self.setup_header_appendix(
             self.current_dc_parameters["shape"],
             dozor_dict,
@@ -1268,9 +1192,6 @@ class MICROMAXCollect(DataCollect):
         return config
 
     def stop_collect(self):
-        """
-        Stops data collection
-        """
         self.log.warning("Stopping collection ....")
         self.diffractometer_hwobj.abort()
         self.close_detector_cover()
@@ -1314,25 +1235,15 @@ class MICROMAXCollect(DataCollect):
             return None
 
     def get_machine_current(self):
-        """
-        Descript. :
-        """
         try:
             return self.machine_info_hwobj.getCurrent()
         except Exception:
             return None
 
     def get_machine_message(self):
-        """
-        Descript. :
-        """
-        # todo
         return ""
 
     def get_machine_fill_mode(self):
-        """
-        Descript. :
-        """
         try:
             return self.machine_info_hwobj.getFillingMode()
         except Exception:
@@ -1368,7 +1279,6 @@ class MICROMAXCollect(DataCollect):
             flux = -1
             raise Exception("[COLLECT] Cannot get the current flux value")
         finally:
-            # close fast shutter
             self.close_fast_shutter()
             self.diffractometer_hwobj.set_direct_beam_enabled(False)
             if keep_position:
@@ -1500,9 +1410,7 @@ class MICROMAXCollect(DataCollect):
         self.in_interleave = in_interleave
 
     def check_beamstop(self):
-        """
-        assuming sample is already moved out of beam
-        """
+        """Note: Assumes sample is already moved out of beam"""
         try:
             flux = 0
             self.diffractometer_hwobj.set_organ_pos("beamstop", "BEAM")
