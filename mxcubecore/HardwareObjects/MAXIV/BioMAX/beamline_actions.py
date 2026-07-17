@@ -218,42 +218,6 @@ class CheckBeam:
             hwr_log.exception("Cannot check beam.")
 
 
-class FocusBeam20:
-    def __call__(self, *args, **kw):
-        """
-        Focus beam to 20x20
-        """
-        try:
-            cmd = HWR.beamline.beamline_actions.get_command_object("focus_beam")
-            cmd("20")
-        except Exception as ex:
-            hwr_log.exception("Cannot focus beam.")
-
-
-class FocusBeam50:
-    def __call__(self, *args, **kw):
-        """
-        Focus beam to 50x50
-        """
-        try:
-            cmd = HWR.beamline.beamline_actions.get_command_object("focus_beam")
-            cmd("50")
-        except Exception as ex:
-            hwr_log.exception("Cannot focus beam.")
-
-
-class FocusBeam100:
-    def __call__(self, *args, **kw):
-        """
-        Focus beam to 100x100
-        """
-        try:
-            cmd = HWR.beamline.beamline_actions.get_command_object("focus_beam")
-            cmd("100")
-        except Exception as ex:
-            hwr_log.exception("Cannot focus beam.")
-
-
 class AbortMD3:
     def __call__(self, *args, **kw):
         """
@@ -267,7 +231,7 @@ class AbortMD3:
             hwr_log.info(f"Current MD3 omega state is {current_state}")
             omega.updateMotorState(current_state)
         except Exception as ex:
-            hwr_log.exception("Cannot focus beam. Error was {}".format(ex))
+            hwr_log.exception("Cannot abort MD3. Error was {}".format(ex))
 
 
 class Anneal(AnnotatedCommand):
