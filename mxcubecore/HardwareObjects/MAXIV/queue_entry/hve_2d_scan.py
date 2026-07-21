@@ -13,7 +13,7 @@ from math import lcm, sqrt
 from pathlib import Path
 from typing import Any, ClassVar, OrderedDict
 
-from pydantic.v1 import BaseModel, Field, root_validator
+from pydantic import BaseModel, Field, root_validator
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.SampleView import Line

@@ -1,7 +1,7 @@
 from abc import abstractmethod
 from typing import Annotated, Literal, Union
 
-from pydantic.v1 import BaseModel, Field
+from pydantic import BaseModel, Field, RootModel
 
 from mxcubecore.BaseHardwareObjects import HardwareObject
 
@@ -17,8 +17,8 @@ class DoseEstimationError(BaseModel):
     msg: str
 
 
-class DoseEstimation(BaseModel):
-    __root__: Annotated[
+class DoseEstimation(RootModel):
+    root: Annotated[
         Union[DoseEstimationOk, DoseEstimationError],
         Field(discriminator="status"),
     ]
