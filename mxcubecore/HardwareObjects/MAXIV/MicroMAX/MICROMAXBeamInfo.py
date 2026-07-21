@@ -108,7 +108,7 @@ class MICROMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         current_aperture_um = self._aperture.get_diameter_size()
         beam_size_mm = um_to_mm(current_aperture_um)
 
-        return beam_size_mm, beam_size_mm, BeamShape.ELIPTICAL, current_aperture_um
+        return beam_size_mm, beam_size_mm, BeamShape.ELIPTICAL, str(current_aperture_um)
 
     def set_value(self, value):
         self._aperture.set_diameter_size(value)

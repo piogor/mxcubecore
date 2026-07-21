@@ -2,7 +2,7 @@
 
 from typing import Literal
 
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 Variant = Literal["info", "warning", "danger"]
 

@@ -30,7 +30,7 @@ run-test:
       --name mxcubecore
       --file conda-environment-dev.yml
       python=$PYTHON_VER
-      python-ldap=3.4.3
+      python-ldap=3.4.5
     - micromamba install
       --name mxcubecore
       --channel conda-forge
