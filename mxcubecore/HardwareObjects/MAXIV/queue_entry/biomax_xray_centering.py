@@ -19,7 +19,7 @@ import json
 import logging
 from typing import ClassVar
 
-from pydantic.v1 import (
+from pydantic import (
     BaseModel,
     Field,
 )

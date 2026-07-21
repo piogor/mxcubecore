@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING
 
-from pydantic.v1 import BaseModel
+from pydantic import BaseModel
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractDoseEstimator import (

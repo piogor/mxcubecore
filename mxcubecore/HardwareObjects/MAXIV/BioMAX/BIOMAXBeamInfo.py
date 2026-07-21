@@ -121,7 +121,7 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
             um_to_mm(float(current_aperture)),
             um_to_mm(float(current_aperture)),
             BeamShape.ELIPTICAL,
-            current_aperture,
+            str(current_aperture),
         )
 
     def get_available_size(self):
@@ -168,10 +168,12 @@ class BIOMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
                 )
             elif size <= 10:
                 options.append(
-                    NStateOption(value=size, variant="warning", description="Mesh only")
+                    NStateOption(
+                        value=str(size), variant="warning", description="Mesh only"
+                    )
                 )
             else:
-                options.append(NStateOption(value=size))
+                options.append(NStateOption(value=str(size)))
         return options
 
     def get_aperture_pos_name(self):
