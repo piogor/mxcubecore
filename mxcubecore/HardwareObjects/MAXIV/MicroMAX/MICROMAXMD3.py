@@ -1,9 +1,9 @@
 import gevent
-import numpy as np
-from loopfinder.motion import CentringNavigatorUp
-from loopfinder.vision import canny_masker, mini, tunnel_vision
 
 from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
 from mxcubecore.HardwareObjects.MAXIV.MAXIVMD3 import MAXIVMD3, MD3TaskFailed
 
@@ -144,7 +144,7 @@ class MICROMAXMD3(MAXIVMD3):
         self.log.info("MD3 raster oscillation launched.")
 
         if wait:
-            task_info = self.waitTaskResult(
+            task_info = self.wait_task_result(
                 task_id, timeout=DEFAULT_TASK_TIMEOUT + exptime * columns
             )
             task_output, task_exception, task_result = task_info[4:7]
@@ -154,7 +154,7 @@ class MICROMAXMD3(MAXIVMD3):
                 )
         else:
             # we only wait until task actually started
-            self.waitTaskIsRunning(task_id, timeout=DEFAULT_TASK_RUNNING_TIMEOUT)
+            self.wait_task_running(task_id, timeout=DEFAULT_TASK_RUNNING_TIMEOUT)
             return
 
         self.log.info("MD3 raster oscillation finished, task result %s.", task_info)
@@ -167,7 +167,7 @@ class MICROMAXMD3(MAXIVMD3):
 
         if self.head_type == GenericDiffractometer.HEAD_TYPE_MINIKAPPA:
             motors = [
-                "phi",
+                "omega",
                 "focus",
                 "phiz",
                 "phiy",
@@ -177,23 +177,23 @@ class MICROMAXMD3(MAXIVMD3):
                 "kappa_phi",
             ]
         else:
-            motors = ["phi", "focus", "phiz", "phiy", "sampx", "sampy"]
+            motors = ["omega", "focus", "phiz", "phiy", "sampx", "sampy"]
         ori_motors = {}
 
         for motor in motors:
             try:
-                ori_motors[motor] = self.motor_hwobj_dict[motor].get_value()
+                ori_motors[motor] = self.motors_hwobj_dict[motor].get_value()
             except:
                 pass
         ori_phase = self.current_phase
-        if self.current_phase != "DataCollection":
-            self.set_phase("DataCollection", wait=True, timeout=200)
+        if self.current_phase != DiffractometerPhase.COLLECT:
+            self.set_phase(DiffractometerPhase.COLLECT, timeout=200)
 
         if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
-            self.motor_hwobj_dict["phiy"].set_value(-20)
+            self.motors_hwobj_dict["phiy"].set_value(-20)
             self.wait_ready(10)
         else:
-            self.motor_hwobj_dict["phiz"].set_value(2)
+            self.motors_hwobj_dict["phiz"].set_value(2)
         self.wait_ready(10)
         self.set_organ_pos("beamstopZ", -10)
         self.wait_ready(10)
@@ -215,40 +215,6 @@ class MICROMAXMD3(MAXIVMD3):
             self.log.exception("Error while moving %s %s", motor_name, pos_name)
             raise
 
-    def move_to_beam(self, x, y, omega=None):  # noqa: ARG002
-        # Temporary solution to use either alignment or
-        # sample table motors for 'move to beam' movements,
-        # depending if we run in SSX or normal mode.
-        # Once the more permanent 'SSX fixed target' mode
-        # is implemented, this method should be revised
-        # and removed or updated accordingly.
-        #
-        ssx_mode = HWR.beamline.tango_keystore.is_enabled("ssx_mode")
-        self.log.info(f"move_to_beam({x:.4f} {y:.4f}) {ssx_mode=}")
-
-        if ssx_mode:
-            horizontal_axis = self.phiz_motor_hwobj
-            vertical_axis = self.phiy_motor_hwobj
-        else:
-            horizontal_axis = self.cent_vertical_pseudo_motor
-            vertical_axis = self.phiy_motor_hwobj
-
-        try:
-            self.emit_progress_message("Move to beam...")
-            beam_xc, beam_yc = HWR.beamline.beam.get_beam_position()
-            # the amount below is the absolute move
-            y_move_rel = (y - beam_yc) / float(self.pixels_per_mm_x)
-            x_move_abs = horizontal_axis.get_value() - (x - beam_xc) / float(
-                self.pixels_per_mm_y
-            )
-            self.emit_progress_message("")
-
-            vertical_axis.set_value_relative(y_move_rel)
-            horizontal_axis.set_value(x_move_abs)
-            self.wait_ready(5)
-        except Exception:
-            self.log.exception("could not move to beam.")
-
     def close_fast_shutter(self, timeout: float = 2.0) -> None:
         """Closes fast shutter.
 
@@ -263,62 +229,3 @@ class MICROMAXMD3(MAXIVMD3):
             return
 
         self.log.info("fast shutter is already closed")
-
-    def center_loop(
-        self,
-        patience: int = 100,
-        tolerance_mm: float = 0.05,  # noqa: ARG002
-    ) -> bool:
-        patience = HWR.beamline.tango_keystore.get_integer("loopfinder_max_tries")
-        super().center_loop(patience=patience)
-
-    def centring_navigator(self, tolerance_mm: float) -> CentringNavigatorUp:
-        """
-        This returns a custom navigator for loop centering on MicroMAX.
-        The navigator for micromax uses the subclass CentringNavigatorUp for use
-        with the upwards-facing MD3. It also has tunnel-vision to avoid the sharp
-        edge of the micromax backlight.
-        """
-
-        def foreground_segmentor(img: np.ndarray):
-            return mini(
-                lambda mini_img: tunnel_vision(canny_masker(mini_img, min_sharpness=25))
-            )(img)
-
-        return CentringNavigatorUp(
-            target_coordinates=tuple(self.beam_position),
-            tolerance=tolerance_mm * self.pixels_per_mm_x,
-            segmentor=foreground_segmentor,
-        )
-
-    def get_centred_point_from_coord(self, x, y, return_by_names=None):
-        if not HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
-            self.centring_hwobj.initCentringProcedure()
-            self.centring_hwobj.appendCentringDataPoint(
-                {
-                    "X": (x - self.beam_position[0]) / self.pixels_per_mm_x,
-                    "Y": (y - self.beam_position[1]) / self.pixels_per_mm_y,
-                }
-            )
-            self.omega_reference_add_constraint()
-            pos = self.centring_hwobj.centeredPosition()
-            if return_by_names:
-                pos = self.convert_from_obj_to_name(pos)
-
-            if "zoom" in pos:
-                pos["zoom"] = pos["zoom"].value
-
-        else:
-            dx = (x - self.zoom_centre["x"]) / float(self.pixels_per_mm_x)
-            dy = (y - self.zoom_centre["y"]) / float(self.pixels_per_mm_y)
-
-            pos = self.get_positions()
-            pos["phiy"] += dy
-            pos["phiz"] -= dx
-        try:
-            pos.pop("kappa")
-            pos.pop("kappa_phi")
-        except:
-            pass
-
-        return pos

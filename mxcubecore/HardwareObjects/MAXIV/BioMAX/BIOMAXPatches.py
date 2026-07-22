@@ -4,6 +4,9 @@ import types
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 
 
 class BIOMAXPatches(HardwareObject):
@@ -112,7 +115,7 @@ class BIOMAXPatches(HardwareObject):
             )
             time.sleep(1)
         # clean up sample centring method, which otherwise may cause continuous failure of automatic centring
-        HWR.beamline.diffractometer.current_centring_method = None
+        HWR.beamline.sample_view.current_centring_method = None
         HWR.beamline.diffractometer.last_centered_position = None
 
     def sc_recovery_after_timeout(self):
@@ -130,7 +133,7 @@ class BIOMAXPatches(HardwareObject):
 
         if (
             HWR.beamline.diffractometer is not None
-            and HWR.beamline.diffractometer.get_current_phase() != "Centring"
+            and HWR.beamline.diffractometer.get_phase() != DiffractometerPhase.CENTRE
         ):
             logging.getLogger("HWR").info("Changing diffractometer phase to Centring")
             logging.getLogger("user_level_log").info(
@@ -140,10 +143,10 @@ class BIOMAXPatches(HardwareObject):
                 HWR.beamline.diffractometer.wait_ready(15)
             except Exception:
                 pass
-            HWR.beamline.diffractometer.set_phase("Centring")
+            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.CENTRING)
             logging.getLogger("HWR").info(
                 "Diffractometer phase changed, current phase: %s"
-                % HWR.beamline.diffractometer.get_current_phase()
+                % HWR.beamline.diffractometer.get_phase()
             )
         else:
             logging.getLogger("HWR").info("Diffractometer already in Centring")

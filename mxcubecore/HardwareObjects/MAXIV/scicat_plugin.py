@@ -121,7 +121,7 @@ class SciCatPlugin:
             "sampx": "mm",
             "sampy": "mm",
             "focus": "mm",
-            "phi": "deg",
+            "omega": "deg",
             "kappa": "deg",
             "kappa_phi": "deg",
             "phiz": "deg",

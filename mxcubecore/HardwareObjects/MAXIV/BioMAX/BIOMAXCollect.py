@@ -12,6 +12,9 @@ import PyTango
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import DataCollect
 from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
 from mxcubecore.TaskUtils import task
@@ -79,6 +82,7 @@ class BIOMAXCollect(DataCollect):
         self.transmission_hwobj = HWR.beamline.transmission
         self.sample_changer_hwobj = HWR.beamline.sample_changer
         self.sample_changer_maint_hwobj = HWR.beamline.sample_changer_maintenance
+        self.sample_view_hwobj = HWR.beamline.sample_view
         self.dtox_hwobj = HWR.beamline.detector.detector_distance
         self.session_hwobj = HWR.beamline.session
         self.datacatalog_url = self.get_property("datacatalog_url", None)
@@ -342,10 +346,10 @@ class BIOMAXCollect(DataCollect):
             hwr_log.error("[COLLECT] Error preparing detector: %s" % ex)
             raise Exception("[COLLECT] Error preparing detector: %s" % ex)
 
-        if self.diffractometer_hwobj.get_current_phase() != "DataCollection":
+        if self.diffractometer_hwobj.get_phase() != DiffractometerPhase.COLLECT:
             user_log.info("Moving Diffractometer to Data Collection")
             self.diffractometer_hwobj.set_phase(
-                "DataCollection", wait=True, timeout=200
+                DiffractometerPhase.COLLECT, timeout=200
             )
 
         self.flux_before_collect = self.get_instant_flux()
@@ -378,12 +382,12 @@ class BIOMAXCollect(DataCollect):
         cell_height = shape.cell_height / 1000
         horiz_shift = num_cols * cell_width / 2
         vert_shift = num_rows * cell_height / 2
-        hmot = md3.cent_vertical_pseudo_motor
+        hmot = HWR.beamline.sample_view.cent_vertical_pseudo_motor
         vmot = md3.phiy_motor_hwobj
         hmot.set_value(hmot.get_value() - horiz_shift)
         vmot.set_value(vmot.get_value() - vert_shift)
         gevent.sleep(5.0)
-        md3.save_centered_position()
+        md3.save_centring_positions()
 
     def prepare_triggers_to_collect(self):
         oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
@@ -711,7 +715,7 @@ class BIOMAXCollect(DataCollect):
 
             if not diffr.is_in_centring():
                 user_log.info("Moving Diffractometer to CentringPhase")
-                diffr.set_phase_centring(wait=True, timeout=200)
+                diffr.set_phase_centring(timeout=200)
                 self.move_to_centered_position()
 
             for snapshot_index in range(number_of_snapshots):
@@ -799,7 +803,7 @@ class BIOMAXCollect(DataCollect):
 
     @task
     def move_motors(self, motor_position_dict):
-        self.diffractometer_hwobj.move_sync_motors(motor_position_dict)
+        self.diffractometer_hwobj.set_value_motors(motor_position_dict)
 
     def create_file_directories(self):
         """
@@ -911,7 +915,7 @@ class BIOMAXCollect(DataCollect):
         config["OmegaStart"] = osc_start  # oscillation_parameters["start"]
         config["OmegaIncrement"] = osc_range  # oscillation_parameters["range"]
 
-        current_pos = self.diffractometer_hwobj.get_positions()
+        current_pos = self.sample_view_hwobj.get_positions()
         config["KappaStart"] = current_pos["kappa"]
         config["KappaIncrement"] = 0.0
         config["PhiStart"] = current_pos["kappa_phi"]
@@ -1040,7 +1044,7 @@ class BIOMAXCollect(DataCollect):
     def prepare_for_new_sample(self, manual_mode=True):
         """Prepare beamline for a new sample."""
 
-        if self.diffractometer_hwobj.in_plate_mode():
+        if self.diffractometer_hwobj.in_plate_mode:
             hwr_log.info(
                 "[HWR] Preparing beamline for a new sample ignored as we are in PLATE mode."
             )
@@ -1050,7 +1054,7 @@ class BIOMAXCollect(DataCollect):
         if manual_mode:
             self.close_safety_shutter()
             self.close_detector_cover()
-            self.diffractometer_hwobj.set_phase("Transfer", wait=False)
+            self.diffractometer_hwobj.set_phase(DiffractometerPhase.TRANSFER)
 
         self.move_detector_to_safe_position()
 
@@ -1208,15 +1212,15 @@ class BIOMAXCollect(DataCollect):
             "Crystal is identified from Xray diffraction and will be moved to the beam center"
         )
         self.diffractometer_hwobj.wait_device_ready(5)
-        self.diffractometer_hwobj.omega.moveRelative(-y_mm)
+        self.diffractometer_hwobj.omega.set_value_relative(-y_mm)
         self.diffractometer_hwobj.wait_device_ready(5)
-        self.diffractometer_hwobj.move_cent_vertical_relative(-x_mm)
-        self.diffractometer_hwobj.save_centered_position()
+        self.sample_view_hwobj.move_cent_vertical_relative(-x_mm)
+        self.diffractometer_hwobj.save_centring_positions()
         cpos = self.diffractometer_hwobj.last_centered_position
         if save_point:
-            self.diffractometer_hwobj.centring_status["motors"] = cpos
-            self.diffractometer_hwobj.centring_status["valid"] = True
-            self.diffractometer_hwobj.accept_centring()
+            self.sample_view_hwobj.centring_status["motors"] = cpos
+            self.sample_view_hwobj.centring_status["valid"] = True
+            self.sample_view_hwobj.accept_centring()
         hwr_log.info("Centring positions saved. Motors: {}".format(cpos))
 
     def _create_header_appendix(

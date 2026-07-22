@@ -747,8 +747,8 @@ class Hve2DScanQueueEntry(AbstractSsxQueueEntry):
 
     def _goto_position(self, motor_positions: dict):
         # remove phi (Omega) position, as we don't want to change Omega angle
-        motor_positions = {k: v for k, v in motor_positions.items() if k != "phi"}
-        HWR.beamline.diffractometer.move_motors(motor_positions)
+        motor_positions = {k: v for k, v in motor_positions.items() if k != "omega"}
+        HWR.beamline.diffractometer.set_value_motors(motor_positions)
 
     def _goto_selected_2d_point(self):
         shape = HWR.beamline.sample_view.get_shape(self._get_shape_id())
@@ -761,7 +761,7 @@ class Hve2DScanQueueEntry(AbstractSsxQueueEntry):
         self._goto_selected_2d_point()
 
         # run the data collection scan
-        current_omega = HWR.beamline.diffractometer.phi_motor_hwobj.get_value()
+        current_omega = HWR.beamline.diffractometer.omega_motor_hwobj.get_value()
         HWR.beamline.diffractometer.do_oscillation_scan(
             current_omega,
             current_omega + 0.00000001,
@@ -776,7 +776,7 @@ class Hve2DScanQueueEntry(AbstractSsxQueueEntry):
         self._prepare_scan()
 
         # run the data collection scan
-        current_omega = HWR.beamline.diffractometer.phi_motor_hwobj.get_value()
+        current_omega = HWR.beamline.diffractometer.omega_motor_hwobj.get_value()
         start_cpos, end_cpos = line.cp_list
 
         HWR.beamline.diffractometer.osc_scan_4d(
@@ -799,7 +799,7 @@ class Hve2DScanQueueEntry(AbstractSsxQueueEntry):
             self._goto_position(point)
 
             # run the data collection scan
-            current_omega = HWR.beamline.diffractometer.phi_motor_hwobj.get_value()
+            current_omega = HWR.beamline.diffractometer.omega_motor_hwobj.get_value()
             HWR.beamline.diffractometer.do_oscillation_scan(
                 current_omega,
                 current_omega + 0.00000001,

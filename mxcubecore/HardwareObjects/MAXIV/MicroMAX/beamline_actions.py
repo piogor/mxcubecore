@@ -10,6 +10,9 @@ from tango import DeviceProxy
 from tango_keystore import TangoKeystore
 
 from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 from mxcubecore.HardwareObjects.MAXIV.MicroMAX.CelerotonChopper import CelerotonChopper
 from mxcubecore.utils.units import kev_to_ev
 
@@ -110,10 +113,10 @@ class PrepareOpenHutch:
                 diffractometer.channel_dict["CapillaryPosition"].set_value("PARK")
             else:
                 user_log.info("Setting diffractometer to Transfer phase.")
-                diffractometer.set_phase("Transfer")
+                diffractometer.set_phase(DiffractometerPhase.TRANSFER)
                 if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
                     self.diffractometer_hwobj.wait_ready(10)
-                    self.diffractometer_hwobj.phi_motor_hwobj.set_value(170)
+                    self.diffractometer_hwobj.omega_motor_hwobj.set_value(170)
 
             try:
                 user_log.info("Moving detector to safe position.")
@@ -206,7 +209,7 @@ class MeasureFlux:
 
 class SaveMD3Position:
     def __call__(self):
-        HWR.beamline.diffractometer.save_centered_position()
+        HWR.beamline.diffractometer.save_centring_positions()
 
 
 class MoveToMD3SavedPosition:
@@ -258,7 +261,7 @@ def _get_chip_motor_pos():
     else:
         user_log.info("Chip positions from centring table")
         focus = diff.focus_motor_hwobj.get_value()
-        hor = diff.cent_vertical_pseudo_motor.get_value()
+        hor = HWR.beamline.sample_view.cent_vertical_pseudo_motor.get_value()
 
     return _ChipMotorPosition(hor, focus)
 
@@ -314,9 +317,9 @@ class FinishChipAlignment:
         )
 
         # rotate the chip along the omega axis
-        curr_omega = diff.phi_motor_hwobj.get_value()
+        curr_omega = diff.omega_motor_hwobj.get_value()
         try:
-            diff.phi_motor_hwobj.set_value(curr_omega - omega_diff)
+            diff.omega_motor_hwobj.set_value(curr_omega - omega_diff)
         except Exception as ex:  # noqa: BLE001
             msg = "Please adjust the sample manually!"
             user_log.error(msg)

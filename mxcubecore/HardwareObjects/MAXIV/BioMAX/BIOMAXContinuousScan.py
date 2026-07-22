@@ -28,6 +28,10 @@ import time
 import gevent
 import tango
 
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
+
 try:
     import PyChooch
 except ImportError:
@@ -133,8 +137,8 @@ class BIOMAXContinuousScan(AbstractEnergyScan):
         self.initial_energy_value = HWR.beamline.energy.get_current_energy()
 
         # ensure proper MD3 phase
-        if HWR.beamline.diffractometer.get_current_phase() != "DataCollection":
-            HWR.beamline.diffractometer.set_phase("DataCollection", wait=True)
+        if HWR.beamline.diffractometer.get_phase() != DiffractometerPhase.COLLECT:
+            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.COLLECT)
 
         # and move to the centred positions after phase change
         if self.cpos:
