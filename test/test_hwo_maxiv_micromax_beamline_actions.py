@@ -165,7 +165,7 @@ def test_save_md3_position():
         bl_action = SaveMD3Position()
         bl_action()
 
-    hwr.beamline.diffractometer.save_centered_position.assert_called_once()
+    hwr.beamline.diffractometer.save_centring_positions.assert_called_once()
 
 
 def test_move_to_md3_saved_position_ok():

@@ -4,6 +4,9 @@ from enum import Enum
 import gevent
 
 from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 from mxcubecore.model.crystal_symmetry import XTAL_SPACEGROUPS
 from mxcubecore.queue_entry.base_queue_entry import BaseQueueEntry
 
@@ -149,7 +152,7 @@ class AbstractSsxQueueEntry(BaseQueueEntry):
         # change MD3 phase to data collection mode,
         # this moves in beam stop
         #
-        diffractometer.set_phase("DataCollection")
+        diffractometer.set_phase(DiffractometerPhase.COLLECT)
         diffractometer.check_beamstop_is_at_beam_position()
 
         #
