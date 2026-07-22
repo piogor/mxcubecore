@@ -116,25 +116,32 @@ class Session(mxcubecore.HardwareObjects.Session.Session):
             group = self.beamline_name.lower()
         else:
             group = self.storage.get_proposal_group(session.number)
-        try:
-            _raw_path = self.storage.create_path(
-                session.number, group, self.get_session_start_date()
-            )
 
-            self.log.info("SDM Data directory created: %s", _raw_path)
-        except Exception as exc:  # noqa: BLE001
-            self.log.warning("SDM Data directory creation failed. %s", exc)
-            self.log.info("SDM Data directory trying to create again after failure")
-            time.sleep(0.1)
+        retries = 3
+        delay = 1
+        for attempt in range(1, retries + 1):
             try:
-                _raw_path = self.storage.create_path(
-                    session.number, group, self.get_session_start_date()
+                _raw_path = self.storage.create_path(session.number, group, start_date)
+            except storage.StorageException as exc:
+                if attempt == retries:
+                    self.log.exception(
+                        "SDM Data directory creation failed after %d tries.", retries
+                    )
+                    raise
+                self.log.warning(
+                    "SDM Data directory creation failed on attempt %d/%d: %s",
+                    attempt,
+                    retries,
+                    exc,
                 )
-
-                self.log.info("SDM Data directory created: %s", _raw_path)
-            except Exception:
-                self.log.exception("SDM Data directory creation failed.")
-                raise
+                self.log.info(
+                    "Retrying SDM Data directory creation after %s second(s)",
+                    delay,
+                )
+                time.sleep(delay)
+                continue
+            self.log.info("SDM Data directory created: %s", _raw_path)
+            break
 
         if self.base_archive_directory:
             archive_folder = "{}/{}".format(category, self.beamline_name.lower())
