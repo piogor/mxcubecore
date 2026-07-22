@@ -171,7 +171,7 @@ class SaveCentredPosition:
 
     def __call__(self, *args, **kw):
         hwr_log.info("Saving centered position...")
-        HWR.beamline.diffractometer.save_centered_position()
+        HWR.beamline.diffractometer.save_centring_positions()
 
 
 class PrepareForNewSample:
@@ -262,7 +262,7 @@ class AbortMD3:
         try:
             HWR.beamline.diffractometer.abort()
             gevent.sleep(0.5)
-            omega = HWR.beamline.diffractometer.phi_motor_hwobj
+            omega = HWR.beamline.diffractometer.omega_motor_hwobj
             current_state = omega.get_state()
             hwr_log.info(f"Current MD3 omega state is {current_state}")
             omega.updateMotorState(current_state)

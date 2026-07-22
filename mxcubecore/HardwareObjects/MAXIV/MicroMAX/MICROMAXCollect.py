@@ -12,6 +12,9 @@ import gevent
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
 from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 from mxcubecore.HardwareObjects.GenericDiffractometer import GenericDiffractometer
 from mxcubecore.HardwareObjects.MAXIV import space_groups
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import (
@@ -102,6 +105,7 @@ class MICROMAXCollect(DataCollect):
         self.transmission_hwobj = HWR.beamline.transmission
         self.dtox_hwobj = HWR.beamline.detector.detector_distance
         self.session_hwobj = HWR.beamline.session
+        self.sample_view_hwobj = HWR.beamline.sample_view
         self.shape_history_hwobj = HWR.beamline.sample_view
 
         self.scicat_enabled = self.get_property("scicat_enabled", False)
@@ -199,9 +203,7 @@ class MICROMAXCollect(DataCollect):
             ):
                 # No centring point defined
                 # create point based on the current position
-                current_diffractometer_position = (
-                    self.diffractometer_hwobj.get_positions()
-                )
+                current_diffractometer_position = self.sample_view_hwobj.get_positions()
                 for motor in self.current_dc_parameters["motors"].keys():
                     self.current_dc_parameters["motors"][motor] = (
                         current_diffractometer_position[motor]
@@ -408,7 +410,7 @@ class MICROMAXCollect(DataCollect):
         # Move MD3 to DataCollection phase, even if it's already there
         # This is a deliberate action to ensure that all organs go to corect position
         # even if they have been moved.
-        self.diffractometer_hwobj.set_phase("DataCollection")
+        self.diffractometer_hwobj.set_phase(DiffractometerPhase.COLLECT)
         self.diffractometer_hwobj.check_beamstop_is_at_beam_position()
 
         if HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
@@ -688,8 +690,8 @@ class MICROMAXCollect(DataCollect):
                 -range_x / 2.0
             )
         else:
-            self.diffractometer_hwobj.move_cent_vertical_relative(-range_x / 2.0)
-        self.diffractometer_hwobj.save_centered_position()
+            self.sample_view_hwobj.move_cent_vertical_relative(-range_x / 2.0)
+        self.diffractometer_hwobj.save_centring_positions()
 
     def _update_task_progress(self):
         """
@@ -839,9 +841,9 @@ class MICROMAXCollect(DataCollect):
             self.user_log.info(
                 "Collection: Taking %d sample snapshot(s)" % self.number_of_snapshots
             )
-            if self.diffractometer_hwobj.get_current_phase() != "Centring":
+            if self.diffractometer_hwobj.get_phase() != DiffractometerPhase.CENTRE:
                 self.user_log.info("Moving Diffractometer to CentringPhase")
-                self.diffractometer_hwobj.set_phase("Centring")
+                self.diffractometer_hwobj.set_phase(DiffractometerPhase.CENTRE)
 
             self.move_to_centered_position()
 
@@ -867,7 +869,7 @@ class MICROMAXCollect(DataCollect):
                 )
                 time.sleep(1)  # needed, otherwise will get the same images
                 if self.number_of_snapshots > 1:
-                    self.diffractometer_hwobj.move_omega_relative(90)
+                    self.diffractometer_hwobj.omega.set_value_relative(90)
                     time.sleep(1)  # needed, otherwise will get the same images
 
     def trigger_auto_processing(self, process_event, _frame_number):
@@ -1264,7 +1266,7 @@ class MICROMAXCollect(DataCollect):
 
             if HWR.beamline.is_hve_sample_delivery():
                 keep_position = False
-                ori_phase = "DataCollection"
+                ori_phase = DiffractometerPhase.COLLECT
             self.log.info("xxxxxxxxxxx md3 is set to calcualte flux phase")
             self.diffractometer_hwobj.set_direct_beam_enabled(True)
             self.open_fast_shutter()
@@ -1318,9 +1320,9 @@ class MICROMAXCollect(DataCollect):
         if manual_mode and not (
             self.diffractometer_hwobj.head_type == GenericDiffractometer.HEAD_TYPE_PLATE
         ):
-            self.diffractometer_hwobj.set_phase("Transfer", wait=True)
+            self.diffractometer_hwobj.set_phase(DiffractometerPhase.TRANSFER)
             if HWR.beamline.tango_keystore.is_enabled("serialx_chip"):
-                self.diffractometer_hwobj.phi_motor_hwobj.set_value(170)
+                self.diffractometer_hwobj.omega_motor_hwobj.set_value(170)
                 self.diffractometer_hwobj.wait_ready(10)
             self.move_detector_to_safe_position()
 

@@ -35,6 +35,10 @@ import numpy as np
 import tango
 from scipy.ndimage.filters import gaussian_filter1d
 
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
+
 try:
     from detecta import detect_peaks
 
@@ -305,8 +309,8 @@ class BIOMAXXRFSpectrum(AbstractXRFSpectrum, HardwareObject):
             )
 
         # ensure proper MD3 phase
-        if HWR.beamline.diffractometer.get_current_phase() != "DataCollection":
-            HWR.beamline.diffractometer.set_phase("DataCollection", wait=True)
+        if HWR.beamline.diffractometer.get_phase() != DiffractometerPhase.COLLECT:
+            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.COLLECT)
 
         # and move to the centred positions after phase change
         if self.cpos:

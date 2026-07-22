@@ -126,8 +126,8 @@ class BiomaxXrayCenteringQueueEntry(DataCollectionQueueEntry):
         self.helical_enqueued = False
 
     def create_line(self, cpos_1, cpos_2):
-        x1, y1 = self.diffractometer_hwobj.motor_positions_to_screen(cpos_1)
-        x2, y2 = self.diffractometer_hwobj.motor_positions_to_screen(cpos_2)
+        x1, y1 = self.sample_view_hwobj.motor_positions_to_screen(cpos_1)
+        x2, y2 = self.sample_view_hwobj.motor_positions_to_screen(cpos_2)
 
         line = Line([cpos_1, cpos_2], [x1, y1, x2, y2])
         try:
@@ -148,7 +148,7 @@ class BiomaxXrayCenteringQueueEntry(DataCollectionQueueEntry):
             self.diffractometer_hwobj.wait_device_ready(5)
             # bx, by = HWR.beamline.beam.get_beam_position()
             bx, by = HWR.beamline.beam.get_beam_position_on_screen()
-            beam_pos = self.diffractometer_hwobj.get_centred_point_from_coord(  # noqa: F841
+            beam_pos = self.sample_view_hwobj.get_centred_point_from_coord(  # noqa: F841
                 bx,
                 by,
                 return_by_names=True,
@@ -160,15 +160,15 @@ class BiomaxXrayCenteringQueueEntry(DataCollectionQueueEntry):
             beam_width = mesh_shape.get("beam_width") or 0.02
             distance = (extend_grid - 0.5) * beam_width
             try:
-                self.diffractometer_hwobj.move_cent_vertical_relative(-distance)
+                self.sample_view_hwobj.move_cent_vertical_relative(-distance)
             except Exception:
                 log.exception("does not exists in mockup")
-            start_pos = self.diffractometer_hwobj.get_positions()
+            start_pos = self.sample_view_hwobj.get_positions()
             try:
-                self.diffractometer_hwobj.move_cent_vertical_relative(distance * 2)
+                self.sample_view_hwobj.move_cent_vertical_relative(distance * 2)
             except Exception:
                 log.exception("does not exists in mockup")
-            end_pos = self.diffractometer_hwobj.get_positions()
+            end_pos = self.sample_view_hwobj.get_positions()
 
             # now we recreate the helical positions
             acq_1 = Acquisition()
@@ -195,7 +195,7 @@ class BiomaxXrayCenteringQueueEntry(DataCollectionQueueEntry):
             acq_1.acquisition_parameters.resolution = acq_mesh_params.resolution
             acq_1.acquisition_parameters.osc_range = acq_mesh_params.osc_range
             acq_1.acquisition_parameters.num_images = extend_grid * 2
-            acq_1.acquisition_parameters.osc_start = start_pos["phi"]
+            acq_1.acquisition_parameters.osc_start = start_pos["omega"]
             acq_1.path_template.run_number += 1
             self.helical_qe.pre_execute()
             self.helical_qe.execute()
@@ -203,17 +203,17 @@ class BiomaxXrayCenteringQueueEntry(DataCollectionQueueEntry):
             # wait for results, whihc would be a single float
             # convert to motor pos and move there (i would be a horizontal move only,
             # so maybe juts use the virtual horizontal)
-            # self.diffractometer_hwobj.save_centered_position()
+            # self.diffractometer_hwobj.save_centring_positions()
             # why do we need to save the positions?
             # self.collect_hwobj.create_point_from_current_pos()
-            point = Point([self.diffractometer_hwobj.get_positions()], (bx, by))
+            point = Point([self.sample_view_hwobj.get_positions()], (bx, by))
             self.shape_history.add_shape(point)
             # self.shape_history.add_shape_from_mpos(
-            #             self.diffractometer_hwobj.get_positions(),
+            #             self.sample_view_hwobj.get_positions(),
             #             (bx, by),
             #             'P')
-            mesh_omega = mesh_shape.get("motor_positions").get("phi", 0)
-            self.diffractometer_hwobj.omega.set_value(mesh_omega)
+            mesh_omega = mesh_shape.get("motor_positions").get("omega", 0)
+            self.sample_view_hwobj.omega.set_value(mesh_omega)
         except Exception:
             log.exception("error")
 
@@ -230,6 +230,7 @@ class BiomaxXrayCenteringQueueEntry(DataCollectionQueueEntry):
             self.lims_client_hwobj = HWR.beamline.lims
             self.collect_hwobj = HWR.beamline.collect
             self.diffractometer_hwobj = HWR.beamline.diffractometer
+            self.sample_view_hwobj = HWR.beamline.sample_view
             self.shape_history = HWR.beamline.sample_view
             self.session = HWR.beamline.session
         except Exception:
