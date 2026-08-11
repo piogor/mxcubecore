@@ -2,6 +2,8 @@ import logging
 from enum import Enum
 
 import gevent
+from pydantic.json_schema import GetJsonSchemaHandler, JsonSchemaValue
+from pydantic_core import core_schema
 
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
@@ -25,15 +27,18 @@ SpaceGroup = Enum("SpaceGroup", _space_group_enum_members, type=str)
 
 # This is a hack to remove the default description from the SpaceGroup enum.
 @classmethod
-def _remove_enum_description(_cls, field_schema: dict) -> None:
-    """
-    Pydantic v1 calls this whenever it generates JSON Schema for an Enum type.
-    We simply pop off the default "An enumeration." description.
-    """
-    field_schema.pop("description", None)
+def _remove_enum_description(
+    _cls,
+    schema: core_schema.CoreSchema,
+    handler: GetJsonSchemaHandler,
+) -> JsonSchemaValue:
+    json_schema = handler(schema)
+    json_schema = handler.resolve_ref_schema(json_schema)
+    json_schema.pop("description", None)
+    return json_schema
 
 
-SpaceGroup.__modify_schema__ = _remove_enum_description
+SpaceGroup.__get_pydantic_json_schema__ = _remove_enum_description
 
 
 def restore_beamline():
