@@ -347,7 +347,7 @@ class Hve2DScanUserCollectionParameters(BaseModel):
     cellBeta: float = Field(0, title="Cell β", unit="°", ge=0, le=360.0)  # noqa: N815
     cellGamma: float = Field(0, title="Cell γ", unit="°", ge=0, le=360.0)  # noqa: N815
 
-    @root_validator
+    @root_validator(skip_on_failure=True)
     def _validate_first_image_after_trigger(
         cls,  # noqa: N805 - false positive; it's a classmethod.
         values: dict[str, Any],
