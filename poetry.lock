@@ -3584,4 +3584,4 @@ maxiv = ["loopfinder"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<3.12"
-content-hash = "e668c9b57dcbede611562df685bdc8c7e00598a3614ee6bae196b0f2eb0e9dd1"
+content-hash = "9ac02609b5b0e1c9fa0acbd190197b7345112eec945b9dbf1ddb36818c0ef3a6"
