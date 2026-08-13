@@ -113,7 +113,7 @@ def _create_session_object(proposal, session_id: str, beamline_name: str) -> Ses
         proposal_id=proposal["proposalId"],
         code=proposal["code"],
         number=proposal["number"],
-        session_id=session_id,
+        session_id=str(session_id),
         beamline_name=beamline_name,
         title=proposal["title"],
         #
