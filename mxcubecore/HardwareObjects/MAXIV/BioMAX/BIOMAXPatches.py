@@ -2,10 +2,11 @@ import logging
 import time
 import types
 
-import gevent
-
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 
 
 class BIOMAXPatches(HardwareObject):
@@ -23,8 +24,7 @@ class BIOMAXPatches(HardwareObject):
         if HWR.beamline.sample_changer.get_status() == "fault":
             raise RuntimeError("Cannot operate sample changer, state is in FAULT.")
 
-        HWR.beamline.sample_changer_maintenance.mount_timeout_fixed = False
-        logging.getLogger("HWR").info("Set sc mount timeout flag to False")
+        HWR.beamline.sample_changer.before_load_or_unload_sample()
 
         if HWR.beamline.diffractometer.get_transfer_mode() != "SAMPLE_CHANGER":
             raise Exception(
@@ -78,20 +78,6 @@ class BIOMAXPatches(HardwareObject):
                 "Detector already in safe position."
             )
 
-        if not HWR.beamline.sample_changer.is_powered():
-            try:
-                HWR.beamline.sample_changer_maintenance.send_command("PowerOn")
-                time.sleep(1)
-                HWR.beamline.sample_changer._wait_device_ready(30)
-                if not HWR.beamline.sample_changer.is_powered():
-                    raise RuntimeError(
-                        "Cannot power on sample changer. please make sure the hutch is searched"
-                    )
-            except Exception:
-                raise RuntimeError(
-                    "Cannot power on sample changer. please make sure the hutch is searched"
-                )
-
         if HWR.beamline.sample_changer.is_path_running():
             timeout = 240
             HWR.beamline.sample_changer._wait_device_ready(timeout)
@@ -100,19 +86,6 @@ class BIOMAXPatches(HardwareObject):
                     "Cannot load sample, sample changer has been moving for over {} s. Please check the device".format(
                         timeout
                     )
-                )
-        if not self.sc_in_soak():
-            logging.getLogger("HWR").info(
-                "Sample changer not in SOAK position, moving there..."
-            )
-            try:
-                HWR.beamline.sample_changer_maintenance.send_command("soak")
-                time.sleep(0.25)
-                HWR.beamline.sample_changer._wait_device_ready(45)
-            except Exception as ex:
-                raise RuntimeError(
-                    "Cannot load sample, sample changer cannot go to SOAK position: %s"
-                    % str(ex)
                 )
 
         try:
@@ -142,45 +115,12 @@ class BIOMAXPatches(HardwareObject):
             )
             time.sleep(1)
         # clean up sample centring method, which otherwise may cause continuous failure of automatic centring
-        HWR.beamline.diffractometer.current_centring_method = None
+        HWR.beamline.sample_view.current_centring_method = None
         HWR.beamline.diffractometer.last_centered_position = None
 
     def sc_recovery_after_timeout(self):
-        """
-        reset the sample changer timeout flag and also make sure the gripper doesn't end in a strange position after drying
-        pop up msg to user interface
-        """
-        if HWR.beamline.sample_changer_maintenance.mount_timeout_fixed:
-            try:
-                # here we put try the waitReady twice as there could be a small windown between back and dry that the SC is ready
-                HWR.beamline.sample_changer._wait_device_ready(180)
-                time.sleep(1)
-                self.sample_changer._wait_device_ready(180)
-            except Exception as ex:
-                (
-                    state_dict,
-                    cmd_state,
-                    message,
-                ) = HWR.beamline.sample_changer_maintenance.get_global_state()
-                if (
-                    "WAIT for Dew_C condition / 31" in message
-                    or "Gripper drying in progress" in message
-                ):
-                    HWR.beamline.sample_changer_maintenance.send_command("abort")
-                    HWR.beamline.sample_changer_maintenance.send_command("reset")
-                    HWR.beamline.sample_changer_maintenance.send_command("safe")
-                    HWR.beamline.sample_changer._wait_device_ready(20)
-                else:
-                    raise Exception(
-                        "Cannot load/unload sample and get error %s while waiting for SC to put sample back, please contact support."
-                        % str(ex)
-                    )
-            finally:
-                HWR.beamline.sample_changer_maintenance.mount_timeout_fixed = False
-                logging.getLogger("HWR").info("Set sc mount timeout flag to False")
-            error_msg = "[SC] Timeout when waiting MD3 to move to transfer phase. Have put the sample back (if applies), please try to mount/unmount again when the Sample Changer is ready!"
-            logging.getLogger("HWR").error(error_msg)
-            raise Exception(error_msg)
+        """Recover in case "MD3 not safe" was detected on sample changer."""
+        HWR.beamline.sample_changer.after_load_or_unload_sample()
 
     def after_load_sample(self):
         """
@@ -193,7 +133,7 @@ class BIOMAXPatches(HardwareObject):
 
         if (
             HWR.beamline.diffractometer is not None
-            and HWR.beamline.diffractometer.get_current_phase() != "Centring"
+            and HWR.beamline.diffractometer.get_phase() != DiffractometerPhase.CENTRE
         ):
             logging.getLogger("HWR").info("Changing diffractometer phase to Centring")
             logging.getLogger("user_level_log").info(
@@ -203,10 +143,10 @@ class BIOMAXPatches(HardwareObject):
                 HWR.beamline.diffractometer.wait_ready(15)
             except Exception:
                 pass
-            HWR.beamline.diffractometer.set_phase("Centring")
+            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.CENTRE)
             logging.getLogger("HWR").info(
                 "Diffractometer phase changed, current phase: %s"
-                % HWR.beamline.diffractometer.get_current_phase()
+                % HWR.beamline.diffractometer.get_phase()
             )
         else:
             logging.getLogger("HWR").info("Diffractometer already in Centring")
@@ -234,20 +174,16 @@ class BIOMAXPatches(HardwareObject):
         )
 
         self.before_load_sample()
-        self.__load(sample)
+        result = self.__load(sample)
         self.sc_recovery_after_timeout()
         self.after_load_sample()
 
+        return result
+
     def new_unload(self, *args, **kwargs):
-        logging.getLogger("HWR").info(
-            "Sample changer in SOAK position: %s" % self.sc_in_soak()
-        )
         self.before_load_sample()
         self.__unload(args[1])
         self.sc_recovery_after_timeout()
-
-    def sc_in_soak(self):
-        return HWR.beamline.sample_changer.get_channel_value("PositionName") == "SOAK"
 
     def init(self, *args):
         self.__load = HWR.beamline.sample_changer.load
