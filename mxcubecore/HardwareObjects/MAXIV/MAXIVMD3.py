@@ -240,6 +240,15 @@ class MAXIVMD3(AbstractDiffractometer):
                 self._update_pixels_per_mm_y,
             )
 
+        self.sample_is_loaded = self.channel_dict["SampleIsLoaded"]
+        with contextlib.suppress(Exception):
+            self.connect(
+                self.channel_dict["SampleIsLoaded"],
+                "update",
+                self.sample_is_loaded_changed,
+            )
+
+
         # TODO(piogor, #378): refactor and move  # noqa: FIX002
         # FastShutterIsOpen to
         # configuration and load as the other channels above
