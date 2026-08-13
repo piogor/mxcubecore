@@ -550,9 +550,8 @@ class MAXIVSampleView(SampleView):
 
     def convert_from_obj_to_name(self, motor_pos):
         motors = {}
-        for c_motor in self.centring_motors:
-            motor_role = c_motor.role
-            motor_obj = c_motor.motor
+        for motor_role in self.centring_motors:
+            motor_obj = self.centring_motors[motor_role].motor
             try:
                 motors[motor_role] = motor_pos[motor_obj]
             except KeyError:
