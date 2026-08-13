@@ -143,7 +143,7 @@ class BIOMAXPatches(HardwareObject):
                 HWR.beamline.diffractometer.wait_ready(15)
             except Exception:
                 pass
-            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.CENTRING)
+            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.CENTRE)
             logging.getLogger("HWR").info(
                 "Diffractometer phase changed, current phase: %s"
                 % HWR.beamline.diffractometer.get_phase()
