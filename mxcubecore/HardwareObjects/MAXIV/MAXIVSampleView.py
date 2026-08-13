@@ -36,10 +36,6 @@ class MAXIVSampleView(SampleView):
     def init(self):  # noqa: C901
         super().init()
 
-        # convenience references to HwOs
-        self.zoom_motor_hwobj = self.get_object_by_role("zoom")
-        self.focus_motor_hwobj = self.get_object_by_role("focus")
-
         self.omega_motor_hwobj = self.centring_motors["omega"].motor
         self.phix_motor_hwobj = self.centring_motors["phix"].motor
         self.phiy_motor_hwobj = self.centring_motors["phiy"].motor
@@ -410,17 +406,17 @@ class MAXIVSampleView(SampleView):
 
         # Switch off front light:
         HWR.beamline.diffractometer.front_light_switch.set_value(
-            self.front_light_switch.VALUES.OUT
+            HWR.beamline.diffractometer.front_light_switch.VALUES.OUT
         )
 
         # Switch on back light with factor 1:
         HWR.beamline.diffractometer.back_light_switch.set_value(
-            self.back_light_switch.VALUES.IN
+            HWR.beamline.diffractometer.back_light_switch.VALUES.IN
         )
         HWR.beamline.diffractometer.back_light.set_value(1)
 
         # Set zoom level 1:
-        self.zoom_motor_hwobj.set_value(self.zoom_motor_hwobj.VALUES.LEVEL1)
+        HWR.beamline.diffractometer.zoom_motor_hwobj.set_value(HWR.beamline.diffractometer.zoom_motor_hwobj.VALUES.LEVEL1)
         self.wait_device_ready(20)
 
         self.omega_reference_motor.set_value(self.omega_reference_par["position"])
