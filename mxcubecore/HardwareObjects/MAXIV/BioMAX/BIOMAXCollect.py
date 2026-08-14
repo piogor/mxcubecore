@@ -292,7 +292,7 @@ class BIOMAXCollect(DataCollect):
 
         if "resolution" in self.current_dc_parameters:
             try:
-                resolution = self.current_dc_parameters["resolution"]["upper"]
+                resolution = self.current_dc_parameters["resolution"]
                 user_log.info("Collection: Setting resolution to %.3f", resolution)
                 self.set_resolution(resolution)
             except Exception as ex:
@@ -394,7 +394,7 @@ class BIOMAXCollect(DataCollect):
         osc_start = oscillation_parameters["start"]
         osc_range = oscillation_parameters["range"]
         nframes = oscillation_parameters["number_of_images"]
-        overlap = oscillation_parameters["overlap"]
+        overlap = oscillation_parameters.get("overlap", 0)
         ntriggers = oscillation_parameters["num_triggers"]
         triggers_to_collect = []
 
@@ -615,20 +615,20 @@ class BIOMAXCollect(DataCollect):
         self.update_data_collection_in_lims()
 
     def emit_collection_finished(self):
+        exp_type = self.current_dc_parameters["experiment_type"]
+        overlap = self.current_dc_parameters["oscillation_sequence"][0].get("overlap", 0)
+        num_images = self.current_dc_parameters["oscillation_sequence"][0]["number_of_images"]
         if (
-            self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
-            and self.current_dc_parameters["oscillation_sequence"][0]["overlap"] == 0
-            and self.current_dc_parameters["oscillation_sequence"][0][
-                "number_of_images"
-            ]
-            >= self.NIMAGES_TRIGGER_AUTO_PROC
+            exp_type in ("OSC", "Helical")
+            and overlap == 0
+            and num_images >= self.NIMAGES_TRIGGER_AUTO_PROC
         ):
             gevent.spawn(self.trigger_auto_processing, "after", 0)
 
         # we store the first and the last images, TODO: every 45 degree
         gevent.spawn(self._post_collection_store_image)
 
-        if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
+        if exp_type == "Mesh" or self.hve:
             self.detector_hwobj.disable_stream()
         if self.char:
             self.char = False
@@ -659,7 +659,7 @@ class BIOMAXCollect(DataCollect):
             % self.current_dc_parameters
         )
 
-        if self.current_dc_parameters.get("experiment_type") != "Mesh":
+        if exp_type != "Mesh":
             try:
                 hwr_log.info("[BIOMAXCOLLECT] Going to generate XDS input files")
                 # generate XDS.INP only in raw/process
@@ -670,23 +670,17 @@ class BIOMAXCollect(DataCollect):
                     % self.current_dc_parameters["xds_dir"]
                 )
                 if (
-                    self.current_dc_parameters["experiment_type"] in ("OSC", "Helical")
-                    and self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
-                    == 0
-                    and self.current_dc_parameters["oscillation_sequence"][0][
-                        "number_of_images"
-                    ]
-                    >= self.NIMAGES_TRIGGER_AUTO_PROC
+                    exp_type in ("OSC", "Helical")
+                    and overlap == 0
+                    and num_images >= self.NIMAGES_TRIGGER_AUTO_PROC
                 ):
                     self.trigger_auto_processing("after", 0)
             except Exception as ex:
-                hwr_log.error("[COLLECT] Error creating XDS files, %s" % ex)
+                hwr_log.exception("[COLLECT] Error creating XDS files, %s" % ex)
 
             self._store_diffraction_images(self.current_dc_parameters, 1)
 
-            last_frame = self.current_dc_parameters["oscillation_sequence"][0][
-                "number_of_images"
-            ]
+            last_frame = num_images
             if last_frame > 1:
                 self._store_diffraction_images(self.current_dc_parameters, last_frame)
 
