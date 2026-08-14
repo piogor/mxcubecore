@@ -164,7 +164,7 @@ class DoseEstimator(AbstractDoseEstimator):
         )
         return DoseEstimationOk(
             dose_mgy=estimated_dose_gy / 1_000_000,
-            max_images=max_images,
+            max_images=int(max_images),
         )
 
     @property
