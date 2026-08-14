@@ -321,7 +321,7 @@ class MICROMAXCollect(DataCollect):
 
         if "resolution" in self.current_dc_parameters:
             try:
-                resolution = self.current_dc_parameters["resolution"]["upper"]
+                resolution = self.current_dc_parameters["resolution"]
                 self.user_log.info("Collection: Setting resolution to %.3f", resolution)
                 self.set_resolution(resolution)
             except Exception as ex:
@@ -434,7 +434,7 @@ class MICROMAXCollect(DataCollect):
         osc_start = oscillation_parameters["start"]
         osc_range = oscillation_parameters["range"]
         nframes = oscillation_parameters["number_of_images"]
-        overlap = oscillation_parameters["overlap"]
+        overlap = oscillation_parameters.get("overlap", 0)
         triggers_to_collect = []
 
         if overlap > 0 or overlap < 0:
@@ -762,7 +762,7 @@ class MICROMAXCollect(DataCollect):
     def emit_collection_finished(self):
         """Handle finish messages and autoprocessing"""
         exp_type = self.current_dc_parameters["experiment_type"]
-        overlap = self.current_dc_parameters["oscillation_sequence"][0]["overlap"]
+        overlap = self.current_dc_parameters["oscillation_sequence"][0].get("overlap", 0)
         num_images = self.current_dc_parameters["oscillation_sequence"][0][
             "number_of_images"
         ]
@@ -779,7 +779,7 @@ class MICROMAXCollect(DataCollect):
         if not self.in_interleave:
             gevent.spawn(self._post_collection_store_image)
 
-        if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
+        if exp_type == "Mesh" or self.hve:
             self.detector_hwobj.disable_stream()
         if self.char:
             self.char = False
