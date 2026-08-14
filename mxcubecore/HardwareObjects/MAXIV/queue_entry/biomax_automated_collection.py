@@ -16,7 +16,7 @@ from mxcubecore.model.common import (
 )
 from mxcubecore.model.queue_model_objects import (
     DataCollection,
-    XrayCentering,
+    XrayCentring,
 )
 from mxcubecore.queue_entry.base_queue_entry import (
     BaseQueueEntry,
@@ -85,7 +85,7 @@ class BiomaxAutomatedCollectionQueueEntry(DataCollectionQueueEntry):
         if data_collection:
             xr_qe = BiomaxXrayCenteringQueueEntry(data_model=data_collection)
             try:
-                xr_node = XrayCentering()
+                xr_node = XrayCentring()
                 parent = self.get_data_model().get_parent()
                 xr_node._parent = parent  # noqa: SLF001
 

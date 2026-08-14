@@ -370,7 +370,7 @@ class Hve2DScanUserCollectionParameters(BaseModel):
 
     class Config:
         @staticmethod
-        def schema_extra(schema: dict[str, Any]) -> None:
+        def json_schema_extra(schema: dict[str, Any]) -> None:
             properties = schema["properties"]
             schema["allOf"] = [
                 {
