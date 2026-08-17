@@ -616,8 +616,12 @@ class BIOMAXCollect(DataCollect):
 
     def emit_collection_finished(self):
         exp_type = self.current_dc_parameters["experiment_type"]
-        overlap = self.current_dc_parameters["oscillation_sequence"][0].get("overlap", 0)
-        num_images = self.current_dc_parameters["oscillation_sequence"][0]["number_of_images"]
+        overlap = self.current_dc_parameters["oscillation_sequence"][0].get(
+            "overlap", 0
+        )
+        num_images = self.current_dc_parameters["oscillation_sequence"][0][
+            "number_of_images"
+        ]
         if (
             exp_type in ("OSC", "Helical")
             and overlap == 0

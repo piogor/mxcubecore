@@ -248,7 +248,6 @@ class MAXIVMD3(AbstractDiffractometer):
                 self.sample_is_loaded_changed,
             )
 
-
         # TODO(piogor, #378): refactor and move  # noqa: FIX002
         # FastShutterIsOpen to
         # configuration and load as the other channels above

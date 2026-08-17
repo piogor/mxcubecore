@@ -416,7 +416,9 @@ class MAXIVSampleView(SampleView):
         HWR.beamline.diffractometer.back_light.set_value(1)
 
         # Set zoom level 1:
-        HWR.beamline.diffractometer.zoom_motor_hwobj.set_value(HWR.beamline.diffractometer.zoom_motor_hwobj.VALUES.LEVEL1)
+        HWR.beamline.diffractometer.zoom_motor_hwobj.set_value(
+            HWR.beamline.diffractometer.zoom_motor_hwobj.VALUES.LEVEL1
+        )
         self.wait_device_ready(20)
 
         self.omega_reference_motor.set_value(self.omega_reference_par["position"])
