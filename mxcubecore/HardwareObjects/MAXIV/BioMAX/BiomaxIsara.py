@@ -222,10 +222,10 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             # between the `back` and `dry` operations
             # during which the sample changer claims to be "ready".
             HWR_LOGGER.debug("[SC][MD3 not safe] Waiting for device 180s... [1/2]")
-            self._wait_device_ready(180)
+            self.wait_device_ready(180)
             gevent.sleep(1)
             HWR_LOGGER.debug("[SC][MD3 not safe] Waiting for device 180s... [2/2]")
-            self._wait_device_ready(180)
+            self.wait_device_ready(180)
             HWR_LOGGER.debug("[SC][MD3 not safe] Waited for device 180s twice.")
         except Exception as exception:
             HWR_LOGGER.warning(
@@ -257,7 +257,7 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                 gevent.sleep(0.5)
                 HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Recover'...")
                 self.execute_command("Recover")  # aka `safe` on Isara1
-                self._wait_device_ready(20)
+                self.wait_device_ready(20)
             else:
                 error_message = (
                     f"Cannot load/unload sample and get error {exception!s}"

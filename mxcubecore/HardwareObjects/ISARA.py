@@ -351,7 +351,7 @@ class ISARA(SampleChanger):
         # issue power on command
         self.execute_command("PowerOn")
         # wait until power is switched on
-        self._wait_device_ready(POWER_ON_TIMEOUT)
+        self.wait_device_ready(POWER_ON_TIMEOUT)
 
     def _maybe_move_to_soak(self):
         """Move to 'SOAK' position, if needed."""
@@ -364,7 +364,7 @@ class ISARA(SampleChanger):
         # wait for 'Soak' command to take effect
         time.sleep(2.5)
         # wait until robot reashes soak position
-        self._wait_device_ready(GOTO_SOAK_TIMEOUT)
+        self.wait_device_ready(GOTO_SOAK_TIMEOUT)
 
     def _prepare_sample_operation(self):
         """Prepare robot arm to mount or unmount a sample.
@@ -573,7 +573,7 @@ class ISARA(SampleChanger):
         :returns: None
         :rtype: None
         """
-        self._wait_device_ready(3.0)
+        self.wait_device_ready(3.0)
         try:
             task_id = method(*args)
         except Exception:
@@ -747,13 +747,6 @@ class ISARA(SampleChanger):
         return state in (SampleChangerState.Ready, SampleChangerState.Charging)
 
     def wait_device_ready(self, timeout: int | None = None) -> None:
-        """This method exposes _wait_device_ready with a public name."""
-        # TODO@DominikaTrojanowska: Kanban task #420 Remove this method  # noqa: FIX002
-        # and rename_wait_device_ready to wait_device_ready when all code is updated
-        # to use the public interface.
-        self._wait_device_ready(timeout)
-
-    def _wait_device_ready(self, timeout: int | None = None) -> None:
         """Waits until the sample changer HO is ready.
 
         Raises:

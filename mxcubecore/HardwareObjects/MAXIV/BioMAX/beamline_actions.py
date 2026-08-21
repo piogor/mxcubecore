@@ -151,17 +151,17 @@ class PrepareOpenHutch:
                 HWR.beamline.sample_changer_maintenance.send_command("dry")
 
             gevent.sleep(1)
-            HWR.beamline.sample_changer._wait_device_ready(300)
+            HWR.beamline.sample_changer.wait_device_ready(300)
             if HWR.beamline.sample_changer.is_powered():
                 hwr_log.info("Sample Changer to HOME")
                 HWR.beamline.sample_changer_maintenance.send_command("home")
                 gevent.sleep(1)
-                HWR.beamline.sample_changer._wait_device_ready(30)
+                HWR.beamline.sample_changer.wait_device_ready(30)
 
                 hwr_log.info("Sample Changer CLOSING LID")
                 HWR.beamline.sample_changer_maintenance.send_command("closeLid")
                 gevent.sleep(1)
-                HWR.beamline.sample_changer._wait_device_ready(10)
+                HWR.beamline.sample_changer.wait_device_ready(10)
         else:
             hwr_log.warning("Cannot prepare Hutch openning, Isara is powered off")
 
@@ -329,10 +329,10 @@ class EmptyMount:
                 gevent.sleep(1)
                 hwr_log.debug("[SC][Empty mount] Running command 'Reset'...")
                 HWR.beamline.sample_changer.execute_command("Reset")
-                HWR.beamline.sample_changer._wait_device_ready(10)
+                HWR.beamline.sample_changer.wait_device_ready(10)
                 HWR.beamline.diffractometer.last_centered_position = None
             else:
-                if HWR.beamline.sample_changer._wait_device_ready(1):
+                if HWR.beamline.sample_changer.wait_device_ready(1):
                     hwr_log.error(
                         "[SC][Empty mount] Doesn't look like an empty mount,"
                         " please contact support!"
