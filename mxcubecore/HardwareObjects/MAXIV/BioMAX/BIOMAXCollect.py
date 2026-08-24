@@ -1149,9 +1149,23 @@ class BIOMAXCollect(DataCollect):
                 self.current_dc_parameters["motors"].get("kappa_phi", 0)
             )
             # FIXME: Rename actualCentringPosition to actualCenteringPosition in the LIMS database, then remove this line
-            if self.current_dc_parameters["actualCentringPosition"]:
+            if "actualCentringPosition" in self.current_dc_parameters:
+                hwr_log.info(
+                    "actualCentringPosition is set to %s, renaming to actualCenteringPosition",
+                    self.current_dc_parameters["actualCentringPosition"],
+                )
                 self.current_dc_parameters["actualCenteringPosition"] = (
                     self.current_dc_parameters.pop("actualCentringPosition")
+                )
+            else:
+                hwr_log.info("actualCentringPosition is not set, but needs to be")
+                self.current_dc_parameters["actualCentringPosition"] = (
+                    self.current_dc_parameters.get("actualCentringPosition", "")
+                )
+            if "actualCenteringPosition" in self.current_dc_parameters:
+                hwr_log.info(
+                    "actualCenteringPosition is set to %s",
+                    self.current_dc_parameters["actualCenteringPosition"],
                 )
             try:
                 self.lims_client_hwobj.update_data_collection(
