@@ -574,7 +574,7 @@ class AbstractMultiCollect(object):
             if pos is not None and motor is not None:
                 positions_str += motor + ("=%f" % pos) + " "
 
-        data_collect_parameters["actualCentringPosition"] = positions_str.strip()
+        data_collect_parameters["actualCenteringPosition"] = positions_str.strip()
 
         self.move_motors(motors_to_move_before_collect)
         HWR.beamline.diffractometer.save_centring_positions()
@@ -663,7 +663,7 @@ class AbstractMultiCollect(object):
                 logging.getLogger("user_level_log").info(
                     "Updating data collection in LIMS"
                 )
-                if "kappa" in data_collect_parameters["actualCentringPosition"]:
+                if "kappa" in data_collect_parameters["actualCenteringPosition"]:
                     data_collect_parameters["oscillation_sequence"][0]["kappaStart"] = (
                         current_diffractometer_position["kappa"]
                     )

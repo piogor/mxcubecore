@@ -366,8 +366,8 @@ class ISPyBValueFactory:
             pass
 
         try:
-            data_collection.actualCentringPosition = mx_collect_dict[
-                "actualCentringPosition"
+            data_collection.actualCenteringPosition = mx_collect_dict[
+                "actualCenteringPosition"
             ]
         except KeyError:
             pass
