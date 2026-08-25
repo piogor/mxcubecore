@@ -1148,15 +1148,6 @@ class BIOMAXCollect(DataCollect):
             self.current_dc_parameters["oscillation_sequence"][0]["phiStart"] = (
                 self.current_dc_parameters["motors"].get("kappa_phi", 0)
             )
-            # FIXME: Rename actualCentringPosition to actualCenteringPosition in the LIMS database, then remove this line
-            if (
-                "actualCentringPosition" not in self.current_dc_parameters
-                and "actualCenteringPosition" in self.current_dc_parameters
-            ):
-                self.current_dc_parameters["actualCentringPosition"] = (
-                    self.current_dc_parameters.pop("actualCenteringPosition")
-                )
-
             try:
                 self.lims_client_hwobj.update_data_collection(
                     self.current_dc_parameters
