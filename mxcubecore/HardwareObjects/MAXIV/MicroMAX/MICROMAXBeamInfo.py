@@ -7,6 +7,7 @@ from enum import (
 from mxcubecore import HardwareRepository as HWR
 from mxcubecore.HardwareObjects import BeamInfo
 from mxcubecore.HardwareObjects.abstract import AbstractBeam
+from mxcubecore.model.nstate import NStateOption
 from mxcubecore.utils.units import um_to_mm
 
 """
@@ -106,7 +107,7 @@ class MICROMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
 
     def get_value(self):
         current_aperture_um = self._aperture.get_diameter_size()
-        beam_size_mm = um_to_mm(current_aperture_um)
+        beam_size_mm = um_to_mm(float(current_aperture_um))
 
         return beam_size_mm, beam_size_mm, BeamShape.ELIPTICAL, str(current_aperture_um)
 
@@ -123,6 +124,24 @@ class MICROMAXBeamInfo(BeamInfo.BeamInfo, AbstractBeam.AbstractBeam):
         """
         aperture_list = self._aperture.get_diameter_size_list()
         return {"type": ["enum"], "values": aperture_list}
+
+    def get_available_size_options(self) -> list[NStateOption]:
+        """Get the available beam definers as option records.
+
+        Default implementation wraps ``get_available_size()["values"]``
+        into plain selectable options. Override per facility to flag
+        entries against current beamline state (e.g. focus-incompatible
+        aperture sizes) by setting ``severity`` and ``reason`` on
+        individual entries.
+
+        Returns:
+            One option per available beam size definition, in list
+            order.
+        """
+        return [
+            NStateOption(value=str(value))
+            for value in self.get_available_size()["values"]
+        ]
 
     def get_state(self):
         """Getter for state attribute
