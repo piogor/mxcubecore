@@ -127,6 +127,18 @@ class MAXIVSampleView(SampleView):
     ## ------------------------------- ##
     ##      SAMPLE CENTRING            ##
     ## ------------------------------- ##
+
+    # Override the nonsense that is currently in upstream
+    # SampleView.py, where they for some reason copy the shapes array,
+    # which causes a race condition where occasionally the shapes
+    # array is replaced with an old copy of itself
+    # !FIXME: Work this out with upstream
+    def _update_shape_positions(self, *args, **kwargs):
+        for shape in tuple(self._shapes.values()):
+            shape.update_position(self.motor_positions_to_screen)
+
+        self.emit("shapesChanged")
+
     @property
     def centring_hwobj(self):
         if self._centring is None:
