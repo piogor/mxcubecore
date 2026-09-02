@@ -90,9 +90,7 @@ def prepare(centring_motors_dict):
             motors_to_move[m.motor] = m.reference_position
     move_motors(motors_to_move)
 
-    SAVED_INITIAL_POSITIONS = {
-        m.motor: m.motor.get_value() for m in centring_motors_dict.values()
-    }
+    SAVED_INITIAL_POSITIONS = {m: m.get_value() for m in centring_motors_dict.values()}
 
     omega = centring_motors_dict["omega"]
     phiy = centring_motors_dict["phiy"]
@@ -443,8 +441,8 @@ def center(
     pixelsPerMm_Ver,
     beam_xc,
     beam_yc,
-    chi_angle,
-    n_points,
+    chi_angle=0.0,
+    n_points=3,
     omega_range=180,
 ):
     global USER_CLICKED_EVENT
@@ -478,7 +476,7 @@ def center(
         raise RuntimeError("Exception while centring")
 
     logging.getLogger("HWR").debug("X=%s,Y=%s", X, Y)
-    chi_angle = math.radians(chi_angle)
+    chi_angle = math.radians(chi_angle) if chi_angle else 0.0
     chiRotMatrix = numpy.matrix(
         [
             [math.cos(chi_angle), -math.sin(chi_angle)],
