@@ -732,6 +732,7 @@ class QtGraphicsManager(AbstractSampleView):
         :type centring_status: dict
         :emits: centringInProgress
         """
+        print(f"create_centring_point, state: {centring_state}, status: {centring_status}")
         p_dict = {}
 
         if "motors" in centring_status and "extraMotors" in centring_status:
