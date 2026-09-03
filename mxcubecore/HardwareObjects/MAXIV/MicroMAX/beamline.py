@@ -14,43 +14,37 @@ Example of `sample_delivery` configuration::
     sample_delivery: osc
 """
 
-from enum import Enum
-
 import mxcubecore.HardwareObjects.MAXIV.beamline
-
-
-class SampleDelivery(Enum):
-    osc = "osc"
-    hve = "hve"
-    fixed_target = "fixed-target"
+from mxcubecore import HardwareRepository as HWR
 
 
 class Beamline(mxcubecore.HardwareObjects.MAXIV.beamline.Beamline):
     def __init__(self, name):
         super().__init__(name)
 
-        # 'cached' Sample Delivery mode config
-        self._sample_delivery = None
-
-    #
-    # 'sample_delivery' config
-    #
-
-    def _load_sample_delivery(self):
-        val = self.get_property("sample_delivery", SampleDelivery.osc.value)
-        self._sample_delivery = SampleDelivery(val)
-
     @property
-    def sample_delivery(self) -> SampleDelivery:
-        if self._sample_delivery is None:
-            self._load_sample_delivery()
-
-        return self._sample_delivery
+    def sample_delivery(self) -> str:
+        return HWR.beamline.tango_keystore.get("sample_delivery")
 
     def is_hve_sample_delivery(self) -> bool:
         """True when HVE sample delivery mode is configured."""
-        return self.sample_delivery == SampleDelivery.hve
+        sample_delivery = HWR.beamline.tango_keystore.get("sample_delivery")
+        return sample_delivery.lower() == "hve"
 
+    # TODO@JieNan: # noqa: TD003,FIX002
+    # to be removed, not used and should not be be used
+    # we should add isara, manual mode instead
     def is_fixed_target_sample_delivery(self) -> bool:
         """True when Fixed-target sample delivery mode is configured."""
-        return self.sample_delivery == SampleDelivery.fixed_target
+        sample_delivery = HWR.beamline.tango_keystore.get("sample_delivery")
+        return sample_delivery.lower() == "fixed-target"
+
+    def is_sample_changer_used(self) -> bool:
+        """True when Sample Changer is used"""
+        sample_delivery = HWR.beamline.tango_keystore.get("sample_delivery")
+        return sample_delivery.lower() == "isara"
+
+    def is_manual_mount(self) -> bool:
+        """True when Sample is mounted manually"""
+        sample_delivery = HWR.beamline.tango_keystore.get("sample_delivery")
+        return sample_delivery.lower() == "manual"

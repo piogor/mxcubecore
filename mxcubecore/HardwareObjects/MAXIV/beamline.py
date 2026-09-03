@@ -19,6 +19,10 @@ Example of ``emulate`` configuration::
 """
 
 import mxcubecore.HardwareObjects.Beamline
+from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.MAXIV.EmailSender import EmailSender
+from mxcubecore.HardwareObjects.MAXIV.NotificationSender import NotificationSender
+from mxcubecore.HardwareObjects.MAXIV.TangoKeystore import TangoKeystore
 
 
 class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
@@ -26,3 +30,25 @@ class Beamline(mxcubecore.HardwareObjects.Beamline.Beamline):
         """Check if some feature should be emulated."""
         emulate = self.get_property("emulate", {})
         return emulate.get(feature, False)
+
+    def is_hve_sample_delivery(self) -> bool:
+        """True when HVE sample delivery mode is configured."""
+        sample_delivery = HWR.beamline.tango_keystore.get("sample_delivery")
+        return sample_delivery.lower() == "hve"
+
+    def is_fixed_target_sample_delivery(self) -> bool:
+        """True when Fixed-target sample delivery mode is configured."""
+        sample_delivery = HWR.beamline.tango_keystore.get("sample_delivery")
+        return sample_delivery.lower() == "fixed-target"
+
+    @property
+    def tango_keystore(self) -> TangoKeystore | None:
+        return self.get_object_by_role("tango_keystore")
+
+    @property
+    def email_sender(self) -> EmailSender | None:
+        return self.get_object_by_role("email_sender")
+
+    @property
+    def notification_sender(self) -> NotificationSender | None:
+        return self.get_object_by_role("notification_sender")

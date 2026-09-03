@@ -5,211 +5,548 @@
 #  This file is part of MXCuBE software.
 #
 #  MXCuBE is free software: you can redistribute it and/or modify
-#  it under the terms of the GNU Lesser General Public License as published by
+#  it under the terms of the GNU General Public License as published by
 #  the Free Software Foundation, either version 3 of the License, or
 #  (at your option) any later version.
 #
 #  MXCuBE is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-#  GNU Lesser General Public License for more details.
+#  GNU General Public License for more details.
 #
-#  You should have received a copy of the GNU Lesser General Public License
-#  along with MXCuBE. If not, see <http://www.gnu.org/licenses/>.
+#  You should have received a copy of the GNU General Public License
+#  along with MXCuBE.  If not, see <http://www.gnu.org/licenses/>.
 
 import logging
 import os
-import time
+import subprocess
+from string import Template
 
 import gevent
-from XSDataAutoprocv1_0 import XSDataAutoprocInput
-from XSDataCommon import (
-    XSDataDouble,
-    XSDataFile,
-    XSDataInteger,
-    XSDataString,
-)
 
+from mxcubecore import HardwareRepository as HWR
 from mxcubecore.BaseHardwareObjects import HardwareObject
+from mxcubecore.HardwareObjects.MAXIV import space_groups
+
+#
+# default path to EDNA2 processing script,
+# if not specified in the hardware objects config
+#
+DEFAULT_EDNA2_SUBMIT_PATH = "/mxn/groups/sw/mxsw/mxcube_scripts/edna2proc_submit.sh"
 
 
 class MAXIVAutoProcessing(HardwareObject):
     def __init__(self, name):
         HardwareObject.__init__(self, name)
         self.result = None
-        self.autoproc_programs = None
-        self.current_autoproc_procedure = None
+        self.generate_xds_inp_user_path = None  # generate XDS.INP for user
+        self.generate_xds_inp_proc_path = (
+            None  # generate XDS.INP for processing pipelines
+        )
+        self.gen_autoproc_path = None
+        self.crystfel_geom_temp = {}
+        self.crystfel_index_temp = None
+
+    def read_file(self, file_path):
+        try:
+            with open(file_path, "r") as fin:
+                content = fin.read()
+        except Exception as ex:
+            self.log.warning(
+                "[AutoProcessing] error with reading file {}, {}".format(file_path, ex)
+            )
+            return None
+        return content
 
     def init(self):
-        self.autoproc_programs = self["programs"]
+        self.generate_xds_inp_user_path = self.get_property(
+            "generate_xds_inp_user_path", self.generate_xds_inp_user_path
+        )
+        self.generate_xds_inp_proc_path = self.get_property(
+            "generate_xds_inp_proc_path", self.generate_xds_inp_proc_path
+        )
+        self.gen_autoproc_path = self.get_property(
+            "generate_autoproc_path", self.gen_autoproc_path
+        )
+        self.log = logging.getLogger("HWR")
+        self.host = "clu0-fe-2"
+        self.gen_thumbnail_script = self.get_property(
+            "gen_thumbnail_script",
+            "/mxn/groups/sw/mxsw/mxcube_scripts/generate_thumbnail",
+        )
+        jf_temp_path = self.get_property(
+            "crystfel_geom_temp_path_jungfrau",
+            "/mxn/groups/sw/mxsw/mxcube_scripts/template/jungfrau_geom_temp.txt",
+        )
+        self.crystfel_geom_temp["jungfrau"] = Template(self.read_file(jf_temp_path))
 
-    def execute_autoprocessing(self, process_event, params_dict, frame_number):
-        if self.autoproc_programs is not None:
-            self.current_autoproc_procedure = gevent.spawn(
-                self.autoproc_procedure, process_event, params_dict, frame_number
-            )
-            self.current_autoproc_procedure.link(self.autoproc_done)
+        eiger_temp_path = self.get_property(
+            "crystfel_geom_temp_path_eiger",
+            "/mxn/groups/sw/mxsw/mxcube_scripts/template/eiger_geom_temp.txt",
+        )
+        self.crystfel_geom_temp["eiger"] = Template(self.read_file(eiger_temp_path))
+        index_temp_path = self.get_property(
+            "crystfel_index_temp_path",
+            "/mxn/groups/sw/mxsw/mxcube_scripts/template/crystfel_index_temp.txt",
+        )
+        self.crystfel_index_temp = Template(self.read_file(index_temp_path))
 
-    def autoproc_procedure(self, process_event, params_dict, frame_number):
-        """Main autoprocessing procedure.
+        self.edna2_submit_path = self.get_property(
+            "edna2_submit_path", DEFAULT_EDNA2_SUBMIT_PATH
+        )
 
-        At the beginning correct event (defined in xml) is found. If the event
-        is executable then accordingly to the event type (image, after) then
-        the sequence is executed:
+    def _run_ssh_command(self, args: list[str]):
+        """Run a command over ssh on HPC front-end host.
 
-        Implemented tasks:
-           - after : Main autoprocessing procedure
-                     1. Input file is generated with create_autoproc_input
-                        Input file has name "edna-autoproc-input-%Y%m%d_%H%M%S.xml".
-                     2. Then it waits for XDS.INP directory and if it exists then
-                        creates input file
-                     3. edna_autoprocessing.sh script is executed with parameters:
-                        - arg1 : generated xml file
-                        - arg2 : process dir
-                     4. script executes EDNA EDPluginControlAutoprocv1_0
-           - image : Thumbnail generation for first and last image
-                     1. No input file is generated
-                     2. edna_thumbnails.sh script is executed with parameters:
-                        - arg1 : image base dir (place where thumb will be generated)
-                        - arg2 : file name
+        Runs specified command using ssh on the ``self.host`` host.
+        Args:
+            args: arguments of ``sh`` command to run.
         """
-        for program in self.autoproc_programs:
-            if process_event == program.get_property("event"):
-                module = program.get_property("module").lower()
-                print(2 * "###########")
-                if process_event == "after":
-                    input_filename, will_execute = self.create_autoproc_input(
-                        process_event, params_dict
-                    )
-                    path = params_dict["auto_dir"]
-                    mode = "after"
-                    dataCollectionId = str(params_dict["collection_id"])
-                    residues = 200
-                    anomalous = False
-                    cell = "0,0,0,0,0,0"
-                    print("Module: ", module, ">> Will execute: ", will_execute)
-                    print("input_filename   ", input_filename)
-                    try:
-                        if module == "ednaproc" and will_execute:
-                            from ednaProcLauncher import EdnaProcLauncher
+        command = ["ssh", "-o", "StrictHostKeyChecking=no", self.host, "sh", *args]
+        self.log.info("Running command: {}".format(" ".join(command)))
+        try:
+            subprocess.run(command, check=True, capture_output=True)  # noqa: S603
+        except subprocess.CalledProcessError:
+            self.log.exception("Executing command %s failed", command)
 
-                            mod = EdnaProcLauncher(
-                                path,
-                                mode,
-                                dataCollectionId,
-                                residues,
-                                anomalous,
-                                cell,
-                                None,
-                            )
+    def execute_autoprocessing(
+        self, process_event: str, params_dict: dict, beamline: str
+    ):
+        """Execute autoprocessing.
 
-                        elif module == "autoproc" and will_execute:
-                            from autoProcLauncher import AutoProcLauncher
+        Prepare parameters and run edna2 processing script.
 
-                            mod = AutoProcLauncher(
-                                path,
-                                mode,
-                                dataCollectionId,
-                                residues,
-                                anomalous,
-                                cell,
-                                None,
-                            )
-                    except Exception as ex:
-                        print(ex)
-                if process_event == "image":
-                    if (
-                        frame_number == 1
-                        or frame_number
-                        == params_dict["oscillation_sequence"][0]["number_of_images"]
-                    ):
-                        endOfLineToExecute = " %s %s/%s_%d_%05d.cbf" % (
-                            params_dict["fileinfo"]["directory"],
-                            params_dict["fileinfo"]["directory"],
-                            params_dict["fileinfo"]["prefix"],
-                            params_dict["fileinfo"]["run_number"],
-                            frame_number,
-                        )
-                        will_execute = True
-                if will_execute:
-                    self.log.info("[MAXIVAutoprocessing] Executing module: %s" % module)
-                    try:
-                        mod.parse_and_execute()
-                    except Exception as ex:
-                        self.log.error(
-                            "[MAXIVAutoprocessing] Module %s  execution error." % module
-                        )
-                        print(module, ex)
+        Args:
+            process_event: description of process phase usually equal to "after".
+            params_dict: Dictionary contaning processing information, such as:
+              auto_dir, file information, sample information, data collection id,
+              information about oscilation sequence.
+            beamline: beamline name, equal to ``biomax`` or ``micromax``.
+        """
+        if HWR.beamline.tango_keystore.get("ispyb_version") == "test":
+            self.log.warning(">>> ISPYB TEST version DETECTED, skipping pipelines")
+            return
+        auto_dir = params_dict["auto_dir"]
+        xds_dir = params_dict["xds_dir"]
+        data_path = params_dict["fileinfo"]["filename"]
 
-    def autoproc_done(self, current_autoproc):
-        self.current_autoproc_procedure = None
-        self.log.info("Autoprocessing executed.")
+        cmd = ""
+        if self.generate_xds_inp_user_path is None:
+            self.log.warning(
+                "[AutoProcessing] the script generate_xds_inp for user is missing!!"
+            )
+        else:
+            cmd += (
+                f"cd {xds_dir}\n"
+                f"{self.generate_xds_inp_user_path} {data_path}\n"
+                "chmod 660 XDS.INP\n"
+            )
+        if self.generate_xds_inp_proc_path is None:
+            msg = "[AutoProcessing] the script generate_xds_inp for autoprocessing is missing!!"
+            self.log.error(msg)
+            raise Exception(msg)
+        cmd += f"cd {auto_dir}\n{self.generate_xds_inp_proc_path} {data_path}\n"
 
-    def create_autoproc_input(self, event, params):
-        WAIT_XDS_TIMEOUT = 20
-        WAIT_XDS_RESOLUTION = 1
+        if process_event == "after":
+            dataCollectionId = str(params_dict["collection_id"])
+            numImages = params_dict["oscillation_sequence"][0]["number_of_images"]
+            startImageNum = params_dict["oscillation_sequence"][0]["start_image_number"]
+            sample_info = params_dict.get("sample_reference")
+            residues = 200
 
-        file_name_timestamp = time.strftime("%Y%m%d_%H%M%S")
+            cell = sample_info.get("cell", "0,0,0,0,0,0")
+            # Some processing software doesn't work if only the angles are provided
+            if cell == ",,,,," or cell[0:5] == "0,0,0":
+                cell = "0,0,0,0,0,0"
 
-        autoproc_path = params.get("xds_dir")
-        autoproc_xds_filename = os.path.join(autoproc_path, "XDS.INP")
-        autoproc_input_filename = os.path.join(
-            autoproc_path, "edna-autoproc-input-%s" % file_name_timestamp
-        )
-        autoproc_output_file_name = os.path.join(
-            autoproc_path, "edna-autoproc-results-%s" % file_name_timestamp
-        )
-
-        autoproc_input = XSDataAutoprocInput()
-        autoproc_xds_file = XSDataFile()
-        autoproc_xds_file.setPath(XSDataString(autoproc_xds_filename))
-        autoproc_input.setInput_file(autoproc_xds_file)
-
-        autoproc_output_file = XSDataFile()
-        autoproc_output_file.setPath(XSDataString(autoproc_output_file_name))
-        autoproc_input.setOutput_file(autoproc_output_file)
-
-        autoproc_input.setData_collection_id(XSDataInteger(params.get("collection_id")))
-        residues_num = float(params.get("residues", 0))
-        if residues_num != 0:
-            autoproc_input.setNres(XSDataDouble(residues_num))
-        space_group = params.get("sample_reference").get("spacegroup", "")
-        if not isinstance(space_group, int) and len(space_group) > 0:
-            autoproc_input.setSpacegroup(XSDataString(space_group))
-        unit_cell = params.get("sample_reference").get("cell", "")
-        if len(unit_cell) > 0:
-            autoproc_input.setUnit_cell(XSDataString(unit_cell))
-
-        autoproc_input.setCc_half_cutoff(XSDataDouble(18.0))
-
-        # Maybe we have to check if directory is there. Maybe create dir with mxcube
-        xds_appeared = False
-        wait_xds_start = time.time()
-        logging.info(
-            "MAXIVAutoprocessing: Waiting for XDS.INP file: %s" % autoproc_xds_filename
-        )
-        while not xds_appeared and time.time() - wait_xds_start < WAIT_XDS_TIMEOUT:
-            if (
-                os.path.exists(autoproc_xds_filename)
-                and os.stat(autoproc_xds_filename).st_size > 0
-            ):
-                xds_appeared = True
-                logging.debug(
-                    "MAXIVAutoprocessing: XDS.INP file is there, size={0}".format(
-                        os.stat(autoproc_xds_filename).st_size
-                    )
-                )
+            space_group = sample_info.get("spacegroup", 0)
+            # Undefined and None can be read from ISPyB
+            if space_group in [None, "", "None", "Undefined", "Notset"]:
+                space_group = 0
             else:
-                os.system("ls %s> /dev/null" % (os.path.dirname(autoproc_path)))
-                gevent.sleep(WAIT_XDS_RESOLUTION)
-        if not xds_appeared:
-            logging.error(
-                "MAXIVAutoprocessing: XDS.INP file ({0}) failed to appear after {1} seconds".format(
-                    autoproc_xds_filename, WAIT_XDS_TIMEOUT
+                space_group = str(space_group).replace(" ", "")
+
+            cmd += " ".join(
+                [
+                    f"{self.edna2_submit_path}",
+                    f"--beamline={beamline}",
+                    f"--input={auto_dir}",
+                    f"--datacollectionid={dataCollectionId}",
+                    f"--masterfile={data_path}",
+                    f"--startImageNumber={startImageNum}",
+                    f"--numImages={numImages}",
+                    f"--residues={residues}",
+                    f"--unitcell={cell}",
+                    f"--spacegroup={space_group}\n",
+                ]
+            )
+
+        script_dir = os.path.join(auto_dir, "autoproc_gen.sh")
+        with open(script_dir, "w+") as script:
+            script.write(cmd)
+        self._run_ssh_command([script_dir])
+
+    def start_dataset_repacking(self, dc_params, bl_config):
+        """
+        Trigger the dataset repacking script for interleaved
+        """
+        script = "python /mxn/groups/biomax/wmxsoft/scripts_mxcube/Repack.py"
+        dir = dc_params["fileinfo"]["directory"]
+        self.log.info(
+            "Spawning interleaved dataset repacking in directory {}".format(dir)
+        )
+        self.bl_config = bl_config
+        cmd = "echo 'source /mxn/groups/sw/mxsw/env_setup/h5handler_env.sh; {} -d {}' | ssh {}".format(
+            script, dir, self.host
+        )
+        self.log.info("The cmd going to run is {}".format(cmd))
+        os.system(cmd)
+
+        self.log.info("Spawning dataset repacking waiting ")
+        gevent.spawn(self.wait_for_dataset_repacking, dc_params)
+
+    def master_files_on_disk(self, dc_params):
+        """
+        Return the new expected master filenames after the repacking operation
+        """
+        dir = dc_params["fileinfo"]["directory"]
+        prefix = dc_params["fileinfo"]["prefix"]
+        # remove _wedge-x from the prefix
+        prefix = prefix.split("_wedge")[0]
+        self.master_files = []
+        inc_nr = 1
+        # removing duplicates
+        self.interleaved_energies = list(dict.fromkeys(self.interleaved_energies))
+
+        for energy in self.interleaved_energies:
+            self.master_files.append(
+                os.path.join(
+                    dir,
+                    "repack-{}-{}-{}_master.h5".format(
+                        prefix, inc_nr, int(energy * 1000)
+                    ),
                 )
             )
-            return None, False
+            inc_nr += 1
 
-        autoproc_input.exportToFile(autoproc_input_filename)
+        return self.master_files
 
-        return autoproc_input_filename, True
+    def prepare_xds_filenames(self, dc_params):
+        """
+        Create XDS adn AUTO directories
+        """
+        i = 1
+
+        while True:
+            xds_input_file_dirname = "xds_%s_%s_%d" % (
+                dc_params["fileinfo"]["prefix"],
+                dc_params["fileinfo"]["run_number"],
+                i,
+            )
+            xds_directory = os.path.join(
+                dc_params["fileinfo"]["directory"], "process", xds_input_file_dirname
+            )
+            if not os.path.exists(xds_directory):
+                break
+            i += 1
+
+        auto_directory = os.path.join(
+            dc_params["fileinfo"]["process_directory"], xds_input_file_dirname
+        )
+
+        self.log.info(
+            "[COLLECT] Processing input file directories: XDS: %s, AUTO: %s"
+            % (xds_directory, auto_directory)
+        )
+
+        for directory in [xds_directory, auto_directory]:
+            try:
+                os.makedirs(directory, exist_ok=True)
+            except OSError as e:
+                msg = "[COLLECT] Could not create input file directory {}. Error was {}".format(
+                    directory, e
+                )
+                self.log.error(msg)
+                return
+
+        return xds_directory, auto_directory
+
+    def repack_collection_dictionaries(self):
+        """
+        Recreate new datacollection parameters dir for the new repacked files
+        Send info to ispyb which will create a new entry
+        Triger autoprocessing
+        """
+        collections = {}
+        for energy in self.interleaved_energies:
+            collections[energy] = []
+
+        for col in self.collection_dictionaries:
+            collections[col.get("energy")].append(col)
+        # so we now have the wedges split by their energy
+
+        index = 0
+        for energy in self.interleaved_energies:
+            my_cols = collections[energy]
+            num_images = 0
+            for col in my_cols:
+                num_images += col["oscillation_sequence"][0].get("number_of_images")
+            # TODO: change and create xds directories
+            _col = my_cols[0]
+            _col["oscillation_sequence"][0]["number_of_images"] = num_images
+            filename = self.master_files[index]
+            _col["fileinfo"]["filename"] = filename
+            _col["fileinfo"]["prefix"] = filename.split("/")[-1].split("_master.h5")[0]
+            _col["fileinfo"]["template"] = _col["fileinfo"]["prefix"] + "_%06d.h5"
+
+            index += 1
+            _col.pop("group_id", None)
+            _col.pop("collection_id", None)
+
+            xds_directory, auto_directory = self.prepare_xds_filenames(_col)
+
+            if xds_directory:
+                _col["xds_dir"] = xds_directory
+            if auto_directory:
+                _col["auto_dir"] = auto_directory
+
+            if self.lims_client_hwobj:
+                try:
+                    self.log.info("Sending to ISPYB repacked info: {}".format(_col))
+                    group_id = self.lims_client_hwobj.store_data_collection_group(_col)
+                    _col["group_id"] = group_id
+                    (
+                        collection_id,
+                        detector_id,
+                    ) = self.lims_client_hwobj.store_data_collection(
+                        _col, self.bl_config
+                    )
+                    _col["collection_id"] = collection_id
+                    self.log.info(
+                        "Sending to ISPYB repacked info, collection ID: {}".format(
+                            collection_id
+                        )
+                    )
+                    if detector_id:
+                        _col["detector_id"] = detector_id
+                except Exception:
+                    self.log.exception("Could not store data collection in LIMS")
+
+            gevent.spawn(self.post_collection_store_image, _col)
+
+            # and now send to processing
+            self.log.info(
+                "[COLLECT] triggering auto processing, dc_parameters: %s" % _col
+            )
+            self.execute_autoprocessing("after", _col, 0)
+            self.current_dc_parameters = _col
+
+    def wait_for_dataset_repacking(self, dc_params):
+        """
+        Wait for the repacking operation to finish and the new files are on disk
+        """
+        master_files = self.master_files_on_disk(dc_params)
+        self.log.info("Waiting for repacked files: {}".format(master_files))
+
+        with gevent.Timeout(60, Exception("Timeout waiting for repacked dataset")):
+            while not all([os.path.exists(f) for f in master_files]):
+                gevent.sleep(1)
+
+        self.repack_collection_dictionaries()
+
+        self.interleaved_energies = []
+        self.collection_dictionaries = []
+
+    def correct_omega_in_master_file(self, dc_params):
+        """
+        Correct omage value in the master file for characterisation
+        """
+        oscillation_parameters = dc_params["oscillation_sequence"][0]
+        overlap = oscillation_parameters["overlap"]
+        master_filename = dc_params["fileinfo"]["filename"]
+        script = "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega.py"
+        cmd = "echo 'source /mxn/groups/sw/mxsw/env_setup/h5handler_env.sh; python {} -f {} -o {} &' | ssh {} ".format(
+            script, master_filename, -overlap, self.host
+        )
+        self.log.info(" the cmd going to run is %s " % cmd)
+        os.system(cmd)
+
+    def post_collection_store_image(self, collection=None):
+        """
+        Generate and store ijn ispyb thumbnail images
+        """
+        # only store the first image
+        self.log.info("Storing images in lims, frame number: 1")
+        if collection is None:
+            collection = self.current_dc_parameters
+        try:
+            self.store_image_in_lims(1, collection=collection)
+            self.generate_and_copy_thumbnails(collection["fileinfo"]["filename"], 1)
+        except Exception as ex:
+            self.log.error("Could not store images in lims, error was {}".format(ex))
+
+    def gen_file_from_template(self, input_dict, template, output):
+        try:
+            content = template.safe_substitute(input_dict)
+            with open(output, "w") as fout:
+                fout.write(content)
+        except Exception:
+            self.log.exception("[AutoProcessing] Error generating input file")
+        self.log.info("[AutoProcessing] Generate input file {}".format(output))
+
+    def get_space_group_full_name(self, sample_ref) -> str | None:
+        short_name = str(sample_ref.get("spacegroup", "")).replace(" ", "")
+        try:
+            full_name = space_groups.get_full_name(short_name)
+        except ValueError:
+            # Values of "Undefined" and "None" can be obtained from ISPyB
+            self.log.exception("[AutoProcessing] Space group %s not found", short_name)
+        else:
+            self.log.info(
+                "[AutoProcessing] Input spacegroup is space_group %s", full_name
+            )
+            return full_name
+
+    def generate_pdb(self, sample_ref, output_file):
+        cell = sample_ref.get("cell", "0,0,0,0,0,0")
+        if cell == ",,,,," or cell[0:5] == "0,0,0":
+            return None
+
+        spg_full_name = self.get_space_group_full_name(sample_ref)
+        if not spg_full_name:
+            return None
+
+        # write cell parameters in PDB format
+        cell_float = [float(x) for x in cell.split(",")]
+        pdb = "CRYST1"
+        for i in range(3):
+            pdb += "{:>9}".format("{:.3f}".format(cell_float[i]))
+        for i in range(3, 6):
+            pdb += "{:>7}".format("{:.2f}".format(cell_float[i]))
+        pdb += " {:<11}{:>4}".format(spg_full_name, 1)
+        with open(output_file, "w") as f:
+            f.write(pdb)
+        return output_file
+
+    def generate_crystfel_input_files(self, det_config, sample_ref, proc_dir, auto_dir):
+        """Generate input files to run crystfel for SSX experiment."""
+
+        geom_dict = {
+            "energy_ev": det_config["PhotonEnergy"],
+            "det_dist": det_config["DetectorDistance"],
+            "beam_cent_x": det_config["BeamCenterX"],
+            "beam_cent_y": det_config["BeamCenterY"],
+        }
+        geom_file = os.path.join(proc_dir, "detector.geom")
+        self.gen_file_from_template(
+            geom_dict, self.crystfel_geom_temp["jungfrau"], geom_file
+        )
+        pdb_file = os.path.join(proc_dir, "cell.pdb")
+        pdb_file_final = self.generate_pdb(sample_ref, pdb_file)
+        index_file = os.path.join(proc_dir, "indexamajig.sh")
+        if pdb_file_final is not None:
+            index_dict = {
+                "indexing": "--indexing=xgandalf",
+                "cell": " -p {}".format(pdb_file_final),
+            }
+        else:
+            index_dict = {
+                "indexing": "--indexing=mosflm",
+            }
+        self.gen_file_from_template(index_dict, self.crystfel_index_temp, index_file)
+
+    def generate_and_copy_thumbnails(self, data_path, frame_number):
+        if self.gen_thumbnail_script is None:
+            self.log.warning(
+                "[COLLECT] Generating thumbnail script is not defined, no thumbnails will be created!!"
+            )
+            return
+        #  generare diffraction thumbnails
+        image_file_template = self.current_dc_parameters["fileinfo"]["template"]
+        archive_directory = self.current_dc_parameters["fileinfo"]["archive_directory"]
+        thumb_filename = "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+        jpeg_thumbnail_file_template = os.path.join(archive_directory, thumb_filename)
+        jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
+
+        self.log.info(
+            "[COLLECT] Generating thumbnails, output filename: %s"
+            % jpeg_thumbnail_full_path
+        )
+        self.log.info("[COLLECT] Generating thumbnails, data path: %s" % data_path)
+        cmd = "ssh clu0-fe-2 %s  %s  %d  %s &" % (
+            self.gen_thumbnail_script,
+            data_path,
+            frame_number,
+            jpeg_thumbnail_full_path,
+        )
+        self.log.info(cmd)
+        os.system(cmd)
+
+    def store_image_in_lims(
+        self, frame_number, motor_position_id=None, collection=None
+    ):
+        if collection is None:
+            collection = self.current_dc_parameters
+        if self.lims_client_hwobj:
+            file_location = collection["fileinfo"]["directory"]
+            image_file_template = collection["fileinfo"]["template"]
+            filename = image_file_template % frame_number
+            lims_image = {
+                "dataCollectionId": collection["collection_id"],
+                "fileName": filename,
+                "fileLocation": file_location,
+                "imageNumber": frame_number,
+                "measuredIntensity": collection.get(
+                    "flux_end", None
+                ),  # self.get_measured_intensity(),
+                "synchrotronCurrent": "",  # self.get_machine_current(),
+                "machineMessage": "",  # self.get_machine_message(),
+                "temperature": 0,
+            }  # self.get_cryo_temperature()}
+            archive_directory = collection["fileinfo"]["archive_directory"]
+
+            if archive_directory:
+                jpeg_filename = (
+                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                )
+                thumb_filename = (
+                    "%s.thumb.jpeg" % os.path.splitext(image_file_template)[0]
+                )
+                jpeg_file_template = os.path.join(archive_directory, jpeg_filename)
+                jpeg_thumbnail_file_template = os.path.join(
+                    archive_directory, thumb_filename
+                )
+                jpeg_full_path = jpeg_file_template % frame_number
+                jpeg_thumbnail_full_path = jpeg_thumbnail_file_template % frame_number
+                lims_image["jpegFileFullPath"] = jpeg_full_path
+                lims_image["jpegThumbnailFileFullPath"] = jpeg_thumbnail_full_path
+                lims_image["fileLocation"] = collection["fileinfo"]["directory"]
+            if motor_position_id:
+                lims_image["motorPositionId"] = motor_position_id
+            self.log.info(
+                "LIMS IMAGE: %s, %s, %s, %s"
+                % (
+                    jpeg_filename,
+                    thumb_filename,
+                    jpeg_full_path,
+                    jpeg_thumbnail_full_path,
+                )
+            )
+            try:
+                image_id = self.lims_client_hwobj.store_image(lims_image)
+            except Exception as ex:
+                self.log.error(
+                    "Could not store images in lims, error was {}".format(ex)
+                )
+
+            # temp fix for ispyb permission issues
+            try:
+                session_dir = os.path.join(archive_directory, "../../../")
+            except Exception as ex:
+                self.log.warning(
+                    "Could not change permissions on ispyb storage, error was {}".format(
+                        ex
+                    )
+                )
+
+            return image_id

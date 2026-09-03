@@ -1,0 +1,1251 @@
+import logging
+import math
+import os
+import sys
+import time
+import uuid
+from typing import Any
+
+import gevent
+import PyTango
+
+from mxcubecore import HardwareRepository as HWR
+from mxcubecore.BaseHardwareObjects import HardwareObject
+from mxcubecore.HardwareObjects.abstract.AbstractCollect import AbstractCollect
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
+from mxcubecore.HardwareObjects.MAXIV.DataCollect import DataCollect
+from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
+from mxcubecore.TaskUtils import task
+
+CORRECT_OMEGA_SCRIPT = (
+    "/mxn/groups/biomax/wmxsoft/scripts_mxcube/omega_correction/correct_omega.sh"
+)
+
+hwr_log = logging.getLogger("HWR")
+user_log = logging.getLogger("user_level_log")
+
+
+class BIOMAXCollect(DataCollect):
+    """BioMAX specific data collection hardware object."""
+
+    # min images to trigger auto processing
+    NIMAGES_TRIGGER_AUTO_PROC = 20
+
+    def __init__(self, name):
+        AbstractCollect.__init__(self, name)
+        HardwareObject.__init__(self, name)
+
+        self._centring_status = None
+
+        self.osc_id = None
+        self.owner = None
+        self._collecting = False
+        self._error_msg = ""
+        self._error_or_aborting = False
+        self.collect_frame = None
+        self.helical = False
+        self.helical_pos = None
+        self.char = False
+        self.hve = False
+        self.ready_event = None
+        self.stopCollect = self.stop_collect
+        self.triggers_to_collect = None
+
+        self.exp_type_dict = None
+        self.display = {}
+        self.stop_display = False
+
+        self.scicat_enabled = True
+        self.datacatalog_url = None
+        self.datacatalog_token = None
+        self.collection_uuid = ""
+
+        self.flux_before_collect = None
+        self.flux_after_collect = None
+
+        self.number_of_snapshots: int = 0
+
+    def init(self):
+        super().init()
+
+        self.ready_event = gevent.event.Event()
+        self.diffractometer_hwobj = HWR.beamline.diffractometer
+        self.lims_client_hwobj = HWR.beamline.lims
+        self.machine_info_hwobj = HWR.beamline.machine_info
+        self.energy_hwobj = HWR.beamline.energy
+        self.resolution_hwobj = HWR.beamline.resolution
+        self.detector_hwobj = HWR.beamline.detector
+        self.autoprocessing_hwobj = HWR.beamline.online_processing
+        self.beam_info_hwobj = HWR.beamline.beam
+        self.transmission_hwobj = HWR.beamline.transmission
+        self.sample_changer_hwobj = HWR.beamline.sample_changer
+        self.sample_changer_maint_hwobj = HWR.beamline.sample_changer_maintenance
+        self.sample_view_hwobj = HWR.beamline.sample_view
+        self.dtox_hwobj = HWR.beamline.detector.detector_distance
+        self.session_hwobj = HWR.beamline.session
+        self.datacatalog_url = self.get_property("datacatalog_url", None)
+        self.datacatalog_token = self.get_property("datacatalog_token", None)
+        self.scicat_enabled = self.get_property("scicat_enabled", False)
+        if self.scicat_enabled:
+            try:
+                self.scicat_hwobj = SciCatPlugin()
+                self.log.info("[COLLECT] SciCat Datacatalog enabled")
+            except Exception as ex:
+                self.log.exception("[COLLECT] SciCat Datacatalog not initialized")
+        else:
+            self.scicat_hwobj = None
+            self.log.warning("[COLLECT] SciCat Datacatalog not enabled")
+
+        self.shape_history_hwobj = HWR.beamline.sample_view
+        self.polarisation = float(self.get_property("polarisation", 0.99))
+        self.safety_shutter_hwobj = HWR.beamline.safety_shutter
+
+        self.exp_type_dict = {"Mesh": "Mesh", "Helical": "Helical"}
+        try:
+            min_exp = self.detector_hwobj.get_minimum_exposure_time()
+        except Exception:
+            hwr_log.error("[HWR] *** Detector min exposure not available, set to 0.1")
+            min_exp = 0.1
+        try:
+            pix_x = self.detector_hwobj.get_pixel_size_x()
+        except Exception:
+            hwr_log.error("[HWR] *** Detector X pixel size not available, set to 7-5e5")
+            pix_x = 7.5e-5
+        try:
+            pix_y = self.detector_hwobj.get_pixel_size_y()
+        except Exception:
+            hwr_log.error("[HWR] *** Detector Y pixel size not available, set to 7-5e5")
+            pix_y = 7.5e-5
+
+        self.set_beamline_configuration(
+            synchrotron_name="MAXIV",
+            directory_prefix=self.get_property("directory_prefix"),
+            default_exposure_time=self.get_property("default_exposure_time"),
+            minimum_exposure_time=min_exp,
+            detector_fileext=self.detector_hwobj.get_property("file_suffix"),
+            detector_type=self.detector_hwobj.get_property("type"),
+            detector_manufacturer=self.detector_hwobj.get_property("manufacturer"),
+            detector_model=self.detector_hwobj.get_property("model"),
+            detector_px=pix_x,
+            detector_py=pix_y,
+            undulators=self.get_property("undulator"),
+            focusing_optic=self.get_property("focusing_optic"),
+            monochromator_type=self.get_property("monochromator"),
+            beam_divergence_vertical=self.beam_info_hwobj._beam_divergence[1],
+            beam_divergence_horizontal=self.beam_info_hwobj._beam_divergence[0],
+            detector_binning_mode=None,
+            polarisation=self.polarisation,
+            input_files_server=self.get_property("input_files_server"),
+        )
+
+        self.add_channel(
+            {
+                "type": "tango",
+                "name": "undulator_gap",
+                "tangoname": self.get_property("undulator_gap"),
+                "timeout": 10000,
+            },
+            "Position",
+        )
+
+        self.emit("collectReady", (True,))
+
+    def do_collect(self, owner):
+        """
+        Actual collect sequence
+        """
+        user_log.info("Collection: Preparing to collect")
+        try:
+            self.emit("collectReady", (False,))
+            self.emit("collectStarted", (owner, 1))
+
+            self.current_dc_parameters["status"] = "Running"
+            self.current_dc_parameters["collection_start_time"] = time.strftime(
+                "%Y-%m-%d %H:%M:%S"
+            )
+            self.current_dc_parameters["synchrotronMode"] = self.get_machine_fill_mode()
+
+            user_log.info("Collection: Storing data collection in LIMS")
+            self.store_data_collection_in_lims()
+
+            user_log.info(
+                "Collection: Creating directories for raw images and processing files"
+            )
+            self.create_file_directories()
+
+            user_log.info("Collection: Getting sample info from parameters")
+            self.get_sample_info()
+
+            if all(
+                item is None for item in self.current_dc_parameters["motors"].values()
+            ):
+                # No centring point defined
+                # create point based on the current position
+                self.log.warning("do_collect(): Creating centring point")
+                current_diffractometer_position = self.diffractometer_hwobj.get_value()
+                for motor in self.current_dc_parameters["motors"].keys():
+                    self.current_dc_parameters["motors"][motor] = (
+                        current_diffractometer_position[motor]
+                    )
+
+            hwr_log.debug("Collection: going to take snapshots...")
+            self.take_crystal_snapshots()
+            hwr_log.debug("Collection: snapshots taken")
+            snapshots_files = []
+
+            for key, value in self.current_dc_parameters.items():
+                if key.startswith("xtalSnapshotFullPath"):
+                    snapshots_files.append(value)
+            try:
+                archive_directory = self.current_dc_parameters["fileinfo"][
+                    "archive_directory"
+                ]
+                if not os.path.exists(archive_directory):
+                    try:
+                        self.create_directories(archive_directory)
+                    except os.error:
+                        hwr_log.exception(
+                            "Collection: Error creating archive directory"
+                        )
+            except Exception as ex:
+                user_log.error(
+                    "[COLLECT] Archive directory preparation failed. Data collection continues. Error was: %s"
+                    % str(ex)
+                )
+
+            self.close_fast_shutter()
+            self.close_detector_cover()
+            self.open_safety_shutter()
+
+            self.prepare_acquisition()
+            self.emit(
+                "collectOscillationStarted",
+                (owner, None, None, None, self.current_dc_parameters, None),
+            )
+
+            self.data_collection_hook()
+            if (
+                self.char
+            ):  # correct the omega values in the master file for characterization
+                oscillation_parameters = self.current_dc_parameters[
+                    "oscillation_sequence"
+                ][0]
+                overlap = oscillation_parameters["overlap"]
+                master_filename = self.current_dc_parameters["fileinfo"]["filename"]
+                self.correct_omega_in_master_file(
+                    filename=master_filename, overlap=overlap
+                )
+            self.emit_collection_finished()
+        except Exception as ex:
+            hwr_log.exception("[COLLECT] Data collection failed: %s" % ex)
+            self.emit_collection_failed()
+            self.close_fast_shutter()
+            self.close_detector_cover()
+
+    def prepare_acquisition(self):  # noqa
+        hwr_log.info(
+            "[COLLECT] Preparing data collection with parameters: %s"
+            % self.current_dc_parameters
+        )
+
+        self.stop_display = False
+
+        if "wavelength" in self.current_dc_parameters:
+            user_log.info(
+                "Collection: Setting wavelength to %.3f",
+                self.current_dc_parameters["wavelength"],
+            )
+            try:
+                self.set_wavelength(self.current_dc_parameters["wavelength"])
+            except Exception as ex:
+                user_log.error("Collection: cannot set beamline wavelength.")
+                hwr_log.error("[COLLECT] Error setting wavelength: %s" % ex)
+                raise Exception("[COLLECT] Error setting wavelength: %s" % ex)
+
+        elif "energy" in self.current_dc_parameters:
+            user_log.info(
+                "Collection: Setting energy to %.3f",
+                self.current_dc_parameters["energy"],
+            )
+
+            checkbeam = self.prepare_set_energy()
+            try:
+                self.set_energy(self.current_dc_parameters["energy"], checkbeam)
+            except Exception as ex:
+                user_log.error("Collection: cannot set beamline energy.")
+                hwr_log.error("[COLLECT] Error setting energy: %s" % ex)
+                raise Exception("[COLLECT] Error setting energy: %s" % ex)
+
+        if "detroi" in self.current_dc_parameters:
+            try:
+                user_log.info(
+                    "Collection: Setting detector to %s",
+                    self.current_dc_parameters["detroi"],
+                )
+                self.set_detector_roi(self.current_dc_parameters["detroi"])
+            except Exception as ex:
+                user_log.error("Collection: cannot set detector roi.")
+                hwr_log.error("[COLLECT] Error setting detector roi: %s" % ex)
+                raise Exception("[COLLECT] Error setting detector roi: %s" % ex)
+
+        if "resolution" in self.current_dc_parameters:
+            try:
+                resolution = self.current_dc_parameters["resolution"]
+                user_log.info("Collection: Setting resolution to %.3f", resolution)
+                self.set_resolution(resolution)
+            except Exception as ex:
+                user_log.error("Collection: cannot set resolution.")
+                hwr_log.error("[COLLECT] Error setting resolution: %s" % ex)
+                raise Exception("[COLLECT] Error setting resolution: %s" % ex)
+
+        elif "detdistance" in self.current_dc_parameters:
+            try:
+                user_log.info(
+                    "Collection: Moving detector to %f",
+                    self.current_dc_parameters["detdistance"],
+                )
+                self.move_detector(self.current_dc_parameters["detdistance"])
+            except Exception as ex:
+                user_log.error("Collection: cannot set detector distance.")
+                hwr_log.error("[COLLECT] Error setting detector distance: %s" % ex)
+                raise Exception("[COLLECT] Error setting detector distance: %s" % ex)
+
+        if "transmission" in self.current_dc_parameters:
+            user_log.info(
+                "Collection: Setting transmission to %.3f",
+                self.current_dc_parameters["transmission"],
+            )
+            try:
+                self.set_transmission(self.current_dc_parameters["transmission"])
+            except Exception as ex:
+                user_log.error("Collection: cannot set beamline transmission.")
+                hwr_log.error("[COLLECT] Error setting transmission: %s" % ex)
+                raise Exception("[COLLECT] Error setting transmission: %s" % ex)
+
+        self.triggers_to_collect = self.prepare_triggers_to_collect()
+        user_log.info("Collection: Updating data collection in LIMS")
+        self.update_data_collection_in_lims()
+
+        # Generate and set a unique id, used in the data catalog and the detector must know it
+        self.collection_uuid = str(uuid.uuid4())
+        hwr_log.info("[COLLECT] Generating UUID: %s" % self.collection_uuid)
+
+        if self.scicat_enabled and not self.session_hwobj.is_proprietary():
+            try:
+                proposalId = self.session_hwobj.proposal_number
+                self.scicat_hwobj.start_scan(proposalId, self.current_dc_parameters)
+            except Exception as ex:
+                hwr_log.warning("[COLLECT] Error sending uuid to data catalog: %s" % ex)
+
+        try:
+            self.prepare_detector()
+        except Exception as ex:
+            user_log.error("Collection: cannot set prepare detector.")
+            hwr_log.error("[COLLECT] Error preparing detector: %s" % ex)
+            raise Exception("[COLLECT] Error preparing detector: %s" % ex)
+
+        if self.diffractometer_hwobj.get_phase() != DiffractometerPhase.COLLECT:
+            user_log.info("Moving Diffractometer to Data Collection")
+            self.diffractometer_hwobj.set_phase(
+                DiffractometerPhase.COLLECT, timeout=200
+            )
+
+        self.flux_before_collect = self.get_instant_flux()
+        self.flux_after_collect = None
+        if float(self.flux_before_collect) < 1:
+            user_log.error("Collection: Flux is 0, please check the beam!!")
+
+        self.move_to_centered_position()  # bkm1
+        self.fix_mesh_start()
+
+        hwr_log.info(
+            "Collection: Updating data collection in LIMS with data: %s"
+            % self.current_dc_parameters
+        )
+        self.update_data_collection_in_lims()
+
+    # -------------------------------------------------------------------------------
+
+    def fix_mesh_start(self):
+        dcp = self.current_dc_parameters
+        shape = HWR.beamline.sample_view.get_shape(dcp["shape"])
+        if shape is None or shape.label.lower() != "grid":
+            return
+        md3 = self.diffractometer_hwobj
+        self.log.warning("Fixing centered_position for mesh scan")
+        self.log.warning(f"Shape: {shape.as_dict()}")
+        num_cols = shape.num_cols
+        num_rows = shape.num_rows
+        cell_width = shape.cell_width / 1000
+        cell_height = shape.cell_height / 1000
+        horiz_shift = num_cols * cell_width / 2
+        vert_shift = num_rows * cell_height / 2
+        hmot = HWR.beamline.sample_view.cent_vertical_pseudo_motor
+        vmot = md3.phiy_motor_hwobj
+        hmot.set_value(hmot.get_value() - horiz_shift)
+        vmot.set_value(vmot.get_value() - vert_shift)
+        gevent.sleep(5.0)
+        md3.save_centring_positions()
+
+    def prepare_triggers_to_collect(self):
+        oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
+        osc_start = oscillation_parameters["start"]
+        osc_range = oscillation_parameters["range"]
+        nframes = oscillation_parameters["number_of_images"]
+        overlap = oscillation_parameters.get("overlap", 0)
+        ntriggers = oscillation_parameters["num_triggers"]
+        triggers_to_collect = []
+
+        if overlap > 0 or overlap < 0:
+            # currently for characterization, only collect one image at each omega
+            # position
+            if ntriggers < 1:
+                ntriggers = nframes
+                nframes_per_trigger = 1
+            else:
+                nframes_per_trigger = oscillation_parameters["num_images_per_trigger"]
+
+            self.char = True
+
+            for trigger_num in range(1, ntriggers + 1):
+                triggers_to_collect.append(
+                    (osc_start, trigger_num, nframes_per_trigger, osc_range)
+                )
+                osc_start += osc_range * nframes_per_trigger - overlap
+
+        elif self.current_dc_parameters["experiment_type"] == "Mesh":
+            shape_id = self.get_current_shape_id()
+            shape = HWR.beamline.sample_view.get_shape(shape_id)
+
+            triggers_to_collect.append(
+                (osc_start, shape.num_cols, shape.num_rows, osc_range)
+            )
+        else:
+            triggers_to_collect.append((osc_start, 1, nframes, osc_range))
+
+        return triggers_to_collect
+
+    def data_collection_hook(self):
+        """Main collection command."""
+
+        try:
+            self._collecting = True
+            oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][
+                0
+            ]
+            self.open_detector_cover()
+
+            # This wait is to ensure that configuration is done before arming
+            time.sleep(2)
+            try:
+                self.detector_hwobj.wait_config_done()
+                self.detector_hwobj.start_acquisition()
+                self.detector_hwobj.wait_ready()
+            except Exception as ex:
+                hwr_log.error("[COLLECT] Detector Error: %s" % ex)
+                raise RuntimeError("[COLLECT] Detector error while arming.")
+
+            try:
+                # add 3ms into the total acquisition time, to compensate the unsynchronization between
+                # fastshutter and detector, otherwise the last image sample is less radiated.
+
+                shutterless_exptime = self.detector_hwobj.get_acquisition_time() + 0.003
+            except Exception as ex:
+                hwr_log.error(
+                    "[COLLECT] Detector error getting acquisition time: %s" % ex
+                )
+                shutterless_exptime = 0.01
+
+            for (
+                osc_start,
+                trigger_num,
+                nframes_per_trigger,
+                osc_range,
+            ) in self.triggers_to_collect:
+                osc_end = osc_start + osc_range * nframes_per_trigger
+                self.display_task = gevent.spawn(self._update_image_to_display)
+                self.progress_task = gevent.spawn(self._update_task_progress)
+                self.oscillation_task = self.oscil(
+                    osc_start, osc_end, shutterless_exptime, 1, wait=True
+                )
+            try:
+                self.detector_hwobj.stop_acquisition()
+            except Exception as ex:
+                hwr_log.error("[COLLECT] Detector error stopping acquisition: %s" % ex)
+
+            self.close_detector_cover()
+            self.emit("collectImageTaken", oscillation_parameters["number_of_images"])
+
+        except RuntimeError as ex:
+            self.data_collection_cleanup()
+            hwr_log.error("[COLLECT] Runtime Error: %s" % ex)
+            raise Exception("data collection hook failed... ", str(ex))
+        except Exception:
+            self.data_collection_cleanup()
+            hwr_log.error("Unexpected error:", sys.exc_info()[0])
+            raise Exception("data collection hook failed... ", sys.exc_info()[0])
+
+    def data_collection_cleanup(self):
+        """
+        Method called when at end of data collection, successful or not.
+        """
+        self.close_fast_shutter()
+        self.close_detector_cover()
+
+    def get_mesh_num_lines(self):
+        return self.mesh_num_lines
+
+    def get_mesh_total_nb_frames(self):
+        return self.mesh_total_nb_frames
+
+    def get_current_shape_id(self):
+        return self.current_dc_parameters["shape"]
+
+    def oscil(self, start, end, exptime, npass, wait=True):
+        time.sleep(1)
+        oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
+        msg = (
+            "[BIOMAXCOLLECT] Oscillation requested oscillation_parameters: %s"
+            % oscillation_parameters
+        )
+        hwr_log.info(msg)
+
+        if self.helical:
+            self.diffractometer_hwobj.osc_scan_4d(
+                start, end, exptime, self.helical_pos, wait=wait
+            )
+        elif self.current_dc_parameters["experiment_type"] == "Mesh":
+            hwr_log.info(
+                "Mesh oscillation requested: number of lines %s"
+                % self.get_mesh_num_lines()
+            )
+            hwr_log.info(
+                "Mesh oscillation requested: total number of frames %s"
+                % self.get_mesh_total_nb_frames()
+            )
+            shape_id = self.get_current_shape_id()
+            shape = HWR.beamline.sample_view.get_shape(shape_id).as_dict()
+            self.log.warning(f"raster_scan {shape=}")
+            range_x = shape.get("num_cols") * shape.get("cell_width") / 1000.0
+            range_y = shape.get("num_rows") * shape.get("cell_height") / 1000.0
+            self.diffractometer_hwobj.raster_scan(
+                start,
+                end,
+                exptime,
+                range_x,  # horizontal_range in mm,
+                range_y,  # vertical_range in mm,
+                shape["steps_x"],
+                shape["steps_y"],
+                invert_direction=1,
+                wait=wait,
+            )
+        else:
+            self.diffractometer_hwobj.do_oscillation_scan(
+                start, end, exptime, wait=wait
+            )
+
+    def _update_task_progress(self):
+        hwr_log.info("[BIOMAXCOLLECT] update task progress launched")
+        num_images = self.current_dc_parameters["oscillation_sequence"][0][
+            "number_of_images"
+        ]
+        if self.current_dc_parameters.get("experiment_type") == "Mesh":
+            shape_id = self.get_current_shape_id()
+            shape = HWR.beamline.sample_view.get_shape(shape_id).as_dict()
+            num_cols = shape.get("num_cols")
+            num_rows = shape.get("num_rows")
+            num_images = num_cols * num_rows
+        num_steps = 10.0
+        if num_images < num_steps:
+            step_size = 1
+            num_steps = num_images
+        else:
+            step_size = float(
+                num_images / num_steps
+            )  # arbitrary, 10 progress steps or messages
+        exp_time = self.current_dc_parameters["oscillation_sequence"][0][
+            "exposure_time"
+        ]
+        step_count = 0
+        current_frame = 0
+        time.sleep(exp_time * step_size)
+        while step_count < num_steps:
+            time.sleep(exp_time * step_size)
+            current_frame += step_size
+            hwr_log.info(
+                "[BIOMAXCOLLECT] collectImageTaken %s (%s, %s, %s)"
+                % (current_frame, num_images, step_size, step_count)
+            )
+            self.emit("collectImageTaken", current_frame)
+            step_count += 1
+
+    def emit_collection_failed(self):
+        failed_msg = "Data collection failed!"
+        self.current_dc_parameters["status"] = failed_msg
+        self.current_dc_parameters["comments"] = "%s\n%s" % (
+            failed_msg,
+            self._error_msg,
+        )
+        self.emit(
+            "collectOscillationFailed",
+            (
+                self.owner,
+                False,
+                failed_msg,
+                self.current_dc_parameters.get("collection_id"),
+                self.osc_id,
+            ),
+        )
+        if self.char:
+            self.char = False
+        if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
+            self.detector_hwobj.disable_stream()
+
+        self.emit("collectEnded", self.owner, False, failed_msg)
+        self.emit("collectReady", (True,))
+        self._collecting = None
+        self.ready_event.set()
+
+        hwr_log.error(
+            "[COLLECT] COLLECTION FAILED, self.current_dc_parameters: %s"
+            % self.current_dc_parameters
+        )
+        self.update_data_collection_in_lims()
+
+    def emit_collection_finished(self):
+        exp_type = self.current_dc_parameters["experiment_type"]
+        overlap = self.current_dc_parameters["oscillation_sequence"][0].get(
+            "overlap", 0
+        )
+        num_images = self.current_dc_parameters["oscillation_sequence"][0][
+            "number_of_images"
+        ]
+        if (
+            exp_type in ("OSC", "Helical")
+            and overlap == 0
+            and num_images >= self.NIMAGES_TRIGGER_AUTO_PROC
+        ):
+            gevent.spawn(self.trigger_auto_processing, "after", 0)
+
+        # we store the first and the last images, TODO: every 45 degree
+        gevent.spawn(self._post_collection_store_image)
+
+        if exp_type == "Mesh" or self.hve:
+            self.detector_hwobj.disable_stream()
+        if self.char:
+            self.char = False
+        self.diffractometer_hwobj.wait_device_ready(5)
+
+        success_msg = "Data collection successful"
+        self.current_dc_parameters["status"] = success_msg
+        self.emit(
+            "collectOscillationFinished",
+            (
+                self.owner,
+                True,
+                success_msg,
+                self.current_dc_parameters.get("collection_id"),
+                self.osc_id,
+                self.current_dc_parameters,
+            ),
+        )
+        self.emit("collectEnded", self.owner, True, success_msg)
+        self.emit("collectReady", (True,))
+        self.emit("progressStop", ())
+        self._collecting = None
+        self.ready_event.set()
+        self.update_data_collection_in_lims()
+
+        hwr_log.debug(
+            "[COLLECT] COLLECTION FINISHED, self.current_dc_parameters: %s"
+            % self.current_dc_parameters
+        )
+
+        if exp_type != "Mesh":
+            try:
+                hwr_log.info("[BIOMAXCOLLECT] Going to generate XDS input files")
+                # generate XDS.INP only in raw/process
+                data_path = self.current_dc_parameters["fileinfo"]["filename"]
+                hwr_log.info("[BIOMAXCOLLECT] DATA file: %s" % data_path)
+                hwr_log.info(
+                    "[BIOMAXCOLLECT] XDS file: %s"
+                    % self.current_dc_parameters["xds_dir"]
+                )
+                if (
+                    exp_type in ("OSC", "Helical")
+                    and overlap == 0
+                    and num_images >= self.NIMAGES_TRIGGER_AUTO_PROC
+                ):
+                    self.trigger_auto_processing("after", 0)
+            except Exception as ex:
+                hwr_log.exception("[COLLECT] Error creating XDS files, %s" % ex)
+
+            self._store_diffraction_images(self.current_dc_parameters, 1)
+
+            last_frame = num_images
+            if last_frame > 1:
+                self._store_diffraction_images(self.current_dc_parameters, last_frame)
+
+        if self.scicat_enabled and not self.session_hwobj.is_proprietary():
+            self.scicat_hwobj.end_scan(self.current_dc_parameters)
+
+    def take_crystal_snapshots(self):
+        diffr = HWR.beamline.diffractometer
+        number_of_snapshots = self.number_of_snapshots
+        if number_of_snapshots > 0:
+            snapshot_directory = self.current_dc_parameters["fileinfo"][
+                "archive_directory"
+            ]
+
+            if not os.path.exists(snapshot_directory):
+                try:
+                    self.create_directories(snapshot_directory)
+                except os.error:
+                    hwr_log.exception("Collection: Error creating snapshot directory")
+
+            if diffr.is_head_plate():
+                number_of_snapshots = 1
+            user_log.info(
+                "Collection: Taking %d sample snapshot(s)", number_of_snapshots
+            )
+
+            if not diffr.is_in_centring():
+                user_log.info("Moving Diffractometer to CentringPhase")
+                diffr.set_phase_centring(timeout=200)
+                self.move_to_centered_position()
+
+            for snapshot_index in range(number_of_snapshots):
+                snapshot_filename = os.path.join(
+                    snapshot_directory,
+                    "%s_%s_%s.snapshot.jpeg"
+                    % (
+                        self.current_dc_parameters["fileinfo"]["prefix"],
+                        self.current_dc_parameters["fileinfo"]["run_number"],
+                        (snapshot_index + 1),
+                    ),
+                )
+                self.current_dc_parameters[
+                    "xtalSnapshotFullPath%i" % (snapshot_index + 1)
+                ] = snapshot_filename
+                self._take_crystal_snapshot(snapshot_filename)
+
+                hwr_log.info("Collection: Snapshot at: '%s'", snapshot_filename)
+
+                time.sleep(1)  # needed, otherwise will get the same images
+                if number_of_snapshots > 1:
+                    diffr.move_omega_relative(90)
+                    time.sleep(1)  # needed, otherwise will get the same images
+
+    def trigger_auto_processing(self, process_event, _frame_number):
+        hwr_log.info(
+            "[COLLECT] triggering auto processing, self.current_dc_parameters: %s"
+            % self.current_dc_parameters
+        )
+        hwr_log.info("[COLLECT] Launching MAXIV Autoprocessing")
+        autoprocess_hwobj = HWR.beamline.online_processing
+        if autoprocess_hwobj:
+            autoprocess_hwobj.execute_autoprocessing(
+                process_event, self.current_dc_parameters, "biomax"
+            )
+        else:
+            hwr_log.warning(
+                "[COLLECT] No MAXIV Autoprocessing config: `autoprocess_hwobj=%s`",
+                autoprocess_hwobj,
+            )
+
+    def get_beam_centre(self):
+        if self.resolution_hwobj is not None:
+            return self.resolution_hwobj.get_beam_centre()
+        else:
+            return None, None
+
+    def get_beam_shape(self):
+        if self.beam_info_hwobj is not None:
+            return self.beam_info_hwobj.get_beam_shape()
+
+    @task
+    def _take_crystal_snapshot(self, filename):
+        # take image from server
+        HWR.beamline.sample_view.camera.take_snapshot(filename)
+
+    def set_detector_roi(self, value):
+        self.detector_hwobj.set_roi_mode(value)
+
+    def set_helical(self, helical_on):
+        self.helical = helical_on
+
+    def set_helical_pos(self, helical_oscil_pos):
+        self.helical_pos = helical_oscil_pos
+
+    def set_resolution(self, value):
+        new_distance = self.resolution_hwobj.res2dist(value)
+        self.move_detector(new_distance)
+
+    def set_energy(self, value, checkbeam):
+        hwr_log.info("[COLLECT] Setting beamline energy to %s" % value)
+        self.energy_hwobj.start_move_energy(value, checkbeam)  # keV
+        hwr_log.info(
+            "[COLLECT] Updating wavelength parameter to %s" % (12.3984 / value)
+        )
+        self.current_dc_parameters["wavelength"] = 12.3984 / value
+        hwr_log.info("[COLLECT] Setting detector energy")
+        self.detector_hwobj.set_photon_energy(value * 1000)  # ev
+
+    def set_wavelength(self, value):
+        hwr_log.info("[COLLECT] Setting beamline wavelength to %s" % value)
+        self.energy_hwobj.startMoveWavelength(value)
+        current_energy = self.energy_hwobj.getCurrentEnergy()
+        self.detector_hwobj.set_photon_energy(current_energy * 1000)
+
+    @task
+    def move_motors(self, motor_position_dict):
+        self.diffractometer_hwobj.set_value_motors(motor_position_dict)
+
+    def create_file_directories(self):
+        """
+        Method create directories for raw files and processing files.
+        Directories for xds.input and auto_processing are created
+        """
+        self.create_directories(
+            self.current_dc_parameters["fileinfo"]["directory"],
+            self.current_dc_parameters["fileinfo"]["process_directory"],
+        )
+
+        xds_directory, auto_directory = self.prepare_input_files()
+        try:
+            self.create_directories(xds_directory, auto_directory)
+        except os.error:
+            hwr_log.exception("Could not create processing file directory")
+            return
+        if xds_directory:
+            self.current_dc_parameters["xds_dir"] = xds_directory
+        if auto_directory:
+            self.current_dc_parameters["auto_dir"] = auto_directory
+
+    def prepare_input_files(self):
+        i = 1
+        user_log.info("Creating XDS (MAXIV-BioMAX) processing input file directories")
+
+        while True:
+            xds_input_file_dirname = "xds_%s_%s_%d" % (
+                self.current_dc_parameters["fileinfo"]["prefix"],
+                self.current_dc_parameters["fileinfo"]["run_number"],
+                i,
+            )
+            xds_directory = os.path.join(
+                self.current_dc_parameters["fileinfo"]["directory"],
+                "process",
+                xds_input_file_dirname,
+            )
+            if not os.path.exists(xds_directory):
+                break
+            i += 1
+        auto_directory = os.path.join(
+            self.current_dc_parameters["fileinfo"]["process_directory"],
+            xds_input_file_dirname,
+        )
+        hwr_log.info(
+            "[COLLECT] Processing input file directories: XDS: %s, AUTO: %s"
+            % (xds_directory, auto_directory)
+        )
+        return xds_directory, auto_directory
+
+    def move_detector(self, value):
+        """Move detector to the specified distance."""
+
+        lower_limit, upper_limit = self.get_detector_distance_limits()
+        hwr_log.info(
+            "...................value %s, detector movement start..... %s"
+            % (value, self.dtox_hwobj.get_value())
+        )
+        if upper_limit is not None and lower_limit is not None:
+            if value >= upper_limit or value <= lower_limit:
+                hwr_log.exception("Can't move detector, the value is out of limits")
+                self.stop_collect()
+            else:
+                try:
+                    if self.dtox_hwobj is not None:
+                        self.dtox_hwobj.set_value(value)
+                        self.dtox_hwobj.wait_end_of_move(
+                            50
+                        )  # 30s is not enough for the whole range
+                except:
+                    user_log.error("Cannot move detector, please check the key!!")
+                    hwr_log.exception("Problems when moving detector!!")
+                    self.stop_collect()
+        else:
+            hwr_log.exception("Can't get distance limits, not moving detector!!")
+        hwr_log.info(
+            "....................value %s detector movement finished.....%s"
+            % (value, self.dtox_hwobj.get_value())
+        )
+
+        current_pos = self.dtox_hwobj.get_value()
+        if abs(current_pos - value) > 0.05:
+            user_log.exception("Detector didn't go to the set position")
+            self.stop_collect()
+
+    def get_detector_distance(self):
+        """Get current detector distance."""
+
+        if self.dtox_hwobj is not None:
+            return self.dtox_hwobj.get_value()
+
+    def get_detector_distance_limits(self):
+        if self.dtox_hwobj is not None:
+            return self.dtox_hwobj.get_limits()
+
+    def prepare_detector(self):
+        oscillation_parameters = self.current_dc_parameters["oscillation_sequence"][0]
+        (
+            osc_start,
+            ntrigger,
+            nframes_per_trigger,
+            osc_range,
+        ) = self.triggers_to_collect[0]
+
+        if self.current_dc_parameters["experiment_type"] != "Mesh":
+            ntrigger = len(self.triggers_to_collect)
+        config = self.detector_hwobj.col_config
+
+        config["OmegaStart"] = osc_start  # oscillation_parameters["start"]
+        config["OmegaIncrement"] = osc_range  # oscillation_parameters["range"]
+
+        current_pos = self.sample_view_hwobj.get_positions()
+        config["KappaStart"] = current_pos["kappa"]
+        config["KappaIncrement"] = 0.0
+        config["PhiStart"] = current_pos["kappa_phi"]
+
+        config["PhiIncrement"] = 0.0
+        (
+            beam_centre_x,
+            beam_centre_y,
+        ) = self.get_beam_centre()  # self.get_beam_centre_pixel() # returns pixel
+        config["BeamCenterX"] = beam_centre_x  # unit, should be pixel for master file
+        config["BeamCenterY"] = beam_centre_y
+        config["DetectorDistance"] = self.get_detector_distance() / 1000.0
+
+        config["CountTime"] = oscillation_parameters["exposure_time"]
+
+        config["NbImages"] = nframes_per_trigger
+        config["NbTriggers"] = ntrigger
+
+        if nframes_per_trigger * ntrigger < config["ImagesPerFile"]:
+            self.display["delay"] = (
+                nframes_per_trigger * ntrigger * oscillation_parameters["exposure_time"]
+            )
+        else:
+            self.display["delay"] = (
+                config["ImagesPerFile"] * oscillation_parameters["exposure_time"]
+            )
+        self.display["exp"] = oscillation_parameters["exposure_time"]
+        self.display["nimages"] = nframes_per_trigger * ntrigger
+
+        file_parameters = self.current_dc_parameters["fileinfo"]
+        file_parameters["suffix"] = self.bl_config.detector_fileext
+        image_file_template = "%(prefix)s_%(run_number)s" % file_parameters
+        name_pattern = os.path.join(file_parameters["directory"], image_file_template)
+        file_parameters["filename"] = "%s_master.h5" % name_pattern
+        self.display["file_name1"] = file_parameters["filename"]
+
+        config["FilenamePattern"] = name_pattern
+
+        if self.current_dc_parameters["experiment_type"] == "Mesh":
+            self.detector_hwobj.enable_stream()
+            dozor_dict = self.detector_hwobj.prepare_acquisition(config)
+            self.setup_header_appendix(
+                shape_id=self.get_current_shape_id(),
+                dozor_dict=dozor_dict,
+                row=ntrigger,
+                col=nframes_per_trigger,
+            )
+
+        self.detector_hwobj.prepare_acquisition(config)
+
+    def stop_collect(self, owner=None):
+        """
+        Stops data collection
+        """
+        hwr_log.error("Stopping collection ....")
+        self.diffractometer_hwobj.abort()
+        self.close_detector_cover()
+        self.detector_hwobj.abort()
+        self.detector_hwobj.disarm()
+        if self.data_collect_task is not None:
+            self.data_collect_task.kill(block=False)
+        hwr_log.error("Collection stopped")
+        self.stop_display = True
+
+    def get_transmission(self):
+        return self.transmission_hwobj.get_value()
+
+    def set_transmission(self, value):
+        try:
+            self.transmission_hwobj.set_value(float(value), True)
+        except Exception as ex:
+            raise Exception("cannot set transmission", ex)
+
+    def get_undulators_gaps(self):
+        try:
+            chan = self.get_channel_object("undulator_gap")
+            gap = "{:.2f}".format(chan.getValue())
+            return gap
+        except AttributeError:
+            return None
+
+    def get_slit_gaps(self):
+        try:
+            return self.beam_info_hwobj.get_beam_size()
+        except:
+            return None
+
+    def get_machine_current(self):
+        try:
+            curr = self.machine_info_hwobj.get_current()
+            curr = curr.split(" ")[0]  # remove units
+            return curr
+        except:
+            return None
+
+    def get_machine_message(self):
+        return ""
+
+    def get_machine_fill_mode(self):
+        try:
+            return self.machine_info_hwobj.getFillingMode()
+        except:
+            return ""
+
+    def get_instant_flux(self, keep_position=True):
+        """Get the instant flux value, w/o checking beams stability.
+
+        This method assumes that the MD3 is already in data collection phase.
+        """
+        try:
+            ori_motors, ori_phase = self.diffractometer_hwobj.set_calculate_flux_phase()
+            flux = self.flux.get_instant_flux()
+        except Exception:
+            hwr_log.error("[COLLECT] Cannot get the current flux value")
+            flux = -1
+            raise Exception("[COLLECT] Cannot get the current flux value")
+        finally:
+            self.close_fast_shutter()
+            if keep_position:
+                self.diffractometer_hwobj.finish_calculate_flux(ori_motors, ori_phase)
+            else:
+                self.diffractometer_hwobj.finish_calculate_flux(None, ori_phase)
+
+        return flux
+
+    def prepare_for_new_sample(self, manual_mode=True):
+        """Prepare beamline for a new sample."""
+
+        if self.diffractometer_hwobj.in_plate_mode:
+            hwr_log.info(
+                "[HWR] Preparing beamline for a new sample ignored as we are in PLATE mode."
+            )
+            return
+
+        hwr_log.info("[HWR] Preparing beamline for a new sample.")
+        if manual_mode:
+            self.close_safety_shutter()
+            self.close_detector_cover()
+            self.diffractometer_hwobj.set_phase(DiffractometerPhase.TRANSFER)
+
+        self.move_detector_to_safe_position()
+
+    def prepare_set_energy(self):
+        """Figure out if we should check the beam after the energy changes."""
+        if HWR.beamline.tango_keystore.is_true("emulate_detector_cover"):
+            return False
+
+        checkbeam = True
+        try:
+            if float(self.get_machine_current()) < 10.0:
+                checkbeam = False
+                hwr_log.warning("[COLLECT] Very low ring current")
+                user_log.warning("[COLLECT] Very low ring current")
+
+            self.ha = PyTango.DeviceProxy("b311a-fe/vac/ha-01")
+            if self.ha.StatusClosed:
+                checkbeam = False
+                hwr_log.warning("[COLLECT] Heat Absorber Closed")
+                user_log.warning("[COLLECT] Heat Absorber Closed")
+
+            self.aem = PyTango.DeviceProxy("b311a/xbpm/02")
+            if self.aem.S < 1e-7:
+                checkbeam = False
+                hwr_log.warning("[COLLECT] No beam measured")
+                user_log.warning("[COLLECT] No beam measured")
+
+        except Exception as ex:
+            hwr_log.error(
+                "[COLLECT] Cannot prepare_set_energy,checkbeam: %s, error was: %s"
+                % (checkbeam, ex)
+            )
+
+        return checkbeam
+
+    def _update_image_to_display(self):
+        fname1 = "/mxn/groups/sw/mxsw/albula_autoload/to_display"
+        time.sleep(self.display["delay"] + 3)
+        frequency = 5
+        step = math.ceil(frequency / self.display["exp"])
+        if step == 1:
+            frequency = self.display["exp"]
+        for i in range(1, self.display["nimages"] + 1, step):
+            try:
+                os.system("echo %s, %s > %s" % (self.display["file_name1"], i, fname1))
+            except Exception:
+                self.log.exception("Could not update image to display i=%d", i)
+            if self.stop_display:
+                break
+            time.sleep(frequency)
+
+    def enable_datacatalog(self, enable):
+        self.scicat_enabled = enable
+        if self.scicat_enabled:
+            self.scicat_hwobj = SciCatPlugin()
+            self.log.info("[COLLECT] SciCat Datacatalog enabled")
+        else:
+            self.scicat_hwobj = None
+            self.log.warning("[COLLECT] SciCat Datacatalog not enabled")
+
+    def get_resolution_at_corner(self):
+        return self.resolution_hwobj.get_value_at_corner()
+
+    def update_data_collection_in_lims(self):
+        if self.lims_client_hwobj:
+            self.current_dc_parameters["flux"] = self.flux_before_collect
+            if self.flux_after_collect is not None:
+                self.current_dc_parameters["flux_end"] = self.flux_after_collect
+            self.current_dc_parameters["wavelength"] = self.get_wavelength()
+            self.current_dc_parameters["detectorDistance"] = (
+                self.get_detector_distance()
+            )
+            self.current_dc_parameters["resolution"] = self.get_resolution()
+            self.current_dc_parameters["transmission"] = self.get_transmission()
+            beam_centre_x, beam_centre_y = self.get_beam_centre()
+            self.current_dc_parameters["xBeam"] = beam_centre_x
+            self.current_dc_parameters["yBeam"] = beam_centre_y
+            und = self.get_undulators_gaps()
+            self.current_dc_parameters["undulatorGap1"] = und
+            self.current_dc_parameters["resolutionAtCorner"] = (
+                self.get_resolution_at_corner()
+            )
+            beam_size_x, beam_size_y = HWR.beamline.beam.get_beam_size()
+            self.current_dc_parameters["beamSizeAtSampleX"] = beam_size_x
+            self.current_dc_parameters["beamSizeAtSampleY"] = beam_size_y
+            self.current_dc_parameters["beamShape"] = self.get_beam_shape()
+            hor_gap, vert_gap = self.get_slit_gaps()
+            self.current_dc_parameters["slitGapHorizontal"] = hor_gap
+            self.current_dc_parameters["slitGapVertical"] = vert_gap
+            self.current_dc_parameters["oscillation_sequence"][0]["kappaStart"] = (
+                self.current_dc_parameters["motors"].get("kappa", 0)
+            )
+            self.current_dc_parameters["oscillation_sequence"][0]["phiStart"] = (
+                self.current_dc_parameters["motors"].get("kappa_phi", 0)
+            )
+            try:
+                self.lims_client_hwobj.update_data_collection(
+                    self.current_dc_parameters
+                )
+            except:
+                hwr_log.exception("Could not update data collection in LIMS")
+
+    def correct_omega_in_master_file(self, filename, overlap):
+        self.log.info(
+            "Correcting Omega in master file with filename %s and overlap %s",
+            filename,
+            overlap,
+        )
+        command: list[str] = [
+            CORRECT_OMEGA_SCRIPT,
+            "-f",
+            filename,
+            "-o",
+            f"{-overlap}",
+        ]
+        self._run_ssh_command(self._HPC_FE_HOST, command)
+
+    def wait_for_xray_center_result(self, shape_id):
+        with gevent.Timeout(
+            30, Exception("Timeout waiting for Xray Centering Analysis result")
+        ):
+            shape = HWR.beamline.sample_view.get_shape(shape_id)
+            while not shape.get_result():
+                gevent.sleep(0.5)
+        if shape.result_center is not None:
+            center_x = shape.result_center["x"]
+            if shape.t == "L":
+                center_y = 0
+                save_point = True
+            else:
+                center_y = shape.result_center["y"]
+                save_point = False
+            self.move_to_centered_position()
+            self.diffractometer_hwobj.wait_device_ready(5)
+            self.move_to_xray_center(
+                cent_x=center_x, cent_y=center_y, save_point=save_point
+            )
+            self.xray_center_found = True
+        else:
+            self.xray_center_found = False
+            msg = "No crystal is identified from the X-ray centering result!!"
+            hwr_log.info(msg)
+            self.user_log.error(msg)
+            self.emit_collection_failed(msg)
+
+    def move_to_xray_center(self, cent_x=0, cent_y=0, save_point=False):
+        # cent_x, cent_y is the cell value, not absolute value
+        beam_size_x, beam_size_y = HWR.beamline.beam.get_beam_size()
+        x_mm = cent_x * beam_size_x
+        y_mm = cent_y * beam_size_y
+        hwr_log.info(
+            "Should move sample by x {} mm, y {} mm to center it".format(x_mm, y_mm)
+        )
+        self.user_log.info(
+            "Crystal is identified from Xray diffraction and will be moved to the beam center"
+        )
+        self.diffractometer_hwobj.wait_device_ready(5)
+        self.diffractometer_hwobj.omega.set_value_relative(-y_mm)
+        self.diffractometer_hwobj.wait_device_ready(5)
+        self.sample_view_hwobj.move_cent_vertical_relative(-x_mm)
+        self.diffractometer_hwobj.save_centring_positions()
+        cpos = self.diffractometer_hwobj.last_centered_position
+        if save_point:
+            self.sample_view_hwobj.centring_status["motors"] = cpos
+            self.sample_view_hwobj.centring_status["valid"] = True
+            self.sample_view_hwobj.accept_centring()
+        hwr_log.info("Centring positions saved. Motors: {}".format(cpos))
+
+    def _create_header_appendix(
+        self,
+        shape_id: str,
+        dozor_dict: dict[str, Any] | None,
+        row: int = 0,
+        col: int = 0,
+    ) -> dict[str, Any]:
+        header_appendix = super()._create_header_appendix(
+            shape_id,
+            dozor_dict,
+            row,
+            col,
+        )
+        if self.current_dc_parameters["experiment_type"] == "Mesh":
+            mesh_params = HWR.beamline.get_default_acquisition_parameters(
+                "mesh"
+            ).as_dict()
+            collect_dict = header_appendix["collect_dict"]
+            collect_dict.update(
+                {
+                    "cell_counting": mesh_params.get("cell_counting", None),
+                    "start_corner": mesh_params.get("mesh_center", None),
+                    "mesh_range": mesh_params.get("mesh_range", None),
+                    "scan_pattern": mesh_params.get("cell_counting", None),
+                    "scan_orientation": "vertical",  # should not be here
+                }
+            )
+        return header_appendix

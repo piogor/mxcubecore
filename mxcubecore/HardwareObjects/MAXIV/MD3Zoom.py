@@ -1,0 +1,36 @@
+from mxcubecore.HardwareObjects.ExporterNState import ExporterNState
+
+
+class MD3Zoom(ExporterNState):
+    """BIOMAX and MICROMAX MicrodiffZoom class"""
+
+    def __init__(self, name):
+        super().__init__(name)
+
+    def init(self):
+        """Initialize the zoom"""
+        super().init()
+        level = self.get_property("level", "")
+
+        limits = (0, level - 2)
+        self.set_limits(limits)
+
+    def set_limits(self, limits=(None, None)):
+        """Overrriden from AbstractActuator"""
+        self._nominal_limits = limits
+
+    def update_limits(self, limits=None):
+        """Overrriden from AbstractNState"""
+        if limits is None:
+            limits = self.get_limits()
+        self._nominal_limits = limits
+        self.emit("limitsChanged", (limits,))
+
+    def set_value(self, value, timeout=0):
+        if isinstance(value, int):
+            # Make it possible to set zoom levels as integers,
+            # as this is the format we will get from the front end,
+            # for example when 'goto 2D point' feature is used.
+            value = self.VALUES(value)
+
+        super().set_value(value, timeout)
