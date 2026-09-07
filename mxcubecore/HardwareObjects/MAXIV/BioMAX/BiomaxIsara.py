@@ -1,28 +1,15 @@
 """Isara hardware object with BioMAX specificities."""
 
-#
-# Disable 'Invalid module name' check.
-#
-# We can possibly make module name ruff compliant once we migrated to
-# YAML config files. With YAML configs we get more flexibility with module
-# names.
-#
-#
-# Temporary disabling 'Create your own exception' check.
-# We should do what the check instructs us to do.
-#
-# ruff: noqa: TRY002
-#
-
-import logging
+import time
 
 import gevent
 
 import mxcubecore.HardwareObjects.ISARA
+from mxcubecore import HardwareRepository as HWR
+from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
+    DiffractometerPhase,
+)
 from mxcubecore.utils.tango import add_attribute_channel
-
-HWR_LOGGER = logging.getLogger("HWR")
-USER_LOGGER = logging.getLogger("user_level_log")
 
 CHANNEL_POLLING_PERIOD = 1000
 """Default polling period for channels, in milliseconds."""
@@ -33,7 +20,7 @@ PUCK_GRAB_MESSAGE = (
 )
 
 
-class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
+class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
     """Isara hardware objects with BioMAX specificities."""
 
     def __init__(self, *args, **kwargs):
@@ -49,6 +36,183 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         super().init()
 
         self._is_handling_md3_not_safe = False
+        self.safe_position = self.get_property("safe_position")
+
+    def before_load_sample(self):  # noqa: C901, PLR0915
+        """
+        Ensure that the detector is in safe position and sample changer in SOAK
+        """
+        # Applies reset (safe to do) always just in case the sc is in false fault
+        HWR.beamline.sample_changer_maintenance.send_command("reset")
+
+        if self.get_status() == "fault":
+            msg = "Cannot operate sample changer, state is in FAULT."
+            raise RuntimeError(msg)
+
+        self.before_load_or_unload_sample()
+
+        if HWR.beamline.diffractometer.get_transfer_mode() != "SAMPLE_CHANGER":
+            msg_0 = 'MD3 sample transfer mode is not set to SAMPLE_CHANGER! \
+                Please check the setting  in MD3 user preferences and also make sure \
+                "Sample changer auto change phase" is checked'
+            raise Exception(msg_0)  # noqa: TRY002
+
+        if HWR.beamline.diffractometer.last_centered_position is not None:
+            phiy = HWR.beamline.diffractometer.last_centered_position.get("phiy", 999)
+            kappa = HWR.beamline.diffractometer.last_centered_position.get("kappa", 0)
+            kappa_phi = HWR.beamline.diffractometer.last_centered_position.get(
+                "kappa_phi", 0
+            )
+            self.log.info("The PhiY after centering is %s", phiy)
+            if abs(kappa) < 0.1 and abs(kappa_phi) < 0.1 and phiy < -4.6:
+                msg_1 = "Sample pin is too long and there is a risk of collision! \
+                    Please remove the sample manually and \
+                    run empty_sample_mounted afterwards!"
+                raise RuntimeError(msg_1)
+
+        curr_dtox_pos = HWR.beamline.detector.distance.get_value()
+        if (
+            HWR.beamline.detector.distance is not None
+            and curr_dtox_pos < self.safe_position
+        ):
+            self.log.info("Moving detector to safe position before loading a sample.")
+            self.user_log.info(
+                "Moving detector to safe position before loading a sample."
+            )
+            HWR.beamline.detector.distance.wait_ready(30)
+
+            try:
+                HWR.beamline.detector.distance.set_value(self.safe_position)
+                HWR.beamline.detector.distance.wait_end_of_move(30)
+            except Exception as e:
+                msg = (
+                    "Cannot move detector, please contact support and check the key!!!"
+                )
+                self.log.exception(msg)
+                raise Exception(msg) from e  # noqa: TRY002
+            finally:
+                msg = "Detector in safe position, position: {}".format(
+                    HWR.beamline.detector.distance.get_value()
+                )
+                self.log.info(msg)
+                self.user_log.info(msg)
+        else:
+            self.log.info("Detector already in safe position.")
+            self.user_log.info("Detector already in safe position.")
+
+        if self.is_path_running():
+            timeout = 240
+            self._wait_device_ready(timeout)
+            if self.is_path_running():
+                msg_2 = (
+                    "Cannot load sample, sample changer has been moving for over {} s. \
+                        Please check the device".format(timeout)
+                )
+                raise RuntimeError(msg_2)
+
+        try:
+            self.log.info(
+                "Waiting for Diffractometer to be ready before proceeding \
+                with the sample loading."
+            )
+            """
+            The two wait_device_ready here is a temporary solution.
+            It's to deal with the scenario when users change phase after
+            launching sample mount. As the datacollection-> centring phase
+            change in MD3 hwobj is actually a phase change followed by
+            move_sync_motors and between the two commands there is a small window
+            that the MD3 device is ready. So here we added two wait to make sure
+            the isara doesn't run getput until after the move_sync_motor is finished.
+            """
+            HWR.beamline.diffractometer.wait_ready(30)
+            time.sleep(2)
+            HWR.beamline.diffractometer.wait_ready(30)
+        except Exception as e:
+            self.log.exception("Diffractometer not ready. Check diffractometer status")
+            msg_3 = "Diffractometer not ready. \
+                Check diffractometer status. Sample loading cancelled."
+            raise RuntimeError(msg_3) from e
+        else:
+            self.log.info("Diffractometer ready, proceeding with the sample loading.")
+            time.sleep(1)
+        # clean up sample centring method, which otherwise may cause continuous
+        # failure of automatic centring
+        HWR.beamline.sample_view.current_centring_method = None
+        HWR.beamline.diffractometer.last_centered_position = None
+
+    def sc_recovery_after_timeout(self):
+        """Recover in case "MD3 not safe" was detected on sample changer."""
+        self.after_load_or_unload_sample()
+
+    def after_load_sample(self):
+        """
+        Move to centring after loading the sample
+        """
+        if not self.is_powered():
+            msg = "Not proceeding with the steps after sample loading, \
+                sample changer not powered"
+            raise RuntimeError(msg)
+
+        if (
+            HWR.beamline.diffractometer is not None
+            and HWR.beamline.diffractometer.get_phase() != DiffractometerPhase.CENTRE
+        ):
+            self.log.info("Changing diffractometer phase to Centring")
+            self.user_log.info("Changing diffractometer phase to Centring")
+            HWR.beamline.diffractometer.wait_ready(15)
+            HWR.beamline.diffractometer.set_phase(DiffractometerPhase.CENTRE)
+            self.log.info(
+                "Diffractometer phase changed, current phase: %s",
+                HWR.beamline.diffractometer.get_phase(),
+            )
+        else:
+            self.log.info("Diffractometer already in Centring")
+            self.user_log.info("Diffractometer already in Centring")
+
+        if not HWR.beamline.diffractometer.get_channel_value("SampleIsLoaded"):
+            self.log.error(
+                "[SC][Empty mount] No sample detected on the goniometer, \
+                please check the camera!"
+            )
+            msg_0 = "No sample detected on the goniometer!"
+            raise Exception(msg_0)  # noqa: TRY002
+
+    def load(self, sample=None):
+        """
+        Load a sample.
+
+        Args:
+            sample (tuple): sample address on the form
+                            (component1, ... ,component_N-1, component_N)
+            wait (boolean): True to wait for load to complete False otherwise
+
+        Returns
+            (Object): Value returned by _execute_task either a Task or result of the
+                      operation
+        """
+        self.before_load_sample()
+        result = super().load(sample)
+        self.sc_recovery_after_timeout()
+        self.after_load_sample()
+
+        return result
+
+    def unload(self, sample_slot=None):
+        """
+        Unload sample to location sample_slot, unloads to the same slot as it
+        was loaded from if None is passed
+
+        Args:
+            sample_slot (tuple): sample address on the form
+                               (component1, ... ,component_N-1, component_N)
+
+        Returns:
+            (Object): Value returned by _execute_task either a Task or result of the
+                      operation
+        """
+        self.before_load_sample()
+        super().unload(sample_slot)
+        self.sc_recovery_after_timeout()
 
     def gripper_drying(self) -> bool:
         """Check if the gripper is drying."""
@@ -97,7 +261,7 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         self._add_tango_command("Reset")
 
     def _message_changed(self, message) -> None:
-        HWR_LOGGER.debug('[SC] Message changed: "%s"', message)
+        self.log.debug('[SC] Message changed: "%s"', message)
         if message:
             if message.startswith("WAIT for SafeMd condition / 9"):
                 self._handle_md3_not_safe()
@@ -111,8 +275,8 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             "[SC][Puck grab] Puck has been pulled out of its base."
             " Follow the recovery procedure."
         )
-        HWR_LOGGER.error(message)
-        USER_LOGGER.error(message)
+        self.log.error(message)
+        self.user_log.error(message)
 
     def _is_in_mount_pose(self) -> bool:
         """Check if the sample changer robot arm is in the "mounting" pose."""
@@ -168,7 +332,7 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
         """
         if not self._is_handling_md3_not_safe:
             self._is_handling_md3_not_safe = True
-            HWR_LOGGER.warning(
+            self.log.warning(
                 "[SC][MD3 not safe] Sample changer detected 'MD3 not safe' message."
                 " Recovery in progress...",
             )
@@ -176,30 +340,30 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                 "[SC] Timeout when waiting MD3 to move to transfer phase,"
                 " will put the sample back if applies."
             )
-            HWR_LOGGER.error("[SC] Error %s", error_message)
-            USER_LOGGER.error("[SC] Error %s", error_message)
-            HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Abort'...")
+            self.log.error("[SC] Error %s", error_message)
+            self.user_log.error("[SC] Error %s", error_message)
+            self.log.debug("[SC][MD3 not safe] Running command 'Abort'...")
             self.execute_command("Abort")
             gevent.sleep(0.5)
-            HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Reset'...")
+            self.log.debug("[SC][MD3 not safe] Running command 'Reset'...")
             self.execute_command("Reset")
             gevent.sleep(0.5)
             if self._is_in_mount_pose():
-                HWR_LOGGER.info(
+                self.log.info(
                     "[SC] Sample changer is stopped in the normal mount/check position"
                     " after detecting 'MD3 not safe'.",
                 )
-                HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Back'...")
+                self.log.debug("[SC][MD3 not safe] Running command 'Back'...")
                 self.execute_command("Back")
             else:
-                HWR_LOGGER.warning(
+                self.log.warning(
                     "[SC][MD3 not safe] Sample changer was not"
                     " in normal mount/check position",
                 )
-                HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Recover'...")
+                self.log.debug("[SC][MD3 not safe] Running command 'Recover'...")
                 self.execute_command("Recover")  # aka `safe` on Isara1
                 gevent.sleep(0.5)
-                HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Dry'...")
+                self.log.debug("[SC][MD3 not safe] Running command 'Dry'...")
                 self.execute_command("Dry")
                 error_message = (
                     "SC is NOT stopped in the normal check position,"
@@ -207,8 +371,8 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                     " Sample in the gripper(if applies) was lost!"
                     " Sample changer is back to normal."
                 )
-                HWR_LOGGER.error(error_message)
-                USER_LOGGER.error(error_message)
+                self.log.error(error_message)
+                self.user_log.error(error_message)
                 self._is_handling_md3_not_safe = False
 
     def _recover_after_md3_not_safe(self) -> None:
@@ -221,14 +385,14 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             # Here we wait twice, because there might be a small window of time
             # between the `back` and `dry` operations
             # during which the sample changer claims to be "ready".
-            HWR_LOGGER.debug("[SC][MD3 not safe] Waiting for device 180s... [1/2]")
+            self.log.debug("[SC][MD3 not safe] Waiting for device 180s... [1/2]")
             self._wait_device_ready(180)
             gevent.sleep(1)
-            HWR_LOGGER.debug("[SC][MD3 not safe] Waiting for device 180s... [2/2]")
+            self.log.debug("[SC][MD3 not safe] Waiting for device 180s... [2/2]")
             self._wait_device_ready(180)
-            HWR_LOGGER.debug("[SC][MD3 not safe] Waited for device 180s twice.")
+            self.log.debug("[SC][MD3 not safe] Waited for device 180s twice.")
         except Exception as exception:
-            HWR_LOGGER.warning(
+            self.log.warning(
                 "[SC] Sample changer not ready after recovery from 'MD3 not safe': %s",
                 exception,
             )
@@ -241,21 +405,21 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             ) or message.startswith("Gripper drying in progress")
 
             if is_drying:
-                HWR_LOGGER.info(
+                self.log.info(
                     "[SC] Drying after recovery from 'MD3 not safe'. Message: '%s'",
                     message,
                 )
-                HWR_LOGGER.info(
+                self.log.info(
                     "[SC] Running recovery procedure for "
                     "drying after 'MD3 not safe'...",
                 )
-                HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Abort'...")
+                self.log.debug("[SC][MD3 not safe] Running command 'Abort'...")
                 self.execute_command("Abort")
                 gevent.sleep(0.5)
-                HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Reset'...")
+                self.log.debug("[SC][MD3 not safe] Running command 'Reset'...")
                 self.execute_command("Reset")
                 gevent.sleep(0.5)
-                HWR_LOGGER.debug("[SC][MD3 not safe] Running command 'Recover'...")
+                self.log.debug("[SC][MD3 not safe] Running command 'Recover'...")
                 self.execute_command("Recover")  # aka `safe` on Isara1
                 self._wait_device_ready(20)
             else:
@@ -264,10 +428,10 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                     " while waiting for SC to put sample back,"
                     " please contact support."
                 )
-                raise Exception(error_message) from exception
+                raise Exception(error_message) from exception  # noqa: TRY002
         finally:
             self._is_handling_md3_not_safe = False
-            HWR_LOGGER.info(
+            self.log.info(
                 "[SC][MD3 not safe] Recovery procedure after 'MD3 not safe' is over.",
             )
 
@@ -276,8 +440,8 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             " Have put the sample back (if applies),"
             " please try to mount/unmount again when the Sample Changer is ready!"
         )
-        HWR_LOGGER.error(error_message)
-        raise Exception(error_message)
+        self.log.error(error_message)
+        raise Exception(error_message)  # noqa: TRY002
 
     def after_load_or_unload_sample(self) -> None:
         """Operations to run after loading or unloading a sample."""
@@ -292,12 +456,9 @@ class BiomaxIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
     def _handle_no_sample_mounted(self) -> None:
         message = "[SC][Empty mount] No sample detected on MD3."
-        HWR_LOGGER.error(message)
-        USER_LOGGER.error(
+        self.log.error(message)
+        self.user_log.error(
             "%s You might want to check visually."
             " Maybe run the beamline action called 'Empty Mount'.",
             message,
         )
-
-
-# EOF
