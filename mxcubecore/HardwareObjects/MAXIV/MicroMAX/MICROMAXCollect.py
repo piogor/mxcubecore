@@ -444,14 +444,11 @@ class MICROMAXCollect(DataCollect):
                 osc_start += osc_range * nframes_per_trigger - overlap
             self.char = True
         elif self.current_dc_parameters["experiment_type"] == "Mesh":
-            # web server send the wrong info, swapped here
+            shape_id = self.current_dc_parameters["shape"]
+            shape = HWR.beamline.sample_view.get_shape(shape_id)
+
             triggers_to_collect.append(
-                (
-                    osc_start,
-                    self.get_mesh_total_nb_frames(),  # trigger_num
-                    self.get_mesh_num_lines(),  # nframes_per_trigger
-                    osc_range,
-                )
+                (osc_start, shape.num_cols, shape.num_rows, osc_range)
             )
         else:
             triggers_to_collect.append((osc_start, 1, nframes, osc_range))
@@ -1212,6 +1209,7 @@ class MICROMAXCollect(DataCollect):
             row=ntrigger,
             col=nframes_per_trigger,
         )
+
         return config
 
     def stop_collect(self):
