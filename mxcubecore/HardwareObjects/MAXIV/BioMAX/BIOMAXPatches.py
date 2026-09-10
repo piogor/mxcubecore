@@ -18,6 +18,28 @@ class BIOMAXPatches(HardwareObject):
         """
         Ensure that the detector is in safe position and sample changer in SOAK
         """
+        # Abort any centring
+        try:
+            HWR.beamline.sample_view.cancel_centring()
+        except Exception:
+            logging.getLogger("HWR").exception(
+                "Problem aborting sample view centring before sample mount"
+            )
+
+        try:
+            HWR.beamline.diffractometer.cancel_centring_method(reject=True)
+        except Exception:
+            logging.getLogger("HWR").exception(
+                "Problem aborting diffractometer centring before sample mount"
+            )
+
+        # clean up stale sample centring state before resetting the sample changer
+        # and before a new auto-centring starts for the next mounted sample.
+        if HWR.beamline.sample_view is not None:
+            HWR.beamline.sample_view.current_centring_method = None
+        if HWR.beamline.diffractometer is not None:
+            HWR.beamline.diffractometer.last_centered_position = None
+
         # applies reset (safe to do) always just in case the sc is in false fault
         HWR.beamline.sample_changer_maintenance.send_command("reset")
 
@@ -114,9 +136,6 @@ class BIOMAXPatches(HardwareObject):
                 "Diffractometer ready, proceeding with the sample loading."
             )
             time.sleep(1)
-        # clean up sample centring method, which otherwise may cause continuous failure of automatic centring
-        HWR.beamline.sample_view.current_centring_method = None
-        HWR.beamline.diffractometer.last_centered_position = None
 
     def sc_recovery_after_timeout(self):
         """Recover in case "MD3 not safe" was detected on sample changer."""
