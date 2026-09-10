@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from pydantic import (
     BaseModel,
@@ -17,7 +16,7 @@ class CommonCollectionParamters(BaseModel):
 class PathParameters(BaseModel):
     prefix: str
     subdir: str
-    experiment_name: Optional[str]
+    experiment_name: str | None = None
 
     class Config:
         extra = "ignore"
@@ -35,14 +34,14 @@ class LegacyParameters(BaseModel):
 
 class StandardCollectionParameters(BaseModel):
     num_images: int
-    osc_start: Optional[float]
-    osc_range: Optional[float]
+    osc_start: float | None = None
+    osc_range: float | None = None
     energy: float
     transmission: float
     resolution: float
     first_image: int
-    kappa: Optional[float]
-    kappa_phi: Optional[float]
+    kappa: float | None = None
+    kappa_phi: float | None = None
     beam_size: str
     shutterless: bool
     selection: list = Field([])
@@ -74,5 +73,5 @@ class ISPYBCollectionParameters(BaseModel):
     end_time: datetime
     chip_model: str
     mono_stripe: str
-    number_of_rows: Optional[int] = 0
-    number_of_columns: Optional[int] = 0
+    number_of_rows: int | None = 0
+    number_of_columns: int | None = 0
