@@ -18,19 +18,13 @@ class BIOMAXPatches(HardwareObject):
         """
         Ensure that the detector is in safe position and sample changer in SOAK
         """
+        logging.getLogger("HWR").debug("Patched sample before load version.")
         # Abort any centring
         try:
             HWR.beamline.sample_view.cancel_centring()
         except Exception:
             logging.getLogger("HWR").exception(
                 "Problem aborting sample view centring before sample mount"
-            )
-
-        try:
-            HWR.beamline.diffractometer.cancel_centring_method(reject=True)
-        except Exception:
-            logging.getLogger("HWR").exception(
-                "Problem aborting diffractometer centring before sample mount"
             )
 
         # clean up stale sample centring state before resetting the sample changer
@@ -188,9 +182,7 @@ class BIOMAXPatches(HardwareObject):
         if sample is None:
             sample = args[1]
 
-        logging.getLogger("HWR").debug(
-            "Patched sample load version. Sample to load: %s" % sample
-        )
+        logging.getLogger("HWR").debug("√: %s" % sample)
 
         self.before_load_sample()
         result = self.__load(sample)
