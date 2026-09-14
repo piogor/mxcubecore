@@ -1116,6 +1116,7 @@ class Grid(Shape):
 
         if self.user_state == "HIDDEN":
             self.state = "HIDDEN"
+            super(Grid, self).update_position(transform)
             return
 
         if min(_d, 360 - _d) > self.shapes_hw_object.hide_grid_threshold:
