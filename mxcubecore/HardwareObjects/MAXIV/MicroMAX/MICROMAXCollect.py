@@ -604,10 +604,14 @@ class MICROMAXCollect(DataCollect):
             self.close_detector_cover()
 
     def get_mesh_num_lines(self):
-        return self.mesh_num_lines
+        shape_id = self.current_dc_parameters["shape"]
+        shape = HWR.beamline.sample_view.get_shape(shape_id)
+        return shape.num_cols
 
     def get_mesh_total_nb_frames(self):
-        return self.mesh_total_nb_frames
+        shape_id = self.current_dc_parameters["shape"]
+        shape = HWR.beamline.sample_view.get_shape(shape_id)
+        return shape.num_rows
 
     def get_current_shape(self):
         shape_id = self.current_dc_parameters["shape"]
@@ -686,7 +690,7 @@ class MICROMAXCollect(DataCollect):
                 exptime,
                 range_y,  # vertical_range in mm,
                 range_x,  # horizontal_range in mm,
-                self.get_mesh_total_nb_frames(),  # is in fact nframes per line
+                self.get_mesh_num_lines(),
                 invert_direction=1,
                 wait=wait,
                 table_pitch=get_table_pitch(),
