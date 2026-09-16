@@ -262,6 +262,9 @@ class DataCollect(AbstractCollect, HardwareObject):
         # deal with space group parameters
         #
         space_group = sample_reference_params.get("spacegroup", "")
+        if not isinstance(space_group, str):
+            space_group = ""
+
         if space_group != "":
             # convert to PDB style of space group names
             space_group = space_groups.get_full_name(space_group)
