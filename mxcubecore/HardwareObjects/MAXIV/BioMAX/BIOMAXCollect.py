@@ -17,6 +17,7 @@ from mxcubecore.HardwareObjects.abstract.AbstractDiffractometer import (
 )
 from mxcubecore.HardwareObjects.MAXIV.DataCollect import DataCollect
 from mxcubecore.HardwareObjects.MAXIV.scicat_plugin import SciCatPlugin
+from mxcubecore.model.queue_model_enumerables import EXPERIMENT_TYPE_STR
 from mxcubecore.TaskUtils import task
 
 CORRECT_OMEGA_SCRIPT = (
@@ -415,7 +416,7 @@ class BIOMAXCollect(DataCollect):
                 )
                 osc_start += osc_range * nframes_per_trigger - overlap
 
-        elif self.current_dc_parameters["experiment_type"] == "Mesh":
+        elif self.current_dc_parameters["experiment_type"] == EXPERIMENT_TYPE_STR.MESH:
             shape_id = self.get_current_shape_id()
             shape = HWR.beamline.sample_view.get_shape(shape_id)
 
@@ -600,7 +601,11 @@ class BIOMAXCollect(DataCollect):
         )
         if self.char:
             self.char = False
-        if self.current_dc_parameters["experiment_type"] == "Mesh" or self.hve:
+        if (
+            self.current_dc_parameters["experiment_type"]
+            in (EXPERIMENT_TYPE_STR.MESH, EXPERIMENT_TYPE_STR.LINE_SCAN)
+            or self.hve
+        ):
             self.detector_hwobj.disable_stream()
 
         self.emit("collectEnded", self.owner, False, failed_msg)
@@ -952,7 +957,10 @@ class BIOMAXCollect(DataCollect):
 
         config["FilenamePattern"] = name_pattern
 
-        if self.current_dc_parameters["experiment_type"] == "Mesh":
+        if self.current_dc_parameters["experiment_type"] in (
+            EXPERIMENT_TYPE_STR.MESH,
+            EXPERIMENT_TYPE_STR.LINE_SCAN,
+        ):
             self.detector_hwobj.enable_stream()
             dozor_dict = self.detector_hwobj.prepare_acquisition(config)
             self.setup_header_appendix(
@@ -1170,56 +1178,25 @@ class BIOMAXCollect(DataCollect):
         ]
         self._run_ssh_command(self._HPC_FE_HOST, command)
 
-    def wait_for_xray_center_result(self, shape_id):
+    def wait_for_xray_center_result(self, shape_id: str) -> bool:
         with gevent.Timeout(
-            30, Exception("Timeout waiting for Xray Centering Analysis result")
+            60, Exception("Timeout waiting for Xray Centering Analysis result")
         ):
             shape = HWR.beamline.sample_view.get_shape(shape_id)
             while not shape.get_result():
-                gevent.sleep(0.5)
-        if shape.result_center is not None:
-            center_x = shape.result_center["x"]
-            if shape.t == "L":
-                center_y = 0
-                save_point = True
-            else:
-                center_y = shape.result_center["y"]
-                save_point = False
-            self.move_to_centered_position()
-            self.diffractometer_hwobj.wait_device_ready(5)
-            self.move_to_xray_center(
-                cent_x=center_x, cent_y=center_y, save_point=save_point
-            )
-            self.xray_center_found = True
-        else:
-            self.xray_center_found = False
-            msg = "No crystal is identified from the X-ray centering result!!"
-            hwr_log.info(msg)
-            self.user_log.error(msg)
-            self.emit_collection_failed(msg)
+                self.log.info("Waiting for heatmap results..")
+                gevent.sleep(1)
 
-    def move_to_xray_center(self, cent_x=0, cent_y=0, save_point=False):
-        # cent_x, cent_y is the cell value, not absolute value
-        beam_size_x, beam_size_y = HWR.beamline.beam.get_beam_size()
-        x_mm = cent_x * beam_size_x
-        y_mm = cent_y * beam_size_y
-        hwr_log.info(
-            "Should move sample by x {} mm, y {} mm to center it".format(x_mm, y_mm)
-        )
-        self.user_log.info(
-            "Crystal is identified from Xray diffraction and will be moved to the beam center"
-        )
-        self.diffractometer_hwobj.wait_device_ready(5)
-        self.diffractometer_hwobj.omega.set_value_relative(-y_mm)
-        self.diffractometer_hwobj.wait_device_ready(5)
-        self.sample_view_hwobj.move_cent_vertical_relative(-x_mm)
-        self.diffractometer_hwobj.save_centring_positions()
-        cpos = self.diffractometer_hwobj.last_centered_position
-        if save_point:
-            self.sample_view_hwobj.centring_status["motors"] = cpos
-            self.sample_view_hwobj.centring_status["valid"] = True
-            self.sample_view_hwobj.accept_centring()
-        hwr_log.info("Centring positions saved. Motors: {}".format(cpos))
+        result = shape.get_result()
+        if result["cent"] is not None:
+            center_x, center_y = result["cent"]
+            save_point = shape.t == "L"
+            self.move_to_centered_position()
+            HWR.beamline.sample_view.move_to_xray_center(
+                center_x, center_y, shape_id, save_point=save_point
+            )
+            return True
+        return False
 
     def _create_header_appendix(
         self,
