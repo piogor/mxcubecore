@@ -959,6 +959,7 @@ class Shape:
         self.selected = False
         self.refs = []
         self.shapes_hw_object = None
+        self.result = None
         mpos_list = mpos_list or []
         self.add_cp_from_mp(mpos_list)
 
@@ -1023,6 +1024,12 @@ class Shape:
         d["motor_positions"] = str(cpos_list)
 
         return d
+
+    def set_result(self, result_data):
+        self.result = result_data
+
+    def get_result(self):
+        return self.result
 
 
 class Point(Shape):
@@ -1099,9 +1106,6 @@ class Grid(Shape):
         self.num_cols = -1
         self.num_rows = -1
         self.selected = False
-        # result is a base64 encoded string for PNG/image heatmap results
-        # or a dictionary (for RGB number based results)
-        self.result = None
         self.pixels_per_mm = [1, 1]
         self.beam_pos = [1, 1]
         self.beam_width = 0
@@ -1143,12 +1147,6 @@ class Grid(Shape):
     def set_id(self, id_num):
         Shape.set_id(self, id_num)
         self.cp_list[0].index = self.name
-
-    def set_result(self, result_data):
-        self.result = result_data
-
-    def get_result(self):
-        return self.result
 
     def as_dict(self) -> dict:
         """Convert a shape to a dictionary."""
