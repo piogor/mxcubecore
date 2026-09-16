@@ -1139,3 +1139,8 @@ class MAXIVMD3(AbstractDiffractometer):
                 ):
                     return evar
         return which_enum.UNKNOWN
+
+    def get_alignment_table_speed_limits(self) -> tuple[float, float, float]:
+        """Returns max speed for Alignment[X,Y,Z] motors, respectively"""
+        speed = self.command_dict["getMotorMaxSpeed"]
+        return speed("AlignmentX"), speed("AlignmentY"), speed("AlignmentZ")
