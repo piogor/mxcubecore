@@ -921,6 +921,10 @@ class AbstractCollect(HardwareObject, object):
         mesh_range_param: tuple,
     ) -> None:
         """Set the mesh scan parameters."""
+        self.log.debug(
+            f"Set mesh scan parameters: {num_lines=}, {total_nb_frames=}, "
+            f"{mesh_range_param=}, {mesh_center_param}"
+        )
         self.mesh_num_lines = num_lines
         self.mesh_total_nb_frames = total_nb_frames
         self.mesh_range = mesh_range_param

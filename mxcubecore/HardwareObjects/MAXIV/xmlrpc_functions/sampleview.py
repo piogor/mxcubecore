@@ -1,3 +1,4 @@
+import logging
 from typing import Any, TypeAlias, TypedDict
 
 import matplotlib.cm
@@ -29,6 +30,10 @@ DrawGridResult: TypeAlias = dict[str, list[Any | ShapeValues]]
 
 def set_grid_data(self, shape_id: str, shape_result: ShapeResult):  # noqa: ARG001
     """Set grid result for a shape"""
+
+    logging.getLogger("XML-RPC").debug(
+        f"Setting grid data: {shape_id=} num_results={len(shape_result['result'])}"
+    )
 
     def transform(result: list[HeatmapResult]) -> DrawGridResult:
         """Evaluate heatmap and prepare it to DrawGridPlugin"""
