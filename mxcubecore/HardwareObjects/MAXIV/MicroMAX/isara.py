@@ -55,6 +55,7 @@ class Isara(ISARA):
         )
 
     def _message_changed(self, message) -> None:
+        self.log.debug("isara message: ==> %s", message)
         if not _is_empty_mount_message(message):
             # we only care about 'empty mount' messages
             return

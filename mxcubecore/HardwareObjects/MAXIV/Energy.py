@@ -29,22 +29,21 @@ class Energy(AbstractEnergy):
         AbstractEnergy.__init__(self, *args, **kwargs)
 
     def init(self):
-        try:
-            super().init()
-            self.moving = None
-            self.default_en = None
-            # To check beam stability
-            self.total_counts = 0.0
-            # This is the minimum number of counts on the beam detector. If below, there is no beam
-            self.min_total_counts = None
-            with contextlib.suppress(Exception):
-                self.min_total_counts = HWR.beamline.tango_keystore.get_float(
-                    "xbpm1_minimum_current"
-                )
-            # How many measurements of the beam position to average (to decrease the effect of noise)
-            self.N = 4
-            self.counts_now = deque(maxlen=self.N)
-            # This is how much we allow the beam position to deviate (in microns)
+        super().init()
+        self.moving = None
+        self.default_en = None
+        # To check beam stability
+        self.total_counts = 0.0
+        # This is the minimum number of counts on the beam detector. If below, there is no beam
+        self.min_total_counts = None
+        with contextlib.suppress(Exception):
+            self.min_total_counts = HWR.beamline.tango_keystore.get_float(
+                "xbpm1_minimum_current"
+            )
+        # How many measurements of the beam position to average (to decrease the effect of noise)
+        self.N = 4
+        self.counts_now = deque(maxlen=self.N)
+        # This is how much we allow the beam position to deviate (in microns)
 
         ks = HWR.beamline.tango_keystore
         if not ks.is_true("emulate_energy"):

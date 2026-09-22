@@ -277,8 +277,9 @@ class MICROMAXCollect(DataCollect):
         else:
             self.pandabox_schema = HWR.beamline.tango_keystore.get("pandabox_schema")
         self.pandabox_dev.load_schema_from_file(self.pandabox_schema)
-        self.pandabox_rep_time = self.get_tr_rep_time()
-        self.log.debug("Repetition time is %s", self.pandabox_rep_time)
+        if HWR.beamline.is_hve_sample_delivery():
+            self.pandabox_rep_time = self.get_tr_rep_time()
+            self.log.debug("Repetition time is %s", self.pandabox_rep_time)
         self.diffractometer_hwobj.check_omega_limit()
         self.diffractometer_hwobj.check_phiy_limit()
 
@@ -409,7 +410,7 @@ class MICROMAXCollect(DataCollect):
 
         if HWR.beamline.tango_keystore.is_enabled("feature_check_flux"):
             self.log.warning("Reading flux")
-            if not self.diffractometer_hwobj.in_plate_mode():
+            if not self.diffractometer_hwobj.in_plate_mode:
                 self.flux_before_collect = self.get_instant_flux()
             self.estimated_flux_before_collect = self.get_estimated_flux()
 
@@ -1184,7 +1185,7 @@ class MICROMAXCollect(DataCollect):
             sample_info = self.current_dc_parameters["sample_reference"]
             space_group = sample_info.get("spacegroup", None)
 
-            if space_group is not None:
+            if space_group:
                 space_group = space_group.strip()
                 space_group_number = space_groups.get_number(space_group)
                 config["SpaceGroupNumber"] = space_group_number
@@ -1330,7 +1331,7 @@ class MICROMAXCollect(DataCollect):
         """Prepare beamline for a new sample."""
         if (
             HWR.beamline.is_hve_sample_delivery()
-            or self.diffractometer_hwobj.in_plate_mode()
+            or self.diffractometer_hwobj.in_plate_mode
         ):
             self.log.info(
                 "[HWR] Beamline in HVE delivery or plate mode, no preparation for a new sample required."
