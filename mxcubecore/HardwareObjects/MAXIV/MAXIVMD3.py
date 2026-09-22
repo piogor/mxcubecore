@@ -1147,3 +1147,10 @@ class MAXIVMD3(AbstractDiffractometer):
         """Returns max speed for Alignment[X,Y,Z] motors, respectively"""
         speed = self.command_dict["getMotorMaxSpeed"]
         return speed("AlignmentX"), speed("AlignmentY"), speed("AlignmentZ")
+
+    def get_chip_configuration(self):
+        """
+        Temporary fix for MicroMAX chips configuration co-authored by Zak
+        <ezequiel.panepucci@maxiv.lu.se>
+        """
+        return None
