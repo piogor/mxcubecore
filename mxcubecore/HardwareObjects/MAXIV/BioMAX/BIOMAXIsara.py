@@ -469,7 +469,7 @@ class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
     def _handle_no_sample_mounted(self) -> None:
         message = "[SC][Empty mount] No sample detected on MD3."
         self.log.error(message)
-        self.user_log.error(
+        self.user_log.critical(
             "%s You might want to check visually."
             " Maybe run the beamline action called 'Empty Mount'.",
             message,
