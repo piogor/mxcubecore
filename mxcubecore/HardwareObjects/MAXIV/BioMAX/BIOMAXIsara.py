@@ -189,7 +189,7 @@ class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             msg_0 = "No sample detected on the goniometer!"
             raise Exception(msg_0)  # noqa: TRY002
 
-    def load(self, sample=None):
+    def load(self, sample=None, **_kwargs):
         """
         Load a sample.
 
@@ -209,7 +209,7 @@ class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
 
         return result
 
-    def unload(self, sample_slot=None):
+    def unload(self, sample_slot=None, **_kwargs):
         """
         Unload sample to location sample_slot, unloads to the same slot as it
         was loaded from if None is passed
