@@ -189,7 +189,7 @@ class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
             msg_0 = "No sample detected on the goniometer!"
             raise Exception(msg_0)  # noqa: TRY002
 
-    def load(self, sample=None, **_kwargs):
+    def load(self, sample, **kwargs):
         """
         Load a sample.
 
@@ -203,13 +203,13 @@ class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                       operation
         """
         self.before_load_sample()
-        result = super().load(sample)
+        result = super().load(sample, **kwargs)
         self.sc_recovery_after_timeout()
         self.after_load_sample()
 
         return result
 
-    def unload(self, sample_slot=None, **_kwargs):
+    def unload(self, sample_slot=None, **kwargs):
         """
         Unload sample to location sample_slot, unloads to the same slot as it
         was loaded from if None is passed
@@ -223,7 +223,7 @@ class BIOMAXIsara(mxcubecore.HardwareObjects.ISARA.ISARA):
                       operation
         """
         self.before_load_sample()
-        super().unload(sample_slot)
+        super().unload(sample_slot, **kwargs)
         self.sc_recovery_after_timeout()
 
     def gripper_drying(self) -> bool:
