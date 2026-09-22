@@ -19,9 +19,9 @@ class BIOMAXPatches(HardwareObject):
         Ensure that the detector is in safe position and sample changer in SOAK
         """
         logging.getLogger("HWR").debug("Patched sample before load version.")
-        # Abort any centring
+        # Reset any centring before replacing the mounted sample.
         try:
-            HWR.beamline.sample_view.cancel_centring()
+            HWR.beamline.sample_view.reset_centring_for_sample_mount()
         except Exception:
             logging.getLogger("HWR").exception(
                 "Problem aborting sample view centring before sample mount"

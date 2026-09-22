@@ -255,6 +255,17 @@ class MAXIVSampleView(SampleView):
 
         super().reject_centring()
 
+    def reset_centring_for_sample_mount(self):
+        """Clear centring state before replacing the mounted sample."""
+        if self.current_centring_procedure is not None:
+            self.current_centring_procedure.kill(block=True)
+
+        self.current_centring_procedure = None
+        self.current_centring_method = None
+        self.waiting_for_click = None
+        self.user_clicked_event = None
+        self.centring_status = {"valid": False}
+
     def manual_centring(self, nb_click: int = 3):
         # Do not perform centring for ssx experiments
         if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
