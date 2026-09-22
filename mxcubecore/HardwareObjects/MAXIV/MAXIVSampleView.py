@@ -246,6 +246,15 @@ class MAXIVSampleView(SampleView):
         self.current_centring_procedure = gevent.spawn(self.automatic_centring)
         self.current_centring_procedure.link(self.auto_centring_done)
 
+    def reject_centring(self):
+        # Don't emit "acceptCentring" if there is no centring to accept
+        # Otherwise, an extra point is added before autocentring
+        if self.current_centring_procedure is None:
+            self.centring_status = {"valid": False}
+            return
+
+        super().reject_centring()
+
     def manual_centring(self, nb_click: int = 3):
         # Do not perform centring for ssx experiments
         if HWR.beamline.tango_keystore.is_enabled("ssx_mode"):
@@ -384,7 +393,7 @@ class MAXIVSampleView(SampleView):
         cpos.pop("zoom", None)
         return cpos
 
-    def automatic_centring(self) -> dict:
+    def automatic_centring(self) -> dict | None:
         """
         Performs automatic loop centering and sets up all the prerequisites
         for the centering to work. Returns a 3d point on the centered position.
@@ -400,7 +409,7 @@ class MAXIVSampleView(SampleView):
                 "Sample is not detected on the magnet. "
                 "Check camera and run //Empty Mount// beamline action."
             )
-            return self.get_center_pos()
+            return None
 
         # move MD3 to Centring phase if it's not
         if HWR.beamline.diffractometer.get_phase() != DiffractometerPhase.CENTRE:
@@ -441,6 +450,7 @@ class MAXIVSampleView(SampleView):
         success = self.center_loop()
         if not success:
             self.user_log.warning("Automatic loop centering failed!")
+            return None
 
         return self.get_center_pos()
 
