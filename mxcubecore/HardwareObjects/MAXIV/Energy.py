@@ -1,3 +1,4 @@
+import contextlib
 import math
 import sys
 import time
@@ -28,19 +29,22 @@ class Energy(AbstractEnergy):
         AbstractEnergy.__init__(self, *args, **kwargs)
 
     def init(self):
-        super().init()
-        self.moving = None
-        self.default_en = None
-        # To check beam stability
-        self.total_counts = 0.0
-        # This is the minimum number of counts on the beam detector. If below, there is no beam
-        self.min_total_counts = HWR.beamline.tango_keystore.get_float(
-            "xbpm1_minimum_current"
-        )
-        # How many measurements of the beam position to average (to decrease the effect of noise)
-        self.N = 4
-        self.counts_now = deque(maxlen=self.N)
-        # This is how much we allow the beam position to deviate (in microns)
+        try:
+            super().init()
+            self.moving = None
+            self.default_en = None
+            # To check beam stability
+            self.total_counts = 0.0
+            # This is the minimum number of counts on the beam detector. If below, there is no beam
+            self.min_total_counts = None
+            with contextlib.suppress(Exception):
+                self.min_total_counts = HWR.beamline.tango_keystore.get_float(
+                    "xbpm1_minimum_current"
+                )
+            # How many measurements of the beam position to average (to decrease the effect of noise)
+            self.N = 4
+            self.counts_now = deque(maxlen=self.N)
+            # This is how much we allow the beam position to deviate (in microns)
 
         ks = HWR.beamline.tango_keystore
         if not ks.is_true("emulate_energy"):
@@ -216,15 +220,16 @@ class Energy(AbstractEnergy):
         self.total_counts = xbpm.S
         # self.output(self.total_counts)
         # Value decreased by 3 orders of magnitude since firmware upgrade of aems
-        if self.total_counts < self.min_total_counts:
-            # wait a little and check again
-            time.sleep(5)
-            self.log.info("Checking XBPM counts again!")
-            self.total_counts = xbpm.S
+        if self.min_total_counts is not None:
             if self.total_counts < self.min_total_counts:
-                raise Exception(
-                    "There is no beam in the BCU. Check the front end shutters, the undulator gap and the NanoBPM regulation."
-                )
+                # wait a little and check again
+                time.sleep(5)
+                self.log.info("Checking XBPM counts again!")
+                self.total_counts = xbpm.S
+                if self.total_counts < self.min_total_counts:
+                    raise Exception(
+                        "There is no beam in the BCU. Check the front end shutters, the undulator gap and the NanoBPM regulation."
+                    )
 
         # How long we check for stable beam
         timeout = 120
@@ -246,6 +251,8 @@ class Energy(AbstractEnergy):
         return True
 
     def is_good_beam(self, N, counts):
+        if self.min_total_counts is None:
+            return
         self.counts_now.append(counts)
         if len(self.counts_now) < N:
             return False
