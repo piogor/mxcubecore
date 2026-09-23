@@ -60,7 +60,7 @@ def set_grid_data(self, shape_id: str, shape_result: ShapeResult):  # noqa: ARG0
         """Get (x,y) coords from raw index.
 
         Notes:
-            It assumes 0-indexed position and inverse zig-zag path!
+            It assumes 0-indexed position and top-down inverse zig-zag path!
 
         Example:
             6  5  0
