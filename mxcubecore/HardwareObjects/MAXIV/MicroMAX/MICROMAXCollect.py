@@ -1,7 +1,7 @@
 import logging
 import math
 import os
-import subprocess
+import subprocess  # noqa: F401
 import sys
 import time
 from pathlib import Path
@@ -342,10 +342,14 @@ class MICROMAXCollect(DataCollect):
         if HWR.beamline.is_hve_sample_delivery():
             if self.time_resolved:
                 self.move_in_laser()
-            self.pandabox_laser_delay =  0 # default value
-            exp_time = self.current_dc_parameters["oscillation_sequence"][0]["exposure_time"] # s
-            dark_images = int(self.current_dc_parameters["oscillation_sequence"][0]["range"])
-            self.pandabox_laser_delay = exp_time * int(dark_images) * 1000 # ms
+            self.pandabox_laser_delay = 0  # default value
+            exp_time = self.current_dc_parameters["oscillation_sequence"][0][
+                "exposure_time"
+            ]  # s
+            dark_images = int(
+                self.current_dc_parameters["oscillation_sequence"][0]["range"]
+            )
+            self.pandabox_laser_delay = exp_time * int(dark_images) * 1000  # ms
 
         if "transmission" in self.current_dc_parameters:
             transmission = self.current_dc_parameters["transmission"]
@@ -530,7 +534,9 @@ class MICROMAXCollect(DataCollect):
 
                         # laser diode
                         self.pandabox_dev.set_attribute("PULSE6.DELAY.UNITS", "ms")
-                        self.pandabox_dev.set_attribute("PULSE6.DELAY", str(self.pandabox_laser_delay))
+                        self.pandabox_dev.set_attribute(
+                            "PULSE6.DELAY", str(self.pandabox_laser_delay)
+                        )
 
                         self.start_laser()
                         attribute_list = ["BITS2.B", "BITS2.A"]
@@ -539,9 +545,16 @@ class MICROMAXCollect(DataCollect):
                         attribute_list = ["BITS2.A"]
                         value_list = ["1"]
 
-                    shutterless_exptime = self.pandabox_rep_time * self.current_dc_parameters["oscillation_sequence"][0]["start_image_number"]
+                    shutterless_exptime = (
+                        self.pandabox_rep_time
+                        * self.current_dc_parameters["oscillation_sequence"][0][
+                            "start_image_number"
+                        ]
+                    )
                     for i in range(len(attribute_list)):
-                        self.pandabox_dev.set_attribute(attribute_list[i],value_list[i])
+                        self.pandabox_dev.set_attribute(
+                            attribute_list[i], value_list[i]
+                        )
 
                     # For injector steady state...
                     if shutterless_exptime < 2:
@@ -580,7 +593,7 @@ class MICROMAXCollect(DataCollect):
             if self.time_resolved:
                 self.stop_laser()
                 # ns-aser
-                #attribute_list = ["BITS2.A", "BITS2.B"]
+                # attribute_list = ["BITS2.A", "BITS2.B"]
                 attribute_list = ["BITS2.A", "BITS2.C", "BITS2.D"]
             else:
                 attribute_list = ["BITS2.A"]
@@ -1148,8 +1161,8 @@ class MICROMAXCollect(DataCollect):
             # when Jungfrau detector is used, include user specified unit cell
             # parameters in the acquisition config sent to the detector
 
-            #TODO@JieNAN: tmp solution agreed for the processing pipeline solution,
-            #sanmple name should not be laser status
+            # TODO@JieNAN: tmp solution agreed for the processing pipeline solution,
+            # sanmple name should not be laser status
             if self.time_resolved:
                 config["SampleName"] = "laseron"
             else:
@@ -1435,15 +1448,15 @@ class MICROMAXCollect(DataCollect):
         return master_clock * div1 * laser_div / 1000.0  # s
 
     def start_laser(self):
-        #ns laser control
-        #cmd_laser = f"{self.laser_script} -c start"
-        #subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
+        # ns laser control
+        # cmd_laser = f"{self.laser_script} -c start"
+        # subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
         self.pandabox_dev.set_attribute("BITS2.D", "1")
 
     def stop_laser(self):
         # ns laser control
-        #cmd_laser = f"{self.laser_script} -c stop"
-        #subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
+        # cmd_laser = f"{self.laser_script} -c stop"
+        # subprocess.run(cmd_laser, shell=True, check=False)  # noqa: S602
         self.pandabox_dev.set_attribute("BITS2.D", "0")
 
     def move_in_laser(self):
