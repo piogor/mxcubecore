@@ -1,39 +1,46 @@
+from unittest.mock import Mock, PropertyMock
+
 from mxcubecore.HardwareObjects.MAXIV.beamline import Beamline
 
 
-def _setup_beamline_obj(config: dict):
-    beamline = Beamline("dummy")
-    beamline._config = Beamline.HOConfig(**config)  # noqa: SLF001
+def _setup_beamline_obj(mocker, config: dict):
+    tango_keystore_mock = Mock()
+    tango_keystore_mock.is_enabled = Mock(
+        side_effect=lambda key: config.get(key, False)
+    )
 
-    return beamline
+    hwr_beamline = Beamline("dummy")
+    mocker.patch.object(
+        Beamline,
+        "tango_keystore",
+        new_callable=PropertyMock,
+        return_value=tango_keystore_mock,
+    )
+    return hwr_beamline
 
 
-def test_emulate_default():
-    """Test the `emulate()` method when no
-    `emulate` config have been specified.
-    """
-    beamline = _setup_beamline_obj({})
+def test_emulate_default(mocker):
+    """Test the `emulate()` method when the keystore reports no enabled features."""
+    beamline = _setup_beamline_obj(mocker, {})
 
     assert not beamline.emulate("feature1")
     assert not beamline.emulate("feature2")
 
 
-def test_emulate_enabled():
+def test_emulate_enabled(mocker):
     """Test the `emulate()` method when
     some feature have been configured to be emulated.
     """
 
     beamline = _setup_beamline_obj(
+        mocker,
         {
-            "emulate": {
-                "feature1": True,
-                "feature2": False,
-            },
-        }
+            "emulate_feature1": True,
+            "emulate_feature2": False,
+        },
     )
 
     assert beamline.emulate("feature1")
     assert not beamline.emulate("feature2")
-    # this feature is not included into the config,
-    # it must default to false
+    # The mock keystore reports unconfigured features as disabled.
     assert not beamline.emulate("feature3")
