@@ -301,9 +301,9 @@ class MAXIVSampleView(SampleView):
 
         if HWR.beamline.diffractometer.in_plate_mode:
             # set to the middle position of omega range in the end of manual centring
-            dynamic_limits = self.omega_motor_hwobj.get_dynamic_limits()
-            mid_angle = (dynamic_limits[0] + dynamic_limits[1]) / 2.0
-            if mid_angle > dynamic_limits[0] and mid_angle < dynamic_limits[1]:
+            limit_min, limit_max = self.omega_motor_hwobj.get_dynamic_limits()
+            mid_angle = (limit_min + limit_max) / 2.0
+            if limit_min < mid_angle and mid_angle < limit_max:
                 self.omega_motor_hwobj.set_value(mid_angle)
 
         return self.centring_hwobj.centeredPosition(return_by_name=False)
