@@ -6,7 +6,6 @@ import gevent
 from mxcubecore.HardwareObjects.abstract.AbstractTransmission import (
     AbstractTransmission,
 )
-from mxcubecore.TaskUtils import *
 
 
 class Transmission(AbstractTransmission):
