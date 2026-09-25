@@ -220,15 +220,17 @@ class Energy(AbstractEnergy):
         # self.output(self.total_counts)
         # Value decreased by 3 orders of magnitude since firmware upgrade of aems
         if self.min_total_counts is not None:
-            if self.total_counts < self.min_total_counts:
-                # wait a little and check again
-                time.sleep(5)
+            for _ in range(5):
+                if self.min_total_counts <= xbpm.S:
+                    self.total_counts = xbpm.S
+                    break
+                time.sleep(1)
                 self.log.info("Checking XBPM counts again!")
-                self.total_counts = xbpm.S
-                if self.total_counts < self.min_total_counts:
-                    raise Exception(
-                        "There is no beam in the BCU. Check the front end shutters, the undulator gap and the NanoBPM regulation."
-                    )
+            else:
+                raise Exception(
+                    "There is no beam in the BCU. Check the front end shutters, "
+                    "the undulator gap and the NanoBPM regulation."
+                )
 
         # How long we check for stable beam
         timeout = 120
