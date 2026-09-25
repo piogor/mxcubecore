@@ -51,7 +51,8 @@ class Transmission(AbstractTransmission):
 
     def set_value(self, value: int | float, wait=False):
         if not (self.limits[0] <= value and value <= self.limits[1]):
-            raise Exception("Transmssion out of limits.")
+            err_msg = f"Expected transmission in {self.limits}, got {value}"
+            raise ValueError(err_msg)
 
         with gevent.Timeout(10, Exception("Timeout waiting for device to be stopped")):
             while self.transmission_motor.is_moving():
