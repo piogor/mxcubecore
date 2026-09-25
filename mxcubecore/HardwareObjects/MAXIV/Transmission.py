@@ -9,16 +9,16 @@ from mxcubecore.HardwareObjects.abstract.AbstractTransmission import (
 
 
 class Transmission(AbstractTransmission):
-    def __init__(self, *args, **kwargs):
-        AbstractTransmission.__init__(self, *args, **kwargs)
+    def __init__(self, name: str) -> None:
+        super().__init__(self, name)
 
     def init(self):
-        super(Transmission, self).init()
+        super().init()
         self.ready_event = gevent.event.Event()
         self.transmission_motor = None
         self.moving = None
         self.limits = [0, 100]
-        self.threhold = 5
+        self.threshold = 5
 
         try:
             self.transmission_motor = self.get_object_by_role("transmission_motor")
@@ -29,28 +29,28 @@ class Transmission(AbstractTransmission):
                 "valueChanged", self.transmission_position_changed
             )
 
-    def is_ready(self):
+    def is_ready(self) -> bool:
         return True
 
-    def get_value(self):
+    def get_value(self) -> float:
         val = "%.3f" % self.transmission_motor.get_value()
         return float(val)
 
-    def get_att_factor(self):
+    def get_att_factor(self) -> str:
         return "%.3f" % self.transmission_motor.get_value()
 
-    def get_att_state(self):
+    def get_att_state(self) -> int:
         return 1
 
-    def get_limits(self):
-        return (0, 100)
+    def get_limits(self) -> list[int, int]:
+        return self.limits
 
-    def setpoint_reached(self, setpoint):
-        curr_pos = float(self.get_value())
+    def setpoint_reached(self, setpoint: int | float) -> float:
+        curr_pos = self.get_value()
         return abs(curr_pos - setpoint) < (0.05 * setpoint)  # within %5 of reach
 
-    def set_value(self, value, wait=False):
-        if value < self.limits[0] or value > self.limits[1]:
+    def set_value(self, value: int | float, wait=False):
+        if not (self.limits[0] <= value and value <= self.limits[1]):
             raise Exception("Transmssion out of limits.")
 
         with gevent.Timeout(10, Exception("Timeout waiting for device to be stopped")):
