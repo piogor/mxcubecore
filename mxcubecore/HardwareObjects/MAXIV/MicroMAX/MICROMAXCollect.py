@@ -1239,7 +1239,9 @@ class MICROMAXCollect(DataCollect):
             self.user_log.warning("not changing transmission, it's read-only")
             return
         try:
-            self.transmission_hwobj.set_value(float(value), True)
+            # tmp solution, because the transmission timeout issue
+            if abs(self.transmission_hwobj.get_value() - float(value)) > 1:
+                self.transmission_hwobj.set_value(float(value), True)
         except Exception as ex:
             raise Exception("cannot set transmission", ex)
 
