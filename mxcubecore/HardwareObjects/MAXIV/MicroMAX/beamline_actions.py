@@ -391,7 +391,7 @@ class MovePlate(AnnotatedCommand):
         )
         try:
             row_index = HWR.beamline.diffractometer.plate_row_list.index(row.upper())
-        except Exception as ex:
+        except ValueError as ex:
             hwr_log.error(
                 "Cannot move plate: could not find the row value %s in the row_list",
                 row,

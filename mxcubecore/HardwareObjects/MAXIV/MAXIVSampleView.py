@@ -303,7 +303,7 @@ class MAXIVSampleView(SampleView):
             # set to the middle position of omega range in the end of manual centring
             limit_min, limit_max = self.omega_motor_hwobj.get_dynamic_limits()
             mid_angle = (limit_min + limit_max) / 2.0
-            if limit_min < mid_angle and mid_angle < limit_max:
+            if limit_min < limit_max:
                 self.omega_motor_hwobj.set_value(mid_angle)
 
         return self.centring_hwobj.centeredPosition(return_by_name=False)
