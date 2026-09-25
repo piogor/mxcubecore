@@ -1,7 +1,8 @@
 import logging
 import math
 import os
-import subprocess  # noqa: F401
+
+# import subprocess
 import sys
 import time
 from pathlib import Path
@@ -342,7 +343,6 @@ class MICROMAXCollect(DataCollect):
         if HWR.beamline.is_hve_sample_delivery():
             if self.time_resolved:
                 self.move_in_laser()
-            self.pandabox_laser_delay = 0  # default value
             exp_time = self.current_dc_parameters["oscillation_sequence"][0][
                 "exposure_time"
             ]  # s
@@ -513,9 +513,9 @@ class MICROMAXCollect(DataCollect):
                         self.stop_laser()
                         # enable panda box
                         """ ns-laser
-                        # pulse6, laser sync in
+                        # pulse6 - laser sync in
                         self.pandabox_dev.set_attribute("PULSE6.DELAY.UNITS", "ms")
-                        # pulse5 laser gate delay
+                        # pulse5 - laser gate delay
                         self.pandabox_dev.set_attribute("PULSE5.DELAY.UNITS", "ms")
                         ori_pulse6_delay = float(
                             self.pandabox_dev.get_attribute("PULSE6.DELAY")
@@ -546,16 +546,15 @@ class MICROMAXCollect(DataCollect):
                         attribute_list = ["BITS2.A"]
                         value_list = ["1"]
 
+                    for attr, val in zip(attribute_list, value_list, strict=True):
+                        self.pandabox_dev.set_attribute(attr, val)
+
                     shutterless_exptime = (
                         self.pandabox_rep_time
                         * self.current_dc_parameters["oscillation_sequence"][0][
                             "start_image_number"
                         ]
                     )
-                    for i in range(len(attribute_list)):
-                        self.pandabox_dev.set_attribute(
-                            attribute_list[i], value_list[i]
-                        )
 
                     # For injector steady state...
                     if shutterless_exptime < 2:
