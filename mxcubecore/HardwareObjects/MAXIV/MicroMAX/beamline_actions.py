@@ -385,20 +385,20 @@ class MovePlate(AnnotatedCommand):
         super().__init__(*args)
 
     def move_plate(self, row: str, col: int, drop: int) -> None:
-        logging.getLogger("user_level_log").info(f"Move Plate {row} {col} {drop}")
+        logging.getLogger("user_level_log").info("Move Plate %s %s %s", row, col, drop)
+        hwr_log.info(
+            "Move Plate to position row: %s, col: %s, drop: %s", row, col, drop
+        )
         try:
-            hwr_log.info(
-                "Move Plate to position row: {}, col:{}, drop {}".format(row, col, drop)
+            row_index = HWR.beamline.diffractometer.plate_row_list.index(row.upper())
+        except ValueError as ex:
+            hwr_log.error(
+                "Cannot move plate: could not find the row value %s in the row_list",
+                row,
             )
+            raise Exception("Please make sure the Row value is within A-H") from ex
 
-            try:
-                row_index = HWR.beamline.diffractometer.plate_row_list.index(
-                    row.upper()
-                )
-            except Exception as ex:
-                hwr_log.error("could find the row value {} in the row_list".format(row))
-                raise Exception("please make sure the Row value is within A-H") from ex
-
+        try:
             params = "{}\t{}\t{}".format(row_index, int(col) - 1, int(drop) - 1)
             HWR.beamline.diffractometer.command_dict["startMovePlateToShelf"](params)
             HWR.beamline.diffractometer.wait_ready(30)
@@ -410,9 +410,7 @@ class MovePlate(AnnotatedCommand):
             ]
             current_col = int(current_pos[1]) + 1
             hwr_log.info(
-                "Current plate position row: {}, col:{}".format(
-                    current_row, current_col
-                )
+                "Current plate position row: %s, col:%s", current_row, current_col
             )
         except Exception:
             hwr_log.exception("Cannot move plate.")

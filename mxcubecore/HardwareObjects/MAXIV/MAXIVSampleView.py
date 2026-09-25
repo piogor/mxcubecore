@@ -301,9 +301,9 @@ class MAXIVSampleView(SampleView):
 
         if HWR.beamline.diffractometer.in_plate_mode:
             # set to the middle position of omega range in the end of manual centring
-            dynamic_limits = self.omega_motor_hwobj.get_dynamic_limits()
-            mid_angle = (dynamic_limits[0] + dynamic_limits[1]) / 2.0
-            if mid_angle > dynamic_limits[0] and mid_angle < dynamic_limits[1]:
+            limit_min, limit_max = self.omega_motor_hwobj.get_dynamic_limits()
+            mid_angle = (limit_min + limit_max) / 2.0
+            if limit_min < limit_max:
                 self.omega_motor_hwobj.set_value(mid_angle)
 
         return self.centring_hwobj.centeredPosition(return_by_name=False)
@@ -473,6 +473,36 @@ class MAXIVSampleView(SampleView):
             return None
 
         return self.get_center_pos()
+
+    def move_to_xray_center(
+        self, cent_x: int, cent_y: int, shape_id: str, *, save_point=False
+    ):
+        # cent_x, cent_y is the cell value, not absolute value
+        beam_size_x, beam_size_y = HWR.beamline.beam.get_beam_size()
+        x_mm = (cent_x + 0.5) * beam_size_x
+        y_mm = (cent_y + 0.5) * beam_size_y
+
+        shape = self.get_shape(shape_id)
+        if shape.t == "L":
+            y_mm = 0
+        self.log.info(
+            "Should move sample by x {} mm, y {} mm to center it".format(x_mm, y_mm)
+        )
+        self.user_log.info(
+            "Crystal is identified from Xray diffraction "
+            "and will be moved to the beam center"
+        )
+        HWR.beamline.diffractometer.wait_ready(5)
+        HWR.beamline.diffractometer.phiy_motor_hwobj.set_value_relative(-y_mm)
+        HWR.beamline.diffractometer.wait_ready(5)
+        self.move_cent_vertical_relative(-x_mm)
+        HWR.beamline.diffractometer.save_centring_positions()
+        cpos = HWR.beamline.diffractometer.last_centered_position
+        if save_point:
+            self.centring_status["motors"] = cpos
+            self.centring_status["valid"] = True
+            self.accept_centring()
+        self.log.info("Centring positions saved. Motors: {}".format(cpos))
 
     def omega_reference_add_constraint(self):
         beam_position = HWR.beamline.beam.get_beam_position_on_screen()
